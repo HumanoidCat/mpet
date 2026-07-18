@@ -29,10 +29,10 @@ export function App() {
 
   return (
     <main style={{ fontFamily: 'system-ui', maxWidth: 640, margin: '2rem auto', padding: '0 1rem' }}>
-      <h1>🎓 My Personal English Teacher</h1>
+      <h1>My Personal English Teacher</h1>
       <p><em>Semana 1 — app shell con mocks. Ver docs/ para el plan.</em></p>
       <button onClick={simulateTurn} disabled={busy}>
-        {busy ? 'Procesando…' : '🎙️ Simular turno de conversación (mock)'}
+        {busy ? 'Procesando...' : 'Simular turno de conversacion (mock)'}
       </button>
       <ul style={{ listStyle: 'none', padding: 0 }}>
         {messages.map((m) => (
@@ -44,7 +44,7 @@ export function App() {
               <strong>{m.role === 'user' ? 'Tú' : 'Tutor'}:</strong> {m.text}
               {m.correction && m.correction.edits.length > 0 && (
                 <div style={{ fontSize: '0.85em', marginTop: 4 }}>
-                  ✏️ <s>{m.correction.edits[0].original}</s> → <b>{m.correction.edits[0].corrected}</b>
+                  <s>{m.correction.edits[0].original}</s> {'->'} <b>{m.correction.edits[0].corrected}</b>
                 </div>
               )}
             </span>
