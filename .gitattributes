@@ -1,0 +1,5 @@
+# Normaliza fines de linea: en el repo siempre LF, sin importar el SO local.
+# Evita diffs falsos gigantes (CRLF vs LF) entre Windows y el CI de Linux.
+* text=auto eol=lf
+*.png binary
+*.ico binary
