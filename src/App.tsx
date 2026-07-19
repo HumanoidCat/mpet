@@ -1,38 +1,62 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { createOrchestrator, type OrchestratorState } from '@core/orchestrator';
+import { createEventBus } from '@core/eventBus';
+import { createMockAudioEngine } from '@mocks/mockAudioEngine';
 import { createMockAIPipeline } from '@mocks/mockAIPipeline';
 import type { ChatMessage } from '@shared/contracts';
 
 /**
- * App shell temporal (Semana 1). Demuestra el flujo con mocks.
- * Cada módulo lo irá reemplazando: ui/chat (Monestel), core/orchestrator (Alejandro).
+ * App shell (Semana 1-2). Usa el orquestador v0 con mocks:
+ * los modulos reales (audio de Fabrizio, IA de Isaac, chat de Monestel)
+ * lo iran sustituyendo sin cambiar el flujo.
  */
-const ai = createMockAIPipeline();
+
+const LABEL: Record<OrchestratorState, string> = {
+  idle: 'Iniciar grabacion (mock)',
+  recording: 'Detener y procesar',
+  processing: 'Procesando...',
+};
 
 export function App() {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [busy, setBusy] = useState(false);
+  const { bus, orch } = useMemo(() => {
+    const bus = createEventBus();
+    const orch = createOrchestrator({
+      audio: createMockAudioEngine(),
+      ai: createMockAIPipeline(),
+      bus,
+    });
+    return { bus, orch };
+  }, []);
 
-  async function simulateTurn() {
-    setBusy(true);
-    const tr = await ai.transcribe(new Float32Array(0));
-    const corr = await ai.correctGrammar(tr.text);
-    const userMsg: ChatMessage = {
-      id: crypto.randomUUID(), role: 'user', text: tr.text, correction: corr, ts: Date.now(),
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [state, setState] = useState<OrchestratorState>('idle');
+
+  useEffect(() => {
+    const offMsg = bus.on('message', (e) =>
+      setMessages((m) => [...m, e.message])
+    );
+    const offErr = bus.on('error', (e) =>
+      console.error(`[${e.stage}] ${e.error}`)
+    );
+    return () => {
+      offMsg();
+      offErr();
     };
-    const replyText = await ai.reply([userMsg]);
-    const tutorMsg: ChatMessage = {
-      id: crypto.randomUUID(), role: 'tutor', text: replyText, ts: Date.now(),
-    };
-    setMessages((m) => [...m, userMsg, tutorMsg]);
-    setBusy(false);
+  }, [bus]);
+
+  async function onMicClick() {
+    const p = orch.toggleMic();
+    setState(orch.getState() === 'idle' ? 'processing' : orch.getState());
+    await p;
+    setState(orch.getState());
   }
 
   return (
     <main style={{ fontFamily: 'system-ui', maxWidth: 640, margin: '2rem auto', padding: '0 1rem' }}>
       <h1>My Personal English Teacher</h1>
-      <p><em>Semana 1 — app shell con mocks. Ver docs/ para el plan.</em></p>
-      <button onClick={simulateTurn} disabled={busy}>
-        {busy ? 'Procesando...' : 'Simular turno de conversacion (mock)'}
+      <p><em>Semana 1-2: orquestador v0 con mocks. Ver docs/ para el plan.</em></p>
+      <button onClick={onMicClick} disabled={state === 'processing'}>
+        {LABEL[state]}
       </button>
       <ul style={{ listStyle: 'none', padding: 0 }}>
         {messages.map((m) => (
@@ -41,7 +65,7 @@ export function App() {
               display: 'inline-block', padding: '0.5rem 0.75rem', borderRadius: 12,
               background: m.role === 'user' ? '#dbeafe' : '#dcfce7',
             }}>
-              <strong>{m.role === 'user' ? 'Tú' : 'Tutor'}:</strong> {m.text}
+              <strong>{m.role === 'user' ? 'Tu' : 'Tutor'}:</strong> {m.text}
               {m.correction && m.correction.edits.length > 0 && (
                 <div style={{ fontSize: '0.85em', marginTop: 4 }}>
                   <s>{m.correction.edits[0].original}</s> {'->'} <b>{m.correction.edits[0].corrected}</b>
