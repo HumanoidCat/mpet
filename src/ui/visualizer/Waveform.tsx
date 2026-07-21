@@ -3,11 +3,12 @@ import type { AudioEngine } from '@shared/contracts';
 
 /**
  * Waveform en tiempo real sobre Canvas (S3-T2).
- * Duenio actual: Alejandro (modulo UI asumido por baja del integrante).
+ * Duenio actual: Alejandro (modulo UI asumido).
  *
- * Se suscribe a AudioEngine.onFrame y mantiene un buffer deslizante de las
- * ultimas muestras. Dibuja con requestAnimationFrame para no bloquear la UI
- * (objetivo: 30+ fps, ver RF-03 en la matriz de trazabilidad).
+ * Buffer deslizante de las ultimas muestras + dibujo min/max por columna de
+ * pixeles en requestAnimationFrame (objetivo RF-03: >= 30 fps).
+ * Con autoganancia de visualizacion: escala la onda al pico reciente para
+ * que la voz a volumen normal sea visible sin saturar.
  */
 
 const BUFFER_SECONDS = 2;
@@ -20,9 +21,8 @@ interface Props {
   height?: number;
 }
 
-export function Waveform({ audio, width = 640, height = 120 }: Props) {
+export function Waveform({ audio, width = 640, height = 110 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  // Buffer circular de muestras recientes
   const bufferRef = useRef<Float32Array>(new Float32Array(BUFFER_SIZE));
   const writeposRef = useRef(0);
 
@@ -44,19 +44,33 @@ export function Waveform({ audio, width = 640, height = 120 }: Props) {
         const ctx = canvas.getContext('2d');
         if (ctx) {
           const buf = bufferRef.current;
-          const start = writeposRef.current; // muestra mas antigua
-          ctx.clearRect(0, 0, width, height);
+          const start = writeposRef.current;
 
-          // Linea central (referencia de amplitud cero)
-          ctx.strokeStyle = '#e5e7eb';
+          // Fondo oscuro del panel
+          ctx.fillStyle = '#0f172a';
+          ctx.fillRect(0, 0, width, height);
+
+          // Linea central
+          ctx.strokeStyle = 'rgba(148, 163, 184, 0.35)';
+          ctx.lineWidth = 1;
           ctx.beginPath();
           ctx.moveTo(0, height / 2);
           ctx.lineTo(width, height / 2);
           ctx.stroke();
 
-          // Onda: un valor min/max por columna de pixeles
+          // Autoganancia: pico del buffer visible (minimo 0.05 para no
+          // amplificar el ruido de fondo hasta llenar la pantalla)
+          let peak = 0.05;
+          for (let i = 0; i < BUFFER_SIZE; i += 16) {
+            const v = Math.abs(buf[i]);
+            if (v > peak) peak = v;
+          }
+          const gain = 0.9 / peak;
+
+          // Onda min/max por columna
           const samplesPerPx = Math.floor(BUFFER_SIZE / width);
-          ctx.strokeStyle = '#2563eb';
+          ctx.strokeStyle = '#38bdf8';
+          ctx.lineWidth = 1;
           ctx.beginPath();
           for (let x = 0; x < width; x++) {
             let min = 1.0;
@@ -67,10 +81,10 @@ export function Waveform({ audio, width = 640, height = 120 }: Props) {
               if (v < min) min = v;
               if (v > max) max = v;
             }
-            const yMin = ((1 - min) / 2) * height;
-            const yMax = ((1 - max) / 2) * height;
+            const yMin = ((1 - Math.max(-1, min * gain)) / 2) * height;
+            const yMax = ((1 - Math.min(1, max * gain)) / 2) * height;
             ctx.moveTo(x + 0.5, yMin);
-            ctx.lineTo(x + 0.5, yMax);
+            ctx.lineTo(x + 0.5, Math.abs(yMin - yMax) < 1 ? yMax + 1 : yMax);
           }
           ctx.stroke();
         }
@@ -90,7 +104,6 @@ export function Waveform({ audio, width = 640, height = 120 }: Props) {
       ref={canvasRef}
       width={width}
       height={height}
-      style={{ width: '100%', maxWidth: width, border: '1px solid #e5e7eb', borderRadius: 8 }}
       aria-label="Forma de onda del microfono"
     />
   );

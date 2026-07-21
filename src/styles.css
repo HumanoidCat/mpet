@@ -1,0 +1,231 @@
+/* Estilos de la app (S2-T6). Duenio: Alejandro (modulo UI). */
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  background: linear-gradient(160deg, #eef2ff 0%, #f8fafc 45%, #ecfeff 100%);
+  min-height: 100vh;
+  color: #0f172a;
+}
+
+.app {
+  max-width: 680px;
+  margin: 2.5rem auto;
+  padding: 0 1rem;
+}
+
+.card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 20px;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+  padding: 1.5rem 1.75rem 2rem;
+}
+
+.app-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.25rem;
+}
+
+.app-header h1 {
+  font-size: 1.5rem;
+  margin: 0;
+  letter-spacing: -0.02em;
+}
+
+.badge {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #4f46e5;
+  background: #eef2ff;
+  border: 1px solid #c7d2fe;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.tagline {
+  margin: 0 0 1.25rem;
+  color: #64748b;
+  font-size: 0.9rem;
+}
+
+.wave-panel {
+  background: #0f172a;
+  border-radius: 14px;
+  padding: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+
+.wave-panel canvas {
+  display: block;
+  width: 100%;
+  border-radius: 8px;
+}
+
+.wave-label {
+  color: #94a3b8;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin: 0 0 0.5rem 0.25rem;
+}
+
+.chat-scroll {
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 0.25rem 0.25rem 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.chat-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  min-height: 90px;
+}
+
+.chat-empty {
+  color: #94a3b8;
+  font-size: 0.9rem;
+  text-align: center;
+  padding: 2rem 0;
+}
+
+.msg {
+  margin: 0.5rem 0;
+  display: flex;
+}
+
+.msg.user {
+  justify-content: flex-end;
+}
+
+.msg.tutor {
+  justify-content: flex-start;
+}
+
+.bubble {
+  display: inline-block;
+  padding: 0.6rem 0.9rem;
+  border-radius: 16px;
+  max-width: 85%;
+  line-height: 1.45;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+  animation: pop-in 0.25s ease-out;
+}
+
+.msg.user .bubble {
+  background: #2563eb;
+  color: #ffffff;
+  border-bottom-right-radius: 4px;
+}
+
+.msg.tutor .bubble {
+  background: #f1f5f9;
+  color: #0f172a;
+  border-bottom-left-radius: 4px;
+}
+
+.msg .who {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  opacity: 0.7;
+  margin-bottom: 0.15rem;
+}
+
+.word-error {
+  color: #fecaca;
+  text-decoration: line-through;
+  margin-right: 0.25rem;
+}
+
+.msg.tutor .word-error {
+  color: #dc2626;
+}
+
+.word-fix {
+  color: #86efac;
+  font-weight: 700;
+  margin-right: 0.25rem;
+}
+
+.msg.tutor .word-fix {
+  color: #16a34a;
+}
+
+.mic-row {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+}
+
+.mic-btn {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  color: #ffffff;
+  background: linear-gradient(145deg, #3b82f6, #2563eb);
+  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.35);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.mic-btn:hover:not(:disabled) {
+  transform: scale(1.05);
+}
+
+.mic-btn:disabled {
+  cursor: wait;
+  background: #94a3b8;
+  box-shadow: none;
+}
+
+.mic-btn.recording {
+  background: linear-gradient(145deg, #ef4444, #dc2626);
+  box-shadow: 0 6px 16px rgba(220, 38, 38, 0.4);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+.mic-btn svg {
+  width: 26px;
+  height: 26px;
+}
+
+.mic-hint {
+  color: #64748b;
+  font-size: 0.85rem;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.45);
+  }
+  50% {
+    box-shadow: 0 0 0 14px rgba(220, 38, 38, 0);
+  }
+}
+
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
