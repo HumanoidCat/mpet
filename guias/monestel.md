@@ -1,7 +1,9 @@
-# ⚠️ REASIGNADO — El integrante no se incorporó al proyecto (semana 3)
+# ⚠️ REASIGNADO — Integrante sin aportes al desarrollo (semana 3)
 
-> Las tareas de este módulo pasaron a Alejandro (ver `guias/alejandro.md`).
-> Se conserva este archivo como evidencia de la planificación original.
+> El integrante permanece en el grupo del curso pero no ha realizado aportes
+> al proyecto. Las tareas de este módulo pasaron a Alejandro (ver
+> `guias/alejandro.md`). Se conserva este archivo como evidencia de la
+> planificación original y de la redistribución.
 
 # Checklist original — Frontend/Visualización (`src/ui/`)
 

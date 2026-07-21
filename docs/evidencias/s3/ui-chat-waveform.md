@@ -2,8 +2,8 @@
 
 **Autor:** Alejandro Zamora · **Semana 3** · **Epica E4**
 **Nota de asignacion:** tareas del modulo UI originalmente planificadas para el
-cuarto integrante, quien no se incorporo al proyecto. Asumidas por Alejandro
-(ver `guias/alejandro.md` y nota en `README.md`).
+cuarto integrante, quien permanece en el grupo pero no ha realizado aportes al
+desarrollo. Asumidas por Alejandro (ver `guias/alejandro.md` y nota en `README.md`).
 
 ## Que se construyo
 
