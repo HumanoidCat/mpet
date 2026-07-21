@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Spike S1-T7 · Whisper-tiny en el navegador</title>
+  <!--
+    ─────────────────────────────────────────────────────────────────────────
+    SPIKE S1-T7 · Isaac (IA/ML) · módulo AISLADO y desechable
+    ─────────────────────────────────────────────────────────────────────────
+    OBJETIVO: cargar Xenova/whisper-tiny.en en el navegador y MEDIR:
+      - tiempo de carga (frío = 1ª vez / caliente = cacheado)
+      - tamaño del modelo en caché
+      - tiempo de inferencia y factor de tiempo real (RTF)
+      - memoria aproximada
+      - comparar tiny vs base
+
+    POR QUÉ ASÍ (decisiones clave, para Isaac que no ha usado HF en prod):
+      1) La librería se carga por CDN (ESM), NO por package.json. Regla del equipo:
+         @huggingface/transformers se agrega como dependencia recién en Semana 2 (S2-T4).
+         Un spike no debe modificar package.json (archivo compartido -> PR shared-change).
+      2) Es un solo HTML autocontenido -> se sirve con cualquier server estático y se
+         puede capturar en pantalla como evidencia sin build ni configuración.
+      3) Whisper espera audio MONO a 16 kHz -> remuestreamos con OfflineAudioContext.
+    ─────────────────────────────────────────────────────────────────────────
+  -->
+  <style>
+    :root { color-scheme: light dark; }
+    body { font-family: system-ui, sans-serif; max-width: 860px; margin: 2rem auto; padding: 0 1rem; line-height: 1.5; }
+    h1 { font-size: 1.4rem; } h2 { font-size: 1.05rem; margin-top: 1.6rem; }
+    button { padding: .5rem .9rem; margin: .2rem .3rem .2rem 0; cursor: pointer; border-radius: 6px; border: 1px solid #8888; background: #8881; }
+    button:disabled { opacity: .45; cursor: not-allowed; }
+    select, input[type=file] { padding: .35rem; }
+    .row { margin: .6rem 0; }
+    #log { white-space: pre-wrap; font-family: ui-monospace, monospace; font-size: .82rem; background: #8881; padding: .8rem; border-radius: 8px; max-height: 240px; overflow: auto; }
+    table { border-collapse: collapse; width: 100%; margin-top: .6rem; font-size: .9rem; }
+    th, td { border: 1px solid #8886; padding: .4rem .6rem; text-align: left; }
+    .muted { opacity: .7; font-size: .85rem; }
+    .badge { display:inline-block; padding:.05rem .5rem; border-radius: 99px; background:#8882; font-size:.8rem; }
+  </style>
+</head>
+<body>
+  <h1>🎙️ Spike S1-T7 — Whisper-tiny en el navegador</h1>
+  <p class="muted">Módulo aislado. Mide carga y latencia de ASR con transformers.js (client-side, offline tras la 1ª descarga). No forma parte del pipeline real.</p>
+
+  <h2>1) Audio de prueba</h2>
+  <div class="row">
+    <button id="btnRec">● Grabar (5 s)</button>
+    <button id="btnPlay" disabled>▶ Reproducir</button>
+    <button id="btnDownload" disabled>⬇ Descargar WAV (para el fixture)</button>
+    <span id="audioInfo" class="muted"></span>
+  </div>
+  <div class="row">
+    <label>…o cargar un WAV existente (reproducible): <input id="fileInput" type="file" accept="audio/*" /></label>
+  </div>
+
+  <h2>2) Modelo</h2>
+  <div class="row">
+    <label>Modelo:
+      <select id="modelSel">
+        <option value="Xenova/whisper-tiny.en" selected>whisper-tiny.en</option>
+        <option value="Xenova/whisper-base.en">whisper-base.en (comparar)</option>
+      </select>
+    </label>
+    <label>Cuantización (dtype):
+      <select id="dtypeSel">
+        <option value="q8" selected>q8</option>
+        <option value="q4">q4</option>
+        <option value="fp32">fp32 (sin cuantizar)</option>
+        <option value="">por defecto</option>
+      </select>
+    </label>
+    <button id="btnLoad">Cargar modelo + medir</button>
+  </div>
+
+  <h2>3) Transcribir + medir</h2>
+  <div class="row">
+    <button id="btnRun" disabled>Transcribir el audio</button>
+  </div>
+
+  <h2>Resultados</h2>
+  <table id="results">
+    <thead><tr>
+      <th>Modelo</th><th>dtype</th><th>Carga (s)</th><th>Caché Δ (MB)</th>
+      <th>Audio (s)</th><th>Inferencia (s)</th><th>RTF (×tiempo real)</th><th>Heap JS (MB)</th>
+    </tr></thead>
+    <tbody></tbody>
+  </table>
+  <p class="muted">RTF = inferencia / duración del audio. RTF &lt; 1 significa más rápido que tiempo real. Para conversación fluida buscamos RTF bajo y carga caliente corta.</p>
+  <p id="transcript" class="row"><span class="badge">Transcripción</span> <span id="txt">—</span></p>
+
+  <h2>Registro</h2>
+  <div id="log"></div>
+
+  <script type="module">
+    // POR QUÉ el import es una URL completa: así el navegador baja la librería del CDN
+    // y NO tenemos que instalarla en package.json (regla de equipo: dependencia = Semana 2).
+    // @3 = última versión 3.x; jsdelivr sirve el bundle ESM en /+esm.
+    import { pipeline, env } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3/+esm';
+
+    // transformers.js cachea los pesos del modelo en el navegador (Cache API / IndexedDB).
+    // Lo dejamos activado (es justo lo que queremos medir: frío vs caliente).
+    env.allowLocalModels = false; // solo Hub remoto en este spike
+
+    const $ = (id) => document.getElementById(id);
+    const log = (m) => { $('log').textContent += m + '\n'; $('log').scrollTop = 1e9; };
+
+    let pcm16k = null;      // Float32Array del audio a 16 kHz mono (lo que Whisper consume)
+    let audioSeconds = 0;
+    let asr = null;         // pipeline cargado
+    let lastLoadSeconds = 0, lastCacheDeltaMB = 0;
+
+    // ── Utilidad: remuestrear cualquier AudioBuffer a mono 16 kHz ────────────
+    // POR QUÉ: Whisper fue entrenado a 16 kHz. Si le pasamos otra tasa, empeora.
+    async function toMono16k(audioBuffer) {
+      const rate = 16000;
+      const length = Math.max(1, Math.ceil(audioBuffer.duration * rate));
+      const off = new OfflineAudioContext(1, length, rate);
+      const src = off.createBufferSource();
+      src.buffer = audioBuffer;
+      src.connect(off.destination);
+      src.start(0);
+      const rendered = await off.startRendering();
+      return rendered.getChannelData(0);
+    }
+
+    function setAudio(float32, seconds) {
+      pcm16k = float32; audioSeconds = seconds;
+      $('audioInfo').textContent = `· ${seconds.toFixed(1)} s @16 kHz listo`;
+      $('btnPlay').disabled = false;
+      $('btnDownload').disabled = false;
+      if (asr) $('btnRun').disabled = false;
+    }
+
+    // ── Grabar con el micrófono (Opción A) ───────────────────────────────────
+    $('btnRec').onclick = async () => {
+      try {
+        log('Pidiendo permiso de micrófono…');
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const rec = new MediaRecorder(stream);
+        const chunks = [];
+        rec.ondataavailable = (e) => chunks.push(e.data);
+        rec.onstop = async () => {
+          stream.getTracks().forEach(t => t.stop());
+          const blob = new Blob(chunks, { type: rec.mimeType });
+          const buf = await blob.arrayBuffer();
+          const ac = new AudioContext();
+          const decoded = await ac.decodeAudioData(buf);
+          const mono = await toMono16k(decoded);
+          setAudio(mono, mono.length / 16000);
+          log(`Grabación lista (${(mono.length/16000).toFixed(1)} s).`);
+        };
+        rec.start();
+        log('Grabando 5 s… ¡habla ahora!');
+        $('btnRec').disabled = true;
+        setTimeout(() => { rec.stop(); $('btnRec').disabled = false; }, 5000);
+      } catch (e) { log('⚠ Error al grabar: ' + e.message); $('btnRec').disabled = false; }
+    };
+
+    // ── Cargar un WAV existente (Opción B, reproducible) ─────────────────────
+    $('fileInput').onchange = async (ev) => {
+      const file = ev.target.files[0]; if (!file) return;
+      const buf = await file.arrayBuffer();
+      const ac = new AudioContext();
+      const decoded = await ac.decodeAudioData(buf);
+      const mono = await toMono16k(decoded);
+      setAudio(mono, mono.length / 16000);
+      log(`WAV cargado: ${file.name} (${(mono.length/16000).toFixed(1)} s).`);
+    };
+
+    // ── Reproducir el audio actual ───────────────────────────────────────────
+    $('btnPlay').onclick = () => {
+      const ac = new AudioContext();
+      const b = ac.createBuffer(1, pcm16k.length, 16000);
+      b.getChannelData(0).set(pcm16k);
+      const s = ac.createBufferSource(); s.buffer = b; s.connect(ac.destination); s.start();
+    };
+
+    // ── Descargar el audio como WAV 16 kHz mono (para guardar el fixture) ─────
+    // POR QUÉ: el navegador no puede escribir en tests/ai/fixtures/ directamente.
+    // Descargamos el WAV y tú lo mueves a esa carpeta -> queda como evidencia reproducible.
+    $('btnDownload').onclick = () => {
+      const blob = encodeWAV(pcm16k, 16000);
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'sample-en.wav';
+      a.click();
+      log('Descargado sample-en.wav → muévelo a tests/ai/fixtures/');
+    };
+
+    function encodeWAV(samples, rate) {
+      const buf = new ArrayBuffer(44 + samples.length * 2);
+      const v = new DataView(buf);
+      const wstr = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+      wstr(0, 'RIFF'); v.setUint32(4, 36 + samples.length * 2, true); wstr(8, 'WAVE');
+      wstr(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+      v.setUint32(24, rate, true); v.setUint32(28, rate * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+      wstr(36, 'data'); v.setUint32(40, samples.length * 2, true);
+      let o = 44;
+      for (let i = 0; i < samples.length; i++) {
+        const s = Math.max(-1, Math.min(1, samples[i]));
+        v.setInt16(o, s < 0 ? s * 0x8000 : s * 0x7fff, true); o += 2;
+      }
+      return new Blob([v], { type: 'audio/wav' });
+    }
+
+    // ── Cargar el modelo y MEDIR (carga + tamaño en caché) ───────────────────
+    $('btnLoad').onclick = async () => {
+      const model = $('modelSel').value;
+      const dtype = $('dtypeSel').value; // '' = por defecto
+      $('btnLoad').disabled = true;
+      try {
+        // navigator.storage.estimate() nos da el uso de almacenamiento del origen.
+        // La diferencia antes/después ≈ tamaño que ocupó el modelo en caché.
+        const before = (await navigator.storage.estimate()).usage || 0;
+        log(`Cargando ${model} (dtype=${dtype || 'por defecto'})…`);
+
+        const opts = { progress_callback: (p) => {
+          if (p.status === 'progress' && p.total) {
+            log(`  ↓ ${p.file}: ${(100 * p.loaded / p.total).toFixed(0)}%`);
+          }
+        }};
+        if (dtype) opts.dtype = dtype;
+
+        const t0 = performance.now();
+        asr = await pipeline('automatic-speech-recognition', model, opts);
+        lastLoadSeconds = (performance.now() - t0) / 1000;
+
+        const after = (await navigator.storage.estimate()).usage || 0;
+        lastCacheDeltaMB = Math.max(0, (after - before) / (1024 * 1024));
+
+        log(`✔ Modelo cargado en ${lastLoadSeconds.toFixed(2)} s. Caché Δ ≈ ${lastCacheDeltaMB.toFixed(1)} MB.`);
+        log(`  (Recarga la página y vuelve a cargar para medir la carga "caliente"/cacheada.)`);
+        if (pcm16k) $('btnRun').disabled = false;
+      } catch (e) {
+        log('⚠ Error cargando modelo: ' + e.message + ' — prueba dtype "por defecto".');
+      } finally { $('btnLoad').disabled = false; }
+    };
+
+    // ── Transcribir y MEDIR inferencia ───────────────────────────────────────
+    $('btnRun').onclick = async () => {
+      if (!asr || !pcm16k) return;
+      $('btnRun').disabled = true;
+      try {
+        log('Transcribiendo…');
+        const t0 = performance.now();
+        const out = await asr(pcm16k);           // Whisper consume Float32Array @16 kHz
+        const infer = (performance.now() - t0) / 1000;
+        const rtf = infer / audioSeconds;
+        const heapMB = performance.memory ? performance.memory.usedJSHeapSize / (1024 * 1024) : null;
+
+        $('txt').textContent = out.text || '(vacío)';
+        addRow({
+          model: $('modelSel').value, dtype: $('dtypeSel').value || 'default',
+          load: lastLoadSeconds, cache: lastCacheDeltaMB,
+          audio: audioSeconds, infer, rtf, heap: heapMB,
+        });
+        log(`✔ Transcripción: "${out.text}"  ·  inferencia ${infer.toFixed(2)} s  ·  RTF ${rtf.toFixed(2)}×`);
+      } catch (e) { log('⚠ Error en inferencia: ' + e.message); }
+      finally { $('btnRun').disabled = false; }
+    };
+
+    function addRow(r) {
+      const tr = document.createElement('tr');
+      const cell = (x) => `<td>${x}</td>`;
+      tr.innerHTML =
+        cell(r.model.replace('Xenova/', '')) + cell(r.dtype) +
+        cell(r.load.toFixed(2)) + cell(r.cache.toFixed(1)) +
+        cell(r.audio.toFixed(1)) + cell(r.infer.toFixed(2)) + cell(r.rtf.toFixed(2)) +
+        cell(r.heap == null ? 'N/A' : r.heap.toFixed(0));
+      $('results').querySelector('tbody').appendChild(tr);
+    }
+
+    log('Listo. Paso 1: graba 5 s (o carga un WAV). Paso 2: carga el modelo. Paso 3: transcribe.');
+  </script>
+</body>
+</html>
