@@ -16,9 +16,11 @@ Toda la IA corre en el navegador con transformers.js (Hugging Face).
 | Fabrizio | DSP (señales) | `src/audio/` |
 | Isaac Morum | IA/ML (transformers.js) | `src/ai/` |
 
-> Nota (semana 3): el cuarto integrante (Monestel) no se incorporó al proyecto.
-> Sus tareas de UI/Visualización fueron redistribuidas; el módulo `src/ui/`
-> queda a cargo de Alejandro con apoyo puntual del equipo.
+> Nota (semana 3): el cuarto integrante (Monestel) permanece en el grupo del
+> curso pero no ha realizado aportes al desarrollo. Sus tareas de UI/Visualización
+> fueron redistribuidas; el módulo `src/ui/` queda a cargo de Alejandro.
+> El historial de commits y PRs de este repositorio documenta la contribución
+> real de cada integrante.
 
 👉 **Tu guía personal está en `guias/<tu-nombre>.md`. Léela antes de empezar.**
 
