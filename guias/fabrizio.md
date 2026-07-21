@@ -6,8 +6,8 @@
 > ⚠️ Estás en la **ruta crítica**: FFT, MFCC y YIN se implementan a mano (Meyda/librosa solo para validar) — es la evidencia principal de Señales y Sistemas.
 
 ## Semana 1 (14–21 jul)
-- [ ] S1-T6 · Spike: getUserMedia + AudioContext, confirmar sample rates
-- [ ] S1-T9 · Iniciar marco teórico: muestreo, Nyquist, DFT (con Monestel)
+- [x] S1-T6 · Spike: getUserMedia + AudioContext, confirmar sample rates → mic fijo a 48 kHz, decimación ÷3 (ver `docs/09-marco-teorico.md`)
+- [x] S1-T9 · Iniciar marco teórico: muestreo, Nyquist, DFT (con Monestel) → `docs/09-marco-teorico.md`
 
 ## Semana 2
 - [ ] S2-T1 · Captura: AudioWorklet, buffer circular, resampling a 16 kHz
