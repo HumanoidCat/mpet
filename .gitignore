@@ -7,3 +7,6 @@ coverage/
 Thumbs.db
 .vscode/*
 !.vscode/extensions.json
+
+# Configuracion local de Claude Code (rutas absolutas por maquina)
+.claude/
