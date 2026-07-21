@@ -17,6 +17,8 @@
 ## Semana 3
 - [ ] S3-T5 · Integración: hablar → transcribir → corregir → mostrar
 - [ ] S3-T6 · Coordinar documento Avance 1 (todos escriben su sección)
+- [ ] S3-T2 · Waveform en Canvas ≥30 fps *(asumida por baja de Monestel)*
+- [ ] S3-T4 · Highlights de gramática en el chat *(asumida por baja de Monestel)*
 
 ## Semana 4 — 🎯 AVANCE 1 (mar 4 ago)
 - [ ] S4-T1 · Ensayo general (2 corridas cronometradas)

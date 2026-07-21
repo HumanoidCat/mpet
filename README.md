@@ -12,10 +12,13 @@ Toda la IA corre en el navegador con transformers.js (Hugging Face).
 
 | Integrante | Módulo | Carpeta |
 |---|---|---|
-| Alejandro Zamora | PM + Core/PWA/Integración | `src/core/` |
+| Alejandro Zamora | PM + Core/PWA/Integración + UI | `src/core/`, `src/ui/` |
 | Fabrizio | DSP (señales) | `src/audio/` |
 | Isaac Morum | IA/ML (transformers.js) | `src/ai/` |
-| Monestel | UI/Visualización | `src/ui/` |
+
+> Nota (semana 3): el cuarto integrante (Monestel) no se incorporó al proyecto.
+> Sus tareas de UI/Visualización fueron redistribuidas; el módulo `src/ui/`
+> queda a cargo de Alejandro con apoyo puntual del equipo.
 
 👉 **Tu guía personal está en `guias/<tu-nombre>.md`. Léela antes de empezar.**
 
