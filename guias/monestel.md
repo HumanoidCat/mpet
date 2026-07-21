@@ -1,4 +1,9 @@
-# ✅ Checklist — Monestel · Frontend/Visualización (`src/ui/`)
+# ⚠️ REASIGNADO — El integrante no se incorporó al proyecto (semana 3)
+
+> Las tareas de este módulo pasaron a Alejandro (ver `guias/alejandro.md`).
+> Se conserva este archivo como evidencia de la planificación original.
+
+# Checklist original — Frontend/Visualización (`src/ui/`)
 
 > Marca `[x]` cuando completes cada tarea. **Solo tú editas este archivo.**
 > Detalle de cada tarea (horas, dificultad, herramientas): `docs/04-plan-semanal.md`.
