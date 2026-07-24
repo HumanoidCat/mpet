@@ -72,6 +72,19 @@ describe('classifyEdit', () => {
     expect(classifyEdit('recieve', 'receive')).toBe('spelling');
     expect(classifyEdit('goed', 'went')).toBe('grammar');
   });
+
+  // Casos reales que destapó el spike S3-T3: se parecen mucho entre sí, así que
+  // la similitud sola los clasificaba mal como 'spelling'.
+  it('trata las palabras funcionales como gramática aunque se parezcan', () => {
+    expect(classifyEdit("don't", "doesn't")).toBe('grammar');
+    expect(classifyEdit('is', 'are')).toBe('grammar');
+    expect(classifyEdit('have', 'has')).toBe('grammar');
+  });
+
+  it('trata el cambio de número (-s/-es) como gramática', () => {
+    expect(classifyEdit('breads', 'bread')).toBe('grammar');
+    expect(classifyEdit('box', 'boxes')).toBe('grammar');
+  });
 });
 
 describe('utilidades', () => {

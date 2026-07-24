@@ -56,16 +56,52 @@ ortografía vs gramática, inserción, eliminación, bloque contiguo con dos sus
 indiferencia a mayúsculas y puntuación, texto vacío, y las utilidades de tokenizado y
 normalización.
 
-## ⚠️ Limitación — pendiente de validar en runtime
+## ✅ Validación en runtime (spike `src/ai/spike-s3-t3/`)
 
-**El worker de gramática no se ha ejecutado todavía.** Lo verificado es tipado, la
-lógica de diff (con tests) y el empaquetado. Lo que **no** está comprobado es el modelo
-corriendo en el navegador: calidad real de las correcciones, latencia, y si el prefijo
-se comporta como indica la documentación.
+Ejecutado en Chrome con la dependencia real (3.8.1), el `diff.ts` de producción y el
+agregador de progreso de S2-T5.
 
-Antes del Avance 1 conviene un spike corto —igual que S1-T7— que cargue el modelo en
-Chrome, corrija un puñado de frases con errores típicos de hispanohablantes y mida
-tiempos. Es el mismo riesgo que se mitigó con el ASR, y es barato de hacer.
+| Medida | Valor | Interpretación |
+|---|---|---|
+| Carga en frío | 52.49 s | Descarga única |
+| Tamaño en caché | **238 MB** | ~6× el ASR (41 MB) |
+| Latencia media | **320 ms/frase** | Muy por debajo del objetivo de 2 s |
+| Latencia máxima | 456 ms | Frase con tres errores simultáneos |
+| Efecto del prefijo | Cambió 1 de 8 | Y **a favor** del prefijo |
+
+**Calidad: 6 de 8 frases corregidas.** Aciertos destacados: `I have 25 years old` →
+`I am 25 years old`; `Yesterday I go to the store and buyed some breads` →
+`Yesterday I went to the store and bought some bread` (tres errores de una vez);
+`I am agree with you` → `I agree with you`.
+
+**El prefijo `"grammar: "` queda confirmado:** en la única frase donde hubo diferencia,
+con prefijo corrigió `breads → bread` y sin prefijo no lo tocó. La hipótesis tomada de
+la ficha del modelo base era correcta.
+
+### Bug que destapó el spike (corregido)
+
+El diff clasificaba `don't → doesn't` como `spelling`, porque la similitud entre ambas
+es 0.71 y superaba el umbral. Pero es concordancia sujeto-verbo, es decir `grammar`.
+En una app que enseña inglés, marcar eso como "error de escritura" desorienta al
+estudiante. Mismo caso con `breads → bread` (número).
+
+Se añadieron dos reglas **antes** del criterio de similitud: si el cambio toca una
+palabra de clase cerrada (auxiliares, determinantes, preposiciones) → `grammar`; si las
+palabras difieren solo por `-s`/`-es` → `grammar`. Tests del diff: 12 → **14**.
+
+## ⚠️ Limitaciones conocidas
+
+1. **Cobertura del modelo.** No corrigió `He is more tall than me` (falta *taller*) ni
+   `Do you can help me?` (falta *Can you help me?*), y en `There is many people in the
+   party` arregló el verbo pero no la preposición. Comparativos y orden de preguntas con
+   modal son errores **frecuentes en hispanohablantes**, así que conviene decidir en
+   equipo si se acepta como limitación documentada o se busca un modelo mayor.
+2. **Peso.** 238 MB en caché. Con el ASR (41 MB) y el runtime WASM (21.6 MB), la primera
+   corrida descarga **~300 MB**. Recomendación: probar `q4` y comparar tamaño contra
+   calidad antes de cerrar la elección de cuantización. El spike ya permite cambiar el
+   `dtype` desde la interfaz.
+3. **El pipeline completo aún no corre integrado**: `src/App.tsx` sigue inyectando
+   `createMockAIPipeline`. La sustitución es tarea de integración (S3-T5, Alejandro).
 
 ## Decisión abierta para el equipo
 

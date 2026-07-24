@@ -70,11 +70,40 @@ function similarity(a: string, b: string): number {
 }
 
 /**
+ * Palabras de clase cerrada (auxiliares, determinantes, preposiciones…). Un cambio
+ * que toque una de ellas es SIEMPRE estructural, nunca un error de escritura.
+ *
+ * POR QUÉ ESTA LISTA: el spike S3-T3 destapó que "don't" → "doesn't" se clasificaba
+ * como `spelling`, porque las dos palabras se parecen mucho (similitud 0.71). Pero eso
+ * es concordancia sujeto-verbo. En una app que enseña inglés, decirle al estudiante
+ * "escribiste mal" cuando el problema es gramatical lo desorienta.
+ */
+const FUNCTION_WORDS = new Set([
+  'a', 'an', 'the',
+  'be', 'am', 'is', 'are', 'was', 'were', 'been', 'being',
+  "isn't", "aren't", "wasn't", "weren't",
+  'do', 'does', 'did', "don't", "doesn't", "didn't",
+  'have', 'has', 'had', "haven't", "hasn't", "hadn't",
+  'can', 'could', 'will', 'would', 'shall', 'should', 'may', 'might', 'must',
+  "can't", "won't", "wouldn't", "shouldn't",
+  'to', 'of', 'in', 'at', 'on', 'for', 'with', 'from', 'by',
+  'and', 'or', 'but', 'than', 'then', 'there', 'their',
+]);
+
+/** ¿Difieren solo por la -s/-es de plural o de tercera persona? */
+function differsOnlyByPluralS(a: string, b: string): boolean {
+  const [short, long] = a.length <= b.length ? [a, b] : [b, a];
+  return long === short + 's' || long === short + 'es';
+}
+
+/**
  * Clasifica el tipo de cambio.
  *
- * Heurística deliberadamente simple: si las dos palabras se parecen mucho, casi
- * siempre es un error de escritura ("recieve" → "receive"); si no se parecen, es un
- * cambio gramatical ("goed" → "went", "have" → "has").
+ * Orden de las reglas (de más fiable a más heurística):
+ *   1. Inserción o eliminación → estructural.
+ *   2. Toca una palabra funcional → estructural ("don't"→"doesn't", "is"→"are").
+ *   3. Difieren solo por -s/-es → concordancia de número ("breads"→"bread").
+ *   4. Si no, se parecen mucho → error de escritura ("recieve"→"receive").
  *
  * No emitimos `'word-choice'`: distinguir "una palabra más natural" de "una
  * corrección gramatical" requiere análisis semántico que este diff no hace, y
@@ -82,9 +111,14 @@ function similarity(a: string, b: string): number {
  */
 export function classifyEdit(original: string, corrected: string): Edit['type'] {
   if (!original || !corrected) return 'grammar'; // inserción o eliminación
-  return similarity(normalize(original), normalize(corrected)) >= 0.7
-    ? 'spelling'
-    : 'grammar';
+
+  const a = normalize(original);
+  const b = normalize(corrected);
+
+  if (FUNCTION_WORDS.has(a) || FUNCTION_WORDS.has(b)) return 'grammar';
+  if (differsOnlyByPluralS(a, b)) return 'grammar';
+
+  return similarity(a, b) >= 0.7 ? 'spelling' : 'grammar';
 }
 
 type Op =
