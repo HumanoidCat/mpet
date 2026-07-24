@@ -64,17 +64,40 @@ El diff clasificaba `don't → doesn't` como `spelling` porque las palabras se p
 añadieron dos reglas previas a la similitud: palabras de clase cerrada → `grammar`, y
 diferencia solo por `-s/-es` → `grammar`. Tests: 12 → 14.
 
+## Comparativa de cuantización: q8 vs q4
+
+| Medida | **q8** | **q4** | Veredicto |
+|---|---|---|---|
+| Latencia media por frase | **320 ms** | 1209 ms | q4 es **3.8× más lento** |
+| Latencia máxima | 456 ms | 1702 ms | |
+| Caché | **238 MB** | 303.9 MB | q4 es **más grande** |
+| Calidad | 6 / 8 | 6 / 8 | idéntica |
+| Carga en frío | 52.49 s | 51.62 s | equivalente |
+
+**Se elige `q8`.** El resultado es contraintuitivo —se esperaba que q4 fuese más pequeño
+a costa de precisión— pero salió peor en tamaño **y** en velocidad, sin cambiar una sola
+corrección.
+
+La explicación de la latencia es conocida: ONNX Runtime sobre WASM no tiene núcleos
+optimizados para 4 bits en CPU, así que **descuantiza en tiempo de ejecución** en cada
+inferencia. El ahorro de memoria se paga en cada frase procesada.
+
+> ⚠️ *Sobre la medida de caché:* proviene de `navigator.storage.estimate()`, que los
+> navegadores redondean a propósito, y la corrida de q4 se hizo con q8 ya cacheado. El
+> número exacto es aproximado; la conclusión no depende de él, porque la latencia por sí
+> sola ya descarta q4.
+
 ## Conclusión
 
-**Sirve para el Avance.** La latencia es excelente (320 ms de media, muy por debajo del
-objetivo de 2 s) y acierta en 6 de 8 frases difíciles, incluida una con tres errores
-simultáneos.
+**Sirve para el Avance, con `q8`.** La latencia es excelente (320 ms de media, muy por
+debajo del objetivo de 2 s) y acierta en 6 de 8 frases difíciles, incluida una con tres
+errores simultáneos.
 
-**Dos reservas a vigilar:**
+**Reservas que quedan para el equipo:**
 
 1. **Peso: 238 MB en caché**, casi 6× el ASR (41 MB). Sumando el runtime WASM (21.6 MB),
-   la primera corrida descarga **~300 MB**. Conviene probar `q4` y comparar tamaño
-   contra calidad antes de dar por cerrada la elección.
+   la primera corrida descarga **~300 MB**. Bajar de cuantización **no** es una salida
+   (ver comparativa); si el peso resulta inaceptable, habría que cambiar de modelo.
 2. **Cobertura del modelo:** falla en comparativos ("more tall" → "taller") y en el orden
    de preguntas con modal ("Do you can" → "Can you"). Son errores frecuentes en
    hispanohablantes, así que hay que decidir si se acepta o se documenta como limitación

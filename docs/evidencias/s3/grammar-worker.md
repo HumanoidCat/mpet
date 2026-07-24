@@ -97,11 +97,32 @@ palabras difieren solo por `-s`/`-es` → `grammar`. Tests del diff: 12 → **14
    modal son errores **frecuentes en hispanohablantes**, así que conviene decidir en
    equipo si se acepta como limitación documentada o se busca un modelo mayor.
 2. **Peso.** 238 MB en caché. Con el ASR (41 MB) y el runtime WASM (21.6 MB), la primera
-   corrida descarga **~300 MB**. Recomendación: probar `q4` y comparar tamaño contra
-   calidad antes de cerrar la elección de cuantización. El spike ya permite cambiar el
-   `dtype` desde la interfaz.
+   corrida descarga **~300 MB**. **Bajar la cuantización no es una salida** (ver abajo);
+   si el peso resulta inaceptable habría que cambiar de modelo.
 3. **El pipeline completo aún no corre integrado**: `src/App.tsx` sigue inyectando
    `createMockAIPipeline`. La sustitución es tarea de integración (S3-T5, Alejandro).
+
+## Elección de cuantización: q8 vs q4 (medido)
+
+| Medida | **q8 (elegido)** | q4 |
+|---|---|---|
+| Latencia media por frase | **320 ms** | 1209 ms (**3.8× más lento**) |
+| Latencia máxima | 456 ms | 1702 ms |
+| Caché | **238 MB** | 303.9 MB (**más grande**) |
+| Calidad | 6 / 8 | 6 / 8 (idéntica) |
+
+Resultado **contraintuitivo**: se esperaba que q4 fuese más pequeño a cambio de algo de
+precisión, y resultó peor en tamaño **y** en velocidad sin cambiar una sola corrección.
+
+La causa de la latencia es conocida: ONNX Runtime sobre WebAssembly no dispone de núcleos
+optimizados para 4 bits en CPU, de modo que **descuantiza en tiempo de ejecución** en cada
+inferencia; el ahorro de memoria se paga en cada frase.
+
+> La medida de caché procede de `navigator.storage.estimate()`, que los navegadores
+> redondean deliberadamente, y la corrida de q4 se hizo con q8 ya en caché. El valor es
+> aproximado, pero la conclusión no depende de él: la latencia por sí sola descarta q4.
+
+**Decisión: `q8`**, que es lo que ya trae `grammarProtocol.ts` por defecto.
 
 ## Decisión abierta para el equipo
 
