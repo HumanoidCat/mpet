@@ -10,8 +10,11 @@
       → Viable: caché 41 MB, carga caliente 0.54 s, inferencia RTF ≈ 0.3. Evidencia: `docs/evidencias/s1/whisper-tiny-spike.md`
 
 ## Semana 2
-- [ ] S2-T4 · Worker ASR con API `transcribe(pcm)` (agregar `@huggingface/transformers` vía PR `shared-change`)
-- [ ] S2-T5 · Indicador de progreso de descarga/carga de modelos
+- [x] S2-T4 · Worker ASR con API `transcribe(pcm)` (agregar `@huggingface/transformers` vía PR `shared-change`)
+      → Código completo (`src/ai/asr/`, `createAIPipeline.ts`). ⚠️ **Bloqueado**: falta aprobar la
+        dependencia. Propuesta lista en `src/ai/PROPUESTA-shared-change-s2-t4.md` (Alejandro).
+- [x] S2-T5 · Indicador de progreso de descarga/carga de modelos
+      → `model-cache/progress.ts` agrega el progreso por archivo en un 0–1 por modelo. 5 tests verdes.
 
 ## Semana 3
 - [ ] S3-T3 · Worker gramática: T5 cuantizado + extracción de edits palabra a palabra
