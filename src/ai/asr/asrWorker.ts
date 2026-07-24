@@ -14,7 +14,7 @@
 
 import { pipeline } from '@huggingface/transformers';
 import type { Transcription, WordAlign } from '@shared/contracts';
-import { createProgressAggregator } from '../model-cache/progress';
+import { createProgressAggregator, type RawProgressEvent } from '../model-cache/progress';
 import type { AsrRequest, AsrResponse } from './asrProtocol';
 
 // El tipado del pipeline de transformers.js es genérico; lo guardamos como
@@ -67,11 +67,15 @@ self.onmessage = async (event: MessageEvent<AsrRequest>) => {
         post({ type: 'progress', model: msg.model, progress })
       );
 
-      asr = (await pipeline('automatic-speech-recognition', msg.model, {
+      // Sin casts en las opciones a propósito: así TypeScript verifica de verdad
+      // que `dtype` y `progress_callback` existen en la API de transformers.js v3.
+      // (v4 es un salto mayor con API distinta; el proyecto está fijado en ^3.8.1
+      //  para que el código coincida con las mediciones del spike S1-T7.)
+      const loaded = await pipeline('automatic-speech-recognition', msg.model, {
         dtype: msg.dtype,
-        progress_callback: (e: unknown) =>
-          aggregator.handle(e as Parameters<typeof aggregator.handle>[0]),
-      } as Record<string, unknown>)) as unknown as AsrPipeline;
+        progress_callback: (e) => aggregator.handle(e as RawProgressEvent),
+      });
+      asr = loaded as unknown as AsrPipeline;
 
       aggregator.complete(); // cierra la barra en 100% aunque viniera de caché
       post({ type: 'ready', model: msg.model });

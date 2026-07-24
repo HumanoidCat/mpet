@@ -7,9 +7,12 @@
 
 Agregar **una** dependencia de producción a `package.json`:
 
+> **✅ APROBADO E INTEGRADO** por Alejandro en la rama `chore/shared-change-transformers`
+> (commit `9ec77af`), fijado en **`^3.8.1`**. Este documento queda como registro.
+
 ```diff
    "dependencies": {
-+    "@huggingface/transformers": "^3.0.0",
++    "@huggingface/transformers": "^3.8.1",
      "react": "^18.3.1",
      "react-dom": "^18.3.1"
    }
@@ -18,8 +21,14 @@ Agregar **una** dependencia de producción a `package.json`:
 Comando equivalente:
 
 ```bash
-npm install @huggingface/transformers
+npm install @huggingface/transformers@^3.8.1
 ```
+
+> ⚠️ **Corrección** (error en la primera versión de esta propuesta): NO usar
+> `npm install @huggingface/transformers` a secas — hoy instala la **v4.2.0**, que es un
+> salto de versión mayor con API distinta. El proyecto se queda en **v3** para que el
+> código coincida con las mediciones documentadas del spike S1-T7 (validado con v3).
+> Migrar a v4 sería una decisión aparte, con su propio spike y mediciones nuevas.
 
 ## Por qué
 
