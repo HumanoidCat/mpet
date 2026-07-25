@@ -11,14 +11,26 @@
 - [ ] S1-T5 · CI (Actions) + deploy a GitHub Pages
 - [ ] Tablero con issues de Semana 1 asignados
 
+## Semana 1 (extra)
+- [x] Contratos congelados + mocks de los 4 módulos (base del trabajo en paralelo)
+- [x] Aprobación del `shared-change` de `@huggingface/transformers` (fijado en ^3.8.1)
+- [x] Decisión de caché en runtime del WASM de ONNX (RF-14) — ver bitácora D-04
+
 ## Semana 2
-- [ ] S2-T7 · Orquestador v0: botón mic → captura → ASR → texto en chat
+- [x] S2-T7 · Orquestador v0: botón mic → captura → ASR → texto en chat
+      → `src/core/orchestrator.ts` con inyección de dependencias. 4 tests verdes.
+- [x] S2-T6 · Chat con botón de micrófono *(versión inicial; luego rediseñada por Monestel)*
 
 ## Semana 3
-- [ ] S3-T5 · Integración: hablar → transcribir → corregir → mostrar
-- [ ] S3-T6 · Coordinar documento Avance 1 (todos escriben su sección)
-- [ ] S3-T2 · Waveform en Canvas ≥30 fps *(asumida por baja de Monestel)*
-- [ ] S3-T4 · Highlights de gramática en el chat *(asumida por baja de Monestel)*
+- [x] S3-T2 · Waveform en Canvas ≥30 fps (buffer circular, min/max por píxel)
+- [x] S3-T4 · Highlights de gramática en el chat (`buildSegments`, 4 tests)
+- [x] Adaptador de micrófono real para demostración (`mocks/demoMicEngine.ts`)
+- [x] S3-T5 · **Integración: pipeline real de IA (Whisper + T5) conectado a la UI**
+      → Modo `?mock=1` como contingencia de demo + manejo de fallo de descarga.
+- [x] S3-T6 · Documento Avance 1 (8 secciones) + bitácora de decisiones (`docs/10`)
+- [x] Corrección del calendario de entregas y rescate de la rama de UI (ver bitácora I-02, I-03)
+- [ ] Capturas y anexos del documento (Anexo C y D)
+- [ ] S3-T7 · Presentación + guion de demo + video de respaldo
 
 ## Semana 4 — 🎯 AVANCE 1 (mar 28 jul)
 - [ ] S4-T1 · Ensayo general (2 corridas cronometradas)

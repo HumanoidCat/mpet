@@ -3,6 +3,7 @@ import { createOrchestrator, type OrchestratorState } from '@core/orchestrator';
 import { createEventBus } from '@core/eventBus';
 import { createDemoMicEngine } from '@mocks/demoMicEngine';
 import { createMockAIPipeline } from '@mocks/mockAIPipeline';
+import { createAIPipeline } from '@ai/createAIPipeline';
 import { Chat } from '@ui/chat/Chat';
 import { VisualizerScreen } from '@ui/visualizer/VisualizerScreen';
 import SplashScreen, { type ModelStatus } from '@ui/shell/Splash';
@@ -14,7 +15,27 @@ import GrammarScreen from '@ui/feedback/Grammar';
 import SuggestionsScreen from '@ui/chat/Suggestions';
 import SummaryScreen from '@ui/progress/Progress';
 import ModelsScreen from '@ui/shell/Models';
-import type { ChatMessage } from '@shared/contracts';
+import type { AIPipeline, ChatMessage } from '@shared/contracts';
+
+/**
+ * S3-T5 · Integracion de modulos reales. Duenio: Alejandro.
+ *
+ * MODO DE EJECUCION, elegible por URL sin recompilar:
+ *   (por defecto)  pipeline de IA REAL — Whisper-tiny + T5 cuantizado en workers
+ *   ?mock=1        pipeline simulado — sin descargas, respuestas fijas
+ *
+ * El modo simulado es el plan de contingencia de la demostracion: la primera
+ * carga descarga ~279 MB de modelos y en una red lenta puede no completarse.
+ * Con `?mock=1` la aplicacion se muestra igual con datos de ejemplo. Es una
+ * decision declarada, no un maquillaje: el badge de la cabecera lo indica.
+ *
+ * El audio usa el adaptador de microfono de demostracion hasta que el modulo de
+ * captura definitivo (S2-T1, Fabrizio) este disponible; se sustituye en esta
+ * misma linea cuando llegue.
+ */
+function useMockMode(): boolean {
+  return new URLSearchParams(window.location.search).get('mock') === '1';
+}
 
 export type Screen =
   | 'splash'
@@ -27,24 +48,37 @@ export type Screen =
   | 'models';
 
 export function App() {
+  const mockMode = useMockMode();
+
   const { bus, orch, audio } = useMemo(() => {
     const bus = createEventBus();
     const audio = createDemoMicEngine();
-    const ai = createMockAIPipeline();
+    const ai: AIPipeline = mockMode ? createMockAIPipeline() : createAIPipeline();
     const orch = createOrchestrator({ audio, ai, bus });
     return { bus, orch, audio };
-  }, []);
+  }, [mockMode]);
 
   // ── Carga de modelos (Splash) ──────────────────────────────────
   const [models, setModels] = useState<Record<string, number>>({});
   const [modelsReady, setModelsReady] = useState(false);
   const [screen, setScreen] = useState<Screen>('splash');
 
+  const [loadError, setLoadError] = useState<string | null>(null);
+
   useEffect(() => {
     const off = bus.on('model-progress', (e) => {
       setModels((m) => ({ ...m, [e.model]: e.progress }));
     });
-    orch.init().then(() => setModelsReady(true));
+    setLoadError(null);
+    orch
+      .init()
+      .then(() => setModelsReady(true))
+      // Si la descarga falla (red caida, cuota de almacenamiento), la aplicacion
+      // no puede quedarse colgada en la pantalla de carga: se informa y se ofrece
+      // el modo simulado, que no requiere descargas.
+      .catch((err: unknown) =>
+        setLoadError(err instanceof Error ? err.message : String(err))
+      );
     return off;
   }, [bus, orch]);
 
@@ -91,6 +125,37 @@ export function App() {
   }
 
   if (screen === 'splash') {
+    // Fallo de carga: se informa y se ofrece el modo simulado, que no descarga
+    // modelos. Es la salida de emergencia de la demostracion.
+    if (loadError) {
+      return (
+        <div className="h-screen w-screen flex flex-col items-center justify-center gap-4 p-8 text-center">
+          <h2 className="text-lg font-semibold text-red-600">
+            No se pudieron cargar los modelos
+          </h2>
+          <p className="text-sm text-slate-600 max-w-md">{loadError}</p>
+          <p className="text-sm text-slate-500 max-w-md">
+            Requiere conexion la primera vez para descargar los modelos desde
+            Hugging Face (unos 279 MB). Despues funciona sin conexion.
+          </p>
+          <div className="flex gap-3">
+            <button
+              onClick={() => window.location.reload()}
+              className="px-4 py-2 rounded-full bg-blue-600 text-white text-sm"
+            >
+              Reintentar
+            </button>
+            <a
+              href="?mock=1"
+              className="px-4 py-2 rounded-full border border-slate-300 text-slate-700 text-sm"
+            >
+              Abrir en modo demostracion
+            </a>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <SplashScreen
         models={modelList}
