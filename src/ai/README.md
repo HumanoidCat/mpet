@@ -12,8 +12,11 @@ Semana 2: worker ASR. Semana 3: gramática. Semana 5: TTS. Semana 6: sugerencias
 | `asr/asrWorker.ts` | Web Worker: Whisper + transformers.js | ✅ S2-T4 |
 | `asr/asrClient.ts` | Envuelve el worker en API de promesas | ✅ S2-T4 |
 | `model-cache/progress.ts` | Agrega el progreso por archivo en un 0–1 por modelo | ✅ S2-T5 |
+| `grammar/grammarWorker.ts` | Web Worker: T5 cuantizado de corrección gramatical | ✅ S3-T3 |
+| `grammar/grammarClient.ts` | Envuelve el worker de gramática en API de promesas | ✅ S3-T3 |
+| `grammar/diff.ts` | Diff palabra a palabra (LCS) → lista de `Edit` | ✅ S3-T3 |
 | `spike-s1-t7/` | Spike desechable de validación (no es código de producción) | ✅ S1-T7 |
-| `grammar/` · `suggestions/` · `tts/` | Pendientes | S3 · S6 · S5 |
+| `suggestions/` · `tts/` | Pendientes | S6 · S5 |
 
 ## Uso
 

@@ -5,7 +5,7 @@
 > Regla: trabaja solo en `src/audio/` y `tests/audio/`, en ramas `feat/audio-*`, PR a `dev`.
 > ⚠️ Estás en la **ruta crítica**: FFT, MFCC y YIN se implementan a mano (Meyda/librosa solo para validar) — es la evidencia principal de Señales y Sistemas.
 
-## Semana 1 (14–21 jul)
+## Semana 1 (7–13 jul)
 - [x] S1-T6 · Spike: getUserMedia + AudioContext, confirmar sample rates → mic fijo a 48 kHz, decimación ÷3 (ver `docs/09-marco-teorico.md`)
 - [x] S1-T9 · Iniciar marco teórico: muestreo, Nyquist, DFT (con Monestel) → `docs/09-marco-teorico.md`
 
@@ -18,7 +18,7 @@
 - [ ] S3-T1 · FFT radix-2 + STFT con ventana Hann, validada vs Meyda (tabla de error)
 - [ ] Mi sección del documento Avance 1 (procesamiento de audio)
 
-## Semana 4 — 🎯 AVANCE 1 (mar 4 ago)
+## Semana 4 — 🎯 AVANCE 1 (mar 28 jul)
 - [ ] Presentar mi parte en la demo
 - [ ] S4-T4 · Spike: pitch por autocorrelación
 
@@ -30,7 +30,7 @@
 - [ ] S6-T1 · DTW sobre secuencias MFCC (usuario vs referencia TTS)
 - [ ] S6-T2 · Puntaje global + por palabra con timestamps de Whisper (con Isaac)
 
-## Semana 7 — 🎯 AVANCE 2 (mar 25 ago)
+## Semana 7 — 🎯 AVANCE 2 (mar 18 ago)
 - [ ] S7-T4 · Optimización de latencia del análisis (con Isaac)
 - [ ] Mi sección del documento Avance 2
 
@@ -41,7 +41,7 @@
 ## Semana 9
 - [ ] S9-T3 · Afinado final del comparador con datos de pruebas
 
-## Semana 10 — 🎯 ENTREGA FINAL (mar 15 sep)
+## Semana 10 — 🎯 ENTREGA FINAL (mar 8 sep)
 - [ ] S10-T6 · Preparar respuestas: Nyquist, por qué MFCC, cómo funciona YIN/DTW
 
 ## Cómo trabajas sin depender de nadie

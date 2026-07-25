@@ -34,10 +34,33 @@ export default defineConfig({
         ]
       },
       workbox: {
-        // Los modelos de transformers.js se cachean solos en Cache API;
-        // aquí solo precacheamos el app shell.
+        // Precache: solo el app shell (ligero, se instala de una vez).
+        // Los modelos de Hugging Face (~279 MB) los cachea transformers.js
+        // en la Cache API durante la primera inferencia, no aqui.
         globPatterns: ['**/*.{js,css,html,svg,png}'],
-        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024
+        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
+        // El runtime WASM de ONNX (ort-wasm-*.wasm, ~22 MB) se cachea en
+        // tiempo de ejecucion, no en el precache. Motivos:
+        //   1) Coherencia: los modelos ya se cachean asi. Precachear el WASM
+        //      no daria offline por si solo, porque faltarian los modelos.
+        //   2) El precache de Workbox es todo-o-nada: 22 MB en la instalacion
+        //      del service worker es un punto de fallo innecesario.
+        // Resultado: primera ejecucion en linea descarga runtime + modelos;
+        // a partir de ahi la app funciona sin conexion (RF-14, RF-15).
+        runtimeCaching: [
+          {
+            urlPattern: /\.wasm$/,
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'onnx-runtime-wasm',
+              expiration: {
+                maxEntries: 8,
+                maxAgeSeconds: 60 * 60 * 24 * 90 // 90 dias
+              },
+              cacheableResponse: { statuses: [0, 200] }
+            }
+          }
+        ]
       }
     })
   ],
