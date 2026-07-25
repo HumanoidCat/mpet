@@ -42,19 +42,25 @@
 Los 5 tests nuevos cubren el agregador de progreso: combinación de varios archivos,
 monotonía, eventos sin tamaño, evento `done` y cierre en 100% desde caché.
 
-## ⚠️ Hallazgo para integración (Alejandro)
+## ⚠️ Hallazgo para integración — RESUELTO
 
 El build emite `ort-wasm-simd-threaded.jsep-*.wasm` de **21.6 MB** como archivo aparte.
-La configuración actual de Workbox en `vite.config.ts` tiene
-`maximumFileSizeToCacheInBytes: 5 MB`, así que **ese WASM no se precachearía**. Como el
-runtime de ONNX es imprescindible para la inferencia, eso puede romper el requisito de
-**offline real** (criterio de Calidad Técnica, 40%).
+Ese runtime de ONNX es imprescindible para la inferencia, y **no estaba quedando en el
+precaché** del service worker, lo que amenazaba el requisito de **offline real**
+(criterio de Calidad Técnica, 40%).
 
-Opciones a decidir por el dueño de `vite.config.ts`:
-- subir `maximumFileSizeToCacheInBytes` por encima de ~22 MB, o
-- añadir una regla de *runtime caching* para `.wasm`.
+**Corrección sobre el diagnóstico inicial:** este documento atribuyó la causa a
+`maximumFileSizeToCacheInBytes: 5 MB`. La causa operativa real es el `globPatterns` de
+Workbox, que solo lista `js/css/html/svg/png`: el `.wasm` nunca habría entrado al
+precaché, independientemente de su tamaño. El síntoma estaba bien identificado; el
+mecanismo, no.
 
-No lo aplico porque `vite.config.ts` es archivo compartido.
+**Resolución (Alejandro, rama `chore/pwa-cache-wasm`):** *runtime caching* con estrategia
+**CacheFirst** para los `.wasm`, en vez de subir el límite del precaché. Razonamiento: los
+modelos ya se cachean en runtime, así que precachear 22 MB en la instalación no daría
+offline igualmente y sí introduciría un punto de fallo todo-o-nada en el service worker.
+La estrategia queda coherente: primera corrida en línea descarga runtime + modelos; de ahí
+en adelante, offline. Verificado en el `sw.js` generado.
 
 ## Limitación honesta
 

@@ -17,7 +17,9 @@
       → `model-cache/progress.ts` agrega el progreso por archivo en un 0–1 por modelo. 5 tests verdes.
 
 ## Semana 3
-- [ ] S3-T3 · Worker gramática: T5 cuantizado + extracción de edits palabra a palabra
+- [x] S3-T3 · Worker gramática: T5 cuantizado + extracción de edits palabra a palabra
+      → `src/ai/grammar/` (worker + cliente + diff por LCS). 12 tests verdes.
+        ⚠️ Falta validar el modelo en runtime (spike corto antes del Avance).
 - [ ] Mi sección del documento Avance 1 (pipeline de IA)
 
 ## Semana 4 — 🎯 AVANCE 1 (mar 4 ago)
