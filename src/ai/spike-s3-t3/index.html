@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Spike S3-T3 · Corrección gramatical en el navegador</title>
+  <style>
+    :root { color-scheme: light dark; }
+    body { font-family: system-ui, sans-serif; max-width: 1000px; margin: 2rem auto; padding: 0 1rem; line-height: 1.5; }
+    h1 { font-size: 1.35rem; } h2 { font-size: 1.05rem; margin-top: 1.6rem; }
+    button { padding: .5rem .9rem; margin: .2rem .3rem .2rem 0; cursor: pointer; border-radius: 6px; border: 1px solid #8888; background: #8881; }
+    button:disabled { opacity: .45; cursor: not-allowed; }
+    textarea { width: 100%; min-height: 130px; font-family: ui-monospace, monospace; font-size: .85rem; padding: .6rem; border-radius: 6px; border: 1px solid #8886; background: transparent; color: inherit; }
+    table { border-collapse: collapse; width: 100%; margin-top: .6rem; font-size: .85rem; }
+    th, td { border: 1px solid #8886; padding: .4rem .55rem; text-align: left; vertical-align: top; }
+    #log { white-space: pre-wrap; font-family: ui-monospace, monospace; font-size: .8rem; background: #8881; padding: .7rem; border-radius: 8px; max-height: 220px; overflow: auto; }
+    .muted { opacity: .7; font-size: .85rem; }
+    .ok { color: #2e7d32; font-weight: 600; }
+    .bad { color: #c62828; text-decoration: line-through; }
+    .add { color: #2e7d32; font-weight: 600; }
+    .row { margin: .6rem 0; }
+  </style>
+</head>
+<body>
+  <h1>📝 Spike S3-T3 — Corrección gramatical con T5</h1>
+  <p class="muted">
+    Valida el worker de gramática antes del Avance 1: comprueba que el modelo corrige de
+    verdad, mide latencia, y <strong>resuelve si el prefijo <code>"grammar: "</code> hace
+    diferencia</strong>. Usa el <code>diff.ts</code> real del proyecto, no una copia.
+  </p>
+
+  <h2>1) Modelo</h2>
+  <div class="row">
+    <label>Cuantización:
+      <select id="dtype">
+        <option value="q8" selected>q8</option>
+        <option value="q4">q4</option>
+        <option value="fp32">fp32</option>
+      </select>
+    </label>
+    <label style="margin-left:1rem">
+      <input type="checkbox" id="comparePrefix" checked />
+      Comparar con y sin prefijo <code>grammar:</code>
+    </label>
+    <button id="btnLoad">Cargar modelo + medir</button>
+  </div>
+
+  <h2>2) Frases de prueba</h2>
+  <p class="muted">Una por línea. Vienen errores típicos de hispanohablantes; edítalas si quieres.</p>
+  <textarea id="sentences">I have 25 years old.
+She don't like the coffee.
+Yesterday I go to the store and buyed some breads.
+I am agree with you.
+He is more tall than me.
+I recieve your message yesterday.
+Do you can help me?
+There is many people in the party.</textarea>
+
+  <div class="row">
+    <button id="btnRun" disabled>Corregir todas + medir</button>
+  </div>
+
+  <h2>Resultados</h2>
+  <div id="results"></div>
+
+  <h2>Resumen</h2>
+  <table id="summary">
+    <thead><tr><th>Medida</th><th>Valor</th></tr></thead>
+    <tbody></tbody>
+  </table>
+
+  <h2>Registro</h2>
+  <div id="log"></div>
+
+  <script type="module" src="./spike.ts"></script>
+</body>
+</html>
