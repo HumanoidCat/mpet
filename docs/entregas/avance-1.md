@@ -314,6 +314,42 @@ El resultado valida la viabilidad del enfoque offline: la penalización de la pr
 carga es un costo único, y en régimen la etapa de reconocimiento queda holgadamente
 bajo el objetivo de 2 segundos.
 
+**Corrección gramatical (spike S3-T3).** El modelo `t5-base-grammar-correction`
+cuantizado a 8 bits corrige 6 de 8 frases con errores típicos de hispanohablantes
+—incluida una con tres errores simultáneos— con una latencia media de 320 ms y
+máxima de 456 ms, muy por debajo del objetivo. Se verificó experimentalmente que el
+modelo requiere el prefijo `"grammar: "` en la entrada, detalle que la ficha de la
+conversión a ONNX omite: su ausencia degrada la corrección.
+
+**Estudio de cuantización: 8 bits frente a 4 bits.** Con el objetivo de reducir el
+tamaño de descarga se evaluó la variante de 4 bits, con un resultado contrario a la
+intuición:
+
+| Medida | q8 (8 bits) | q4 (4 bits) |
+|---|---|---|
+| Latencia media por frase | 320 ms | 1 209 ms (3.8 veces más lento) |
+| Tamaño en caché | 238 MB | 303.9 MB (mayor) |
+| Calidad de corrección | 6 de 8 | 6 de 8 (idéntica) |
+
+La explicación es arquitectónica: ONNX Runtime sobre WebAssembly no dispone de
+núcleos de cómputo optimizados para enteros de 4 bits en CPU, de modo que
+**descuantiza en tiempo de ejecución en cada inferencia**. El ahorro teórico de
+memoria se paga como trabajo adicional en cada frase, y el empaquetado resulta
+además más voluminoso. La conclusión aplicable al proyecto es que **reducir la
+cuantización no es una vía válida para aligerar la descarga en este entorno**: si
+el peso resulta inaceptable, la variable a cambiar es el modelo, no el tipo de dato.
+
+**Presupuesto de descarga inicial.** El conjunto de artefactos necesarios para
+operar sin conexión suma aproximadamente 300 MB: 41 MB del reconocedor de voz,
+238 MB del corrector gramatical y 21.6 MB del runtime WebAssembly de ONNX. Es una
+cifra elevada para una aplicación web instalable y queda registrada como riesgo
+activo del proyecto (véase sección 7.4).
+
+**Limitaciones conocidas del corrector.** El modelo no corrige la formación de
+comparativos (*more tall* → *taller*) ni la inversión en preguntas con verbo modal
+(*Do you can* → *Can you*), ambos errores frecuentes en hispanohablantes. Se
+documentan explícitamente y se revisarán en la fase de optimización.
+
 > **Secciones a completar para el documento final:** MFCC y banco de filtros mel
 > (Semana 5, Fabrizio), algoritmo YIN (Semana 5, Fabrizio), alineamiento temporal
 > dinámico (Semana 6, Fabrizio), síntesis de voz y arquitectura de los modelos
@@ -331,8 +367,8 @@ Estado al cierre del Avance 1. La matriz completa y actualizada se mantiene en
 | RF-01 | Captura de micrófono | Alta | `src/audio/capture` | Parcial | Sonda de dispositivo ejecutada; adaptador de demostración operativo | Rate detectado 48 kHz; estrategia de decimación seleccionada en runtime |
 | RF-02 | Preprocesamiento: decimación, filtrado, normalización | Alta | `src/audio/dsp` | Parcial | Utilidades de muestreo con pruebas unitarias | Factor entero 3; corte del filtro 7 200 Hz |
 | RF-03 | Visualización de forma de onda en tiempo real | Alta | `src/ui/visualizer` | Implementado | Inspección visual con señal real y sintética | Renderizado sobre requestAnimationFrame; objetivo 30 fps |
-| RF-04 | Reconocimiento de voz offline (Whisper) | Alta | `src/ai/asr` | Parcial | Spike con mediciones completas; worker en desarrollo | RTF 0.28–0.31; 41 MB en caché |
-| RF-05 | Corrección gramatical con resaltado | Alta | `src/ai/grammar` + `src/ui/chat` | Parcial | Resaltado implementado y probado con 4 pruebas unitarias | Modelo real pendiente de integración |
+| RF-04 | Reconocimiento de voz offline (Whisper) | Alta | `src/ai/asr` | Implementado en código; verificación en ejecución pendiente de la integración | Spike con mediciones completas; worker con pruebas unitarias | RTF 0.28–0.31; 41 MB en caché |
+| RF-05 | Corrección gramatical con resaltado | Alta | `src/ai/grammar` + `src/ui/chat` | Implementado en código; verificación en ejecución pendiente de la integración | Spike del modelo ejecutado; resaltado y diferenciador con pruebas unitarias | 320 ms de latencia media; 6 de 8 frases corregidas |
 | RF-06 | Interfaz de chat con control de micrófono | Alta | `src/ui/chat` | Implementado | Prueba manual del flujo completo | Estados idle / grabando / procesando operativos |
 | RF-07 | Espectrograma en tiempo real | Alta | `src/audio/dsp` + `src/ui` | Pendiente | — | Planificado Semana 5 |
 | RF-08 | Detección de frecuencia fundamental | Alta | `src/audio/features` | Pendiente | — | Planificado Semana 5 |
@@ -409,6 +445,8 @@ real; integración de módulos reales en sustitución de los simulados.
 | El micrófono no permite negociar la frecuencia de muestreo | Implementar decimación explícita con filtro anti-aliasing en lugar de delegar en el navegador. La decisión además aporta evidencia directa del curso |
 | La versión actual del motor de inferencia es una mayor superior a la validada | Fijar la versión a la rama validada experimentalmente, para preservar la correspondencia entre el código y las mediciones documentadas |
 | Consumo de memoria de un solo modelo cercano a 290 MB | Registrado como riesgo; se medirá el consumo agregado al incorporar los modelos restantes y se evaluará carga bajo demanda |
+| La descarga inicial acumulada asciende a unos 300 MB (reconocedor, corrector y runtime) | Se descartó la reducción de cuantización como solución: el estudio q8/q4 demuestra que en este entorno degrada latencia y aumenta tamaño. Para el Avance 1 se conserva la configuración medida y se adoptan dos medidas: carga bajo demanda del corrector, de modo que la primera interacción dependa únicamente del reconocedor, y evaluación de un modelo de corrección de menor tamaño en la fase de optimización |
+| El clasificador de ediciones etiquetaba errores de concordancia sujeto-verbo como errores ortográficos por similitud de las palabras | Corregido mediante reglas de palabras funcionales y de número; cobertura de pruebas ampliada |
 
 ---
 
