@@ -4,7 +4,7 @@
 > Detalle de cada tarea (horas, dificultad, herramientas): `docs/04-plan-semanal.md`.
 > Regla: trabaja solo en `src/core/` y `tests/core/`, en ramas `feat/core-*`, PR a `dev`.
 
-## Semana 1 (14–21 jul)
+## Semana 1 (7–13 jul)
 - [ ] S1-T2 · Repo GitHub, protección de ramas, plantilla PR
 - [ ] S1-T3 · Scaffold Vite+React+PWA con estructura modular
 - [ ] S1-T4 · Contratos congelados en `shared/contracts.ts` + mocks
@@ -20,7 +20,7 @@
 - [ ] S3-T2 · Waveform en Canvas ≥30 fps *(asumida por baja de Monestel)*
 - [ ] S3-T4 · Highlights de gramática en el chat *(asumida por baja de Monestel)*
 
-## Semana 4 — 🎯 AVANCE 1 (mar 4 ago)
+## Semana 4 — 🎯 AVANCE 1 (mar 28 jul)
 - [ ] S4-T1 · Ensayo general (2 corridas cronometradas)
 - [ ] S4-T2 · Entrega en plataforma + presentación
 - [ ] S4-T3 · Retrospectiva → ajustes al backlog
@@ -33,7 +33,7 @@
 - [ ] S6-T5 · PWA completa: manifest, service worker, precache
 - [ ] S6-T6 · Verificar cache de modelos y arranque 100% offline
 
-## Semana 7 — 🎯 AVANCE 2 (mar 25 ago)
+## Semana 7 — 🎯 AVANCE 2 (mar 18 ago)
 - [ ] S7-T1 · Orquestador conversación completa (ASR→gramática→sugerencias→respuesta→TTS→comparador)
 - [ ] S7-T5 · Coordinar documento Avance 2
 
@@ -45,7 +45,7 @@
 - [ ] S9-T4 · Coordinar documento final
 - [ ] S9-T6 · Feature freeze (viernes): solo bugs desde aquí
 
-## Semana 10 — 🎯 ENTREGA FINAL (mar 15 sep)
+## Semana 10 — 🎯 ENTREGA FINAL (mar 8 sep)
 - [ ] S10-T2 · Matriz de trazabilidad final completa
 - [ ] S10-T5 · Entrega en plataforma (doc + deck + repo + demo)
 

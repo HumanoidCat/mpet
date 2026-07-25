@@ -5,7 +5,7 @@
 > Regla: trabaja solo en `src/ai/` y `tests/ai/`, en ramas `feat/ai-*`, PR a `dev`.
 > ⚠️ Cada modelo corre en un **Web Worker** con variantes **cuantizadas** (q4/q8). Requisito del curso: cero servidores, todo en el navegador con transformers.js.
 
-## Semana 1 (14–21 jul)
+## Semana 1 (7–13 jul)
 - [x] S1-T7 · Spike: cargar `Xenova/whisper-tiny.en`, medir tamaño y latencia en tu laptop
       → Viable: caché 41 MB, carga caliente 0.54 s, inferencia RTF ≈ 0.3. Evidencia: `docs/evidencias/s1/whisper-tiny-spike.md`
 
@@ -22,7 +22,7 @@
         ⚠️ Falta validar el modelo en runtime (spike corto antes del Avance).
 - [ ] Mi sección del documento Avance 1 (pipeline de IA)
 
-## Semana 4 — 🎯 AVANCE 1 (mar 4 ago)
+## Semana 4 — 🎯 AVANCE 1 (mar 28 jul)
 - [ ] Presentar mi parte en la demo
 - [ ] S4-T5 · Spike: TTS SpeechT5, medir calidad/latencia
 
@@ -33,7 +33,7 @@
 - [ ] S6-T4 · Worker sugerencias: LLM ligero con prompts fijos (naturalidad, vocabulario)
 - [ ] S6-T2 · Timestamps por palabra de Whisper para el puntaje (con Fabrizio)
 
-## Semana 7 — 🎯 AVANCE 2 (mar 25 ago)
+## Semana 7 — 🎯 AVANCE 2 (mar 18 ago)
 - [ ] S7-T2 · Respuesta conversacional (prompt de tutor)
 - [ ] S7-T4 · Optimizar latencia: pipeline en paralelo, medir por etapa (con Fabrizio)
 - [ ] Mi sección del documento Avance 2
@@ -45,7 +45,7 @@
 ## Semana 9
 - [ ] Apoyo a corrección de bugs y afinado
 
-## Semana 10 — 🎯 ENTREGA FINAL (mar 15 sep)
+## Semana 10 — 🎯 ENTREGA FINAL (mar 8 sep)
 - [ ] S10-T6 · Preparar respuestas: cuantización, ONNX/WASM, WER, por qué whisper-tiny
 
 ## Modelos objetivo (validar en spikes)
