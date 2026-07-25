@@ -12,7 +12,7 @@
 > Regla: trabaja solo en `src/ui/` y `tests/ui/`, en ramas `feat/ui-*`, PR a `dev`.
 > ⚠️ **Nunca esperes a los demás**: desarrolla todo contra `mocks/` (mockAudioEngine te da frames con FFT/pitch/MFCC; mockAIPipeline te da transcripciones; mockScorer te da puntajes).
 
-## Semana 1 (14–21 jul)
+## Semana 1 (7–13 jul)
 - [ ] S1-T8 · Wireframes (chat + visualizadores) y sistema de diseño básico
 - [ ] S1-T9 · Marco teórico inicial (con Fabrizio)
 
@@ -24,7 +24,7 @@
 - [ ] S3-T4 · Highlights de gramática en chat (rojo error → verde corrección)
 - [ ] Mi sección del documento Avance 1 (interfaz) + deck S3-T7
 
-## Semana 4 — 🎯 AVANCE 1 (mar 4 ago)
+## Semana 4 — 🎯 AVANCE 1 (mar 28 jul)
 - [ ] Presentar mi parte en la demo
 
 ## Semana 5
@@ -34,7 +34,7 @@
 ## Semana 6
 - [ ] S6-T3 · Feedback de pronunciación: colores por palabra + panel de detalle
 
-## Semana 7 — 🎯 AVANCE 2 (mar 25 ago)
+## Semana 7 — 🎯 AVANCE 2 (mar 18 ago)
 - [ ] S7-T3 · Pulir UX: estados de carga, errores de micrófono, reintentos
 - [ ] Mi sección del documento Avance 2 + deck S7-T6
 
@@ -46,7 +46,7 @@
 - [ ] S9-T2 · (Opcional) Gamificación ligera: racha, frases dominadas
 - [ ] S9-T7 · Grabar video demo de respaldo completo
 
-## Semana 10 — 🎯 ENTREGA FINAL (mar 15 sep)
+## Semana 10 — 🎯 ENTREGA FINAL (mar 8 sep)
 - [ ] S10-T3 · Armar presentación final con el equipo
 
 ## Tips técnicos

@@ -6,7 +6,7 @@ pronunciación con análisis de señales (MFCC, pitch YIN, DTW) y responde con v
 Toda la IA corre en el navegador con transformers.js (Hugging Face).
 
 **Curso:** Señales y Sistemas · **Clase:** martes 1:00 pm
-**Hitos:** Avance 1 → mar 4 ago · Avance 2 → mar 25 ago · Final → mar 15 sep
+**Hitos:** Avance 1 → mar 28 jul · Avance 2 → mar 18 ago · Final → mar 8 sep
 
 ## Equipo y módulos
 
