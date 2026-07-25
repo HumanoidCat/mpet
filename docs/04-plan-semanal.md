@@ -1,6 +1,6 @@
 # Plan Semanal — Sprint Backlogs (10 semanas)
 
-Sprints de 1 semana (miércoles→martes: cada **martes 1:00 pm** hay clase y se muestra el avance; los hitos caen en martes: Avance 1 = 4 ago, Avance 2 = 25 ago, Final = 15 sep). Convenciones de tareas: **P** = prioridad (Alta/Media/Baja), **D** = dificultad (1 fácil – 5 difícil), **h** = horas estimadas. Herramientas base para todas: VS Code, Git/GitHub, Chrome DevTools. Solo se listan herramientas adicionales.
+Sprints de 1 semana (miércoles→martes: cada **martes 1:00 pm** hay clase y se muestra el avance; los hitos caen en martes: Avance 1 = 28 jul, Avance 2 = 18 ago, Final = 8 sep). Convenciones de tareas: **P** = prioridad (Alta/Media/Baja), **D** = dificultad (1 fácil – 5 difícil), **h** = horas estimadas. Herramientas base para todas: VS Code, Git/GitHub, Chrome DevTools. Solo se listan herramientas adicionales.
 
 ---
 

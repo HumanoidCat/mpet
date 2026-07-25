@@ -2,6 +2,7 @@ import { defineConfig } from 'vitest/config';
 import { fileURLToPath, URL } from 'node:url';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
+import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig({
   base: './',
@@ -17,6 +18,7 @@ export default defineConfig({
   },
   plugins: [
     react(),
+    tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
       manifest: {
@@ -33,7 +35,7 @@ export default defineConfig({
       },
       workbox: {
         // Precache: solo el app shell (ligero, se instala de una vez).
-        // Los modelos de Hugging Face (~41 MB) los cachea transformers.js
+        // Los modelos de Hugging Face (~279 MB) los cachea transformers.js
         // en la Cache API durante la primera inferencia, no aqui.
         globPatterns: ['**/*.{js,css,html,svg,png}'],
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,

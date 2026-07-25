@@ -4,15 +4,27 @@ import { createEventBus } from '@core/eventBus';
 import { createDemoMicEngine } from '@mocks/demoMicEngine';
 import { createMockAIPipeline } from '@mocks/mockAIPipeline';
 import { Chat } from '@ui/chat/Chat';
-import { Waveform } from '@ui/visualizer/Waveform';
+import { VisualizerScreen } from '@ui/visualizer/VisualizerScreen';
+import SplashScreen, { type ModelStatus } from '@ui/shell/Splash';
+import Header from '@ui/shell/Header';
+import Sidebar from '@ui/shell/Sidebar';
+import Footer from '@ui/shell/Footer';
+import PronunciationScreen from '@ui/feedback/Pronunciation';
+import GrammarScreen from '@ui/feedback/Grammar';
+import SuggestionsScreen from '@ui/chat/Suggestions';
+import SummaryScreen from '@ui/progress/Progress';
+import ModelsScreen from '@ui/shell/Models';
 import type { ChatMessage } from '@shared/contracts';
 
-/**
- * Composicion de la app (Semanas 2-3).
- * Audio: microfono real (adaptador de demo) — el modulo DSP completo de
- * Fabrizio lo sustituye en S3-T5. IA: mock — el pipeline real de Isaac
- * lo sustituye en S3-T5. Solo cambian estas factory calls.
- */
+export type Screen =
+  | 'splash'
+  | 'chat'
+  | 'visualizer'
+  | 'pronunciation'
+  | 'grammar'
+  | 'suggestions'
+  | 'summary'
+  | 'models';
 
 export function App() {
   const { bus, orch, audio } = useMemo(() => {
@@ -23,9 +35,33 @@ export function App() {
     return { bus, orch, audio };
   }, []);
 
+  // ── Carga de modelos (Splash) ──────────────────────────────────
+  const [models, setModels] = useState<Record<string, number>>({});
+  const [modelsReady, setModelsReady] = useState(false);
+  const [screen, setScreen] = useState<Screen>('splash');
+
+  useEffect(() => {
+    const off = bus.on('model-progress', (e) => {
+      setModels((m) => ({ ...m, [e.model]: e.progress }));
+    });
+    orch.init().then(() => setModelsReady(true));
+    return off;
+  }, [bus, orch]);
+
+  const modelList: ModelStatus[] = Object.entries(models).map(([name, progress]) => ({
+    name,
+    size: '', // el AIPipeline real (Isaac) todavía no reporta tamaño; se agrega cuando exista
+    progress,
+  }));
+  const overallProgress = modelList.length
+    ? modelList.reduce((sum, m) => sum + m.progress, 0) / modelList.length
+    : 0;
+
+  // ── Chat / orquestador ──────────────────────────────────────────
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [state, setState] = useState<OrchestratorState>('idle');
   const [micError, setMicError] = useState<string | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
     const offMsg = bus.on('message', (e) => setMessages((m) => [...m, e.message]));
@@ -49,24 +85,65 @@ export function App() {
     }
   }
 
+  function handleNavigate(s: Screen) {
+    setScreen(s);
+    setSidebarOpen(false);
+  }
+
+  if (screen === 'splash') {
+    return (
+      <SplashScreen
+        models={modelList}
+        overallProgress={overallProgress}
+        ready={modelsReady}
+        onReady={() => setScreen('chat')}
+      />
+    );
+  }
+
   return (
-    <div className="app">
-      <div className="card">
-        <header className="app-header">
-          <h1>My Personal English Teacher</h1>
-          <span className="badge">Avance 1 - en desarrollo</span>
-        </header>
-        <p className="tagline">
-          Practica ingles conversacional con correccion de pronunciacion y gramatica.
-          Todo el procesamiento ocurre en tu navegador.
-        </p>
-        <div className="wave-panel">
-          <p className="wave-label">Senal del microfono - dominio del tiempo</p>
-          <Waveform audio={audio} />
+    <div className="h-screen w-screen flex flex-col overflow-hidden bg-[var(--color-surface)]">
+      <Header
+        micActive={state === 'recording'}
+        processingState={state === 'recording' ? 'listening' : state === 'processing' ? 'processing' : 'idle'}
+        sidebarOpen={sidebarOpen}
+        onToggleSidebar={() => setSidebarOpen((v) => !v)}
+      />
+
+      <div className="flex flex-1 overflow-hidden relative">
+        {/* Sidebar: drawer en mobile/tablet, fija en desktop (lg+) */}
+        <div
+          className={`fixed inset-y-0 left-0 z-50 lg:static lg:z-auto transition-transform duration-200 ${
+            sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+          }`}
+        >
+          <Sidebar active={screen} onNavigate={handleNavigate} />
         </div>
-        {micError && <p style={{ color: '#dc2626', fontSize: '0.85rem' }}>{micError}</p>}
-        <Chat messages={messages} state={state} onMicClick={onMicClick} />
+        {sidebarOpen && (
+          <div
+            className="fixed inset-0 bg-black/30 z-40 lg:hidden"
+            onClick={() => setSidebarOpen(false)}
+          />
+        )}
+
+        <main className="flex-1 flex flex-col overflow-hidden">
+          {micError && (
+            <p className="text-[var(--color-danger)] text-xs px-4 py-2 bg-[var(--color-danger-light)]">
+              {micError}
+            </p>
+          )}
+
+          {screen === 'chat' && <Chat messages={messages} state={state} onMicClick={onMicClick} />}
+          {screen === 'visualizer' && <VisualizerScreen audio={audio} />}
+          {screen === 'pronunciation' && <PronunciationScreen />}
+          {screen === 'grammar' && <GrammarScreen />}
+          {screen === 'suggestions' && <SuggestionsScreen />}
+          {screen === 'summary' && <SummaryScreen />}
+          {screen === 'models' && <ModelsScreen />}
+        </main>
       </div>
+
+      <Footer currentScreen={screen} onNavigate={handleNavigate} />
     </div>
   );
 }

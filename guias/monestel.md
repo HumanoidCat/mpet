@@ -1,30 +1,23 @@
-# ⚠️ REASIGNADO — Integrante sin aportes al desarrollo (semana 3)
-
-> El integrante permanece en el grupo del curso pero no ha realizado aportes
-> al proyecto. Las tareas de este módulo pasaron a Alejandro (ver
-> `guias/alejandro.md`). Se conserva este archivo como evidencia de la
-> planificación original y de la redistribución.
-
-# Checklist original — Frontend/Visualización (`src/ui/`)
+✅ Checklist — Jose Pablo Monestel · Ingeniero Frontend/Visualización (src/ui/)
 
 > Marca `[x]` cuando completes cada tarea. **Solo tú editas este archivo.**
 > Detalle de cada tarea (horas, dificultad, herramientas): `docs/04-plan-semanal.md`.
 > Regla: trabaja solo en `src/ui/` y `tests/ui/`, en ramas `feat/ui-*`, PR a `dev`.
 > ⚠️ **Nunca esperes a los demás**: desarrolla todo contra `mocks/` (mockAudioEngine te da frames con FFT/pitch/MFCC; mockAIPipeline te da transcripciones; mockScorer te da puntajes).
 
-## Semana 1 (14–21 jul)
-- [ ] S1-T8 · Wireframes (chat + visualizadores) y sistema de diseño básico
+## Semana 1 (7–13 jul)
+- [x] S1-T8 · Wireframes (chat + visualizadores) y sistema de diseño básico
 - [ ] S1-T9 · Marco teórico inicial (con Fabrizio)
 
 ## Semana 2
-- [ ] S2-T6 · Chat: burbujas usuario/app, botón mic con estados (idle/grabando/procesando)
+- [x] S2-T6 · Chat: burbujas usuario/app, botón mic con estados (idle/grabando/procesando)
 
 ## Semana 3
 - [ ] S3-T2 · Waveform en Canvas a ≥30 fps (consume `onFrame`)
-- [ ] S3-T4 · Highlights de gramática en chat (rojo error → verde corrección)
+- [x] S3-T4 · Highlights de gramática en chat (rojo error → verde corrección)
 - [ ] Mi sección del documento Avance 1 (interfaz) + deck S3-T7
 
-## Semana 4 — 🎯 AVANCE 1 (mar 4 ago)
+## Semana 4 — 🎯 AVANCE 1 (mar 28 jul)
 - [ ] Presentar mi parte en la demo
 
 ## Semana 5
@@ -34,7 +27,7 @@
 ## Semana 6
 - [ ] S6-T3 · Feedback de pronunciación: colores por palabra + panel de detalle
 
-## Semana 7 — 🎯 AVANCE 2 (mar 25 ago)
+## Semana 7 — 🎯 AVANCE 2 (mar 18 ago)
 - [ ] S7-T3 · Pulir UX: estados de carga, errores de micrófono, reintentos
 - [ ] Mi sección del documento Avance 2 + deck S7-T6
 
@@ -46,7 +39,7 @@
 - [ ] S9-T2 · (Opcional) Gamificación ligera: racha, frases dominadas
 - [ ] S9-T7 · Grabar video demo de respaldo completo
 
-## Semana 10 — 🎯 ENTREGA FINAL (mar 15 sep)
+## Semana 10 — 🎯 ENTREGA FINAL (mar 8 sep)
 - [ ] S10-T3 · Armar presentación final con el equipo
 
 ## Tips técnicos
