@@ -27,6 +27,10 @@
 - [x] Adaptador de micrófono real para demostración (`mocks/demoMicEngine.ts`)
 - [x] S3-T5 · **Integración: pipeline real de IA (Whisper + T5) conectado a la UI**
       → Modo `?mock=1` como contingencia de demo + manejo de fallo de descarga.
+- [x] S3-T5b · **Adaptador módulo DSP → contrato `AudioEngine`** (`src/core/audioEngineAdapter.ts`)
+      → Une la captura de Fabrizio (AudioWorklet + decimación ÷3 + pasa-banda + RMS)
+        con su FFT propia y la entrega como `AudioFrame` al visualizador. 7 tests.
+        Pitch y MFCC quedan declarados como pendientes (S5), no inventados.
 - [x] S3-T6 · Documento Avance 1 (8 secciones) + bitácora de decisiones (`docs/10`)
 - [x] Corrección del calendario de entregas y rescate de la rama de UI (ver bitácora I-02, I-03)
 - [ ] Capturas y anexos del documento (Anexo C y D)
