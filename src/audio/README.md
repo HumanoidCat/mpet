@@ -13,7 +13,11 @@ Estructura sugerida: capture/ · dsp/ · features/ · comparator/
 - **S2-T3 ✅** VAD por energía: `dsp/vad.ts` (umbral adaptativo al ruido del cuarto,
   histéresis + hangover). Evidencia: `docs/evidencias/s2/s2-t3-vad.md`.
 
-Semana 2 completa. Cadena actual: captura → remuestreo → preprocesamiento → VAD.
+- **S3-T1 ✅** FFT/STFT: `dsp/fft.ts` + `dsp/window.ts` + `dsp/stft.ts` (radix-2 a mano,
+  ventana Hann, espectrograma offline y en vivo). Evidencia: `docs/evidencias/s3/s3-t1-fft-stft.md`.
+
+Cadena actual: captura → remuestreo → preprocesamiento → VAD → STFT.
+Siguiente: MFCC y YIN (Semana 5) se montan sobre el espectrograma de `stft.ts`.
 
 Criterio de filtros: FIR donde la fase lineal importa (remuestreo, porque ese PCM
 alimenta al comparador); biquad donde solo interesa quitar energía fuera de banda

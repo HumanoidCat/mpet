@@ -15,7 +15,8 @@
 - [x] S2-T3 · VAD por umbral de energía (inicio/fin de habla) → umbral adaptativo al ruido, error de bordes < 30 ms (ver `docs/evidencias/s2/s2-t3-vad.md`)
 
 ## Semana 3
-- [ ] S3-T1 · FFT radix-2 + STFT con ventana Hann, validada vs Meyda (tabla de error)
+- [x] S3-T1 · FFT radix-2 + STFT con ventana Hann → error 1.45e-13 vs DFT directa, 1145× más rápida (ver `docs/evidencias/s3/s3-t1-fft-stft.md`)
+  - ⚠️ La validación cruzada vs **Meyda** queda pendiente: agregarlo toca `package.json`, que requiere PR `shared-change` aprobado por Alejandro. Coordinar.
 - [ ] Mi sección del documento Avance 1 (procesamiento de audio)
 
 ## Semana 4 — 🎯 AVANCE 1 (mar 28 jul)
