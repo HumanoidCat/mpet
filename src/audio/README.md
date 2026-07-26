@@ -16,8 +16,19 @@ Estructura sugerida: capture/ · dsp/ · features/ · comparator/
 - **S3-T1 ✅** FFT/STFT: `dsp/fft.ts` + `dsp/window.ts` + `dsp/stft.ts` (radix-2 a mano,
   ventana Hann, espectrograma offline y en vivo). Evidencia: `docs/evidencias/s3/s3-t1-fft-stft.md`.
 
+- **S4-T4 ✅** spike de pitch: `features/autocorrelation.ts` + `features/pitch.ts`
+  (autocorrelación por Wiener–Khinchin, interpolación parabólica). Evidencia:
+  `docs/evidencias/s4/s4-t4-pitch-autocorrelacion.md`.
+
 Cadena actual: captura → remuestreo → preprocesamiento → VAD → STFT.
 Siguiente: MFCC y YIN (Semana 5) se montan sobre el espectrograma de `stft.ts`.
+
+### Conclusiones del spike de pitch, para S5-T1 (YIN)
+La maquinaria base ya está validada y es reutilizable. El objetivo de exactitud
+(< 3 Hz) **ya se cumple**: 0.008 Hz de peor error en tonos puros. YIN se necesita
+por el **error de octava con fundamental débil** (reporta el doble de la
+frecuencia, con confianza normal), que ningún ajuste de umbral o rango resuelve.
+Usar frames cortos: alargarlos no mejora la exactitud.
 
 ## Cómo se valida el DSP de este módulo
 

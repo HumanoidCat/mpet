@@ -21,7 +21,7 @@
 
 ## Semana 4 — 🎯 AVANCE 1 (mar 28 jul)
 - [ ] Presentar mi parte en la demo
-- [ ] S4-T4 · Spike: pitch por autocorrelación
+- [x] S4-T4 · Spike: pitch por autocorrelación → error 0.008 Hz en tonos puros; el error de octava con fundamental débil es lo que justifica YIN (ver `docs/evidencias/s4/s4-t4-pitch-autocorrelacion.md`)
 
 ## Semana 5 ← tus 2 tareas más difíciles del proyecto
 - [ ] S5-T1 · YIN completo (umbral, interpolación parabólica), error < 3 Hz en tonos sintéticos
