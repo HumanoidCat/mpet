@@ -17,7 +17,7 @@
 ## Semana 3
 - [x] S3-T1 · FFT radix-2 + STFT con ventana Hann → error 1.45e-13 vs DFT directa, 1145× más rápida (ver `docs/evidencias/s3/s3-t1-fft-stft.md`)
   - ⚠️ La validación cruzada vs **Meyda** queda pendiente: agregarlo toca `package.json`, que requiere PR `shared-change` aprobado por Alejandro. Coordinar.
-- [ ] Mi sección del documento Avance 1 (procesamiento de audio)
+- [x] Mi sección del documento Avance 1 (procesamiento de audio) → §5.1 ampliada, §5.2/§5.4/§5.5 nuevas, §7.3 con mediciones, Anexo B actualizado
 
 ## Semana 4 — 🎯 AVANCE 1 (mar 28 jul)
 - [ ] Presentar mi parte en la demo

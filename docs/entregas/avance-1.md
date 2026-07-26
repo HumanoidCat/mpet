@@ -280,6 +280,57 @@ destino, con margen para la caída no ideal del filtro) y conservar una de cada 
 muestras. Omitir ese filtro plegaría todo el contenido entre 8 y 24 kHz sobre la
 banda útil (aliasing), corrompiendo las mediciones posteriores.
 
+**Filtro anti-aliasing implementado (S2-T1).** La respuesta ideal de un
+pasa-bajos es una función sinc de duración infinita. El filtro se obtiene
+truncándola a 127 coeficientes y multiplicándola por una ventana de Hann: el
+truncamiento abrupto —equivalente a una ventana rectangular— produciría el
+fenómeno de Gibbs, con rizado en la banda de paso y fugas en la de rechazo. Se
+adoptó un número impar de coeficientes para que el filtro resulte de fase lineal
+con retardo de grupo entero, condición necesaria porque la señal resultante
+alimenta al comparador acústico, donde una distorsión de fase desalinearía la
+forma de onda. Los coeficientes se normalizan a ganancia unitaria en continua,
+de modo que el filtrado no altere el nivel de la señal.
+
+Respuesta en frecuencia medida:
+
+| Frecuencia | Ganancia | Atenuación | Zona |
+|---:|---:|---:|---|
+| 300 Hz | 1.00003 | 0.0 dB | Banda de paso (fundamental) |
+| 3 400 Hz | 1.00006 | 0.0 dB | Banda de paso (formantes) |
+| 6 000 Hz | 0.99833 | −0.0 dB | Banda de paso |
+| 7 200 Hz | 0.50003 | −6.0 dB | Frecuencia de corte |
+| **8 000 Hz** | 0.00589 | **−44.6 dB** | Nyquist destino |
+| 9 000 Hz | 0.00027 | −71.4 dB | Banda de rechazo |
+| 12 000 Hz | 0.00002 | −95.4 dB | Banda de rechazo |
+
+La banda de paso resulta plana hasta 6 kHz, con error inferior al 0.2 %, y la
+atenuación en el Nyquist destino alcanza 44.6 dB.
+
+**Verificación experimental del plegamiento.** Un tono de 9 000 Hz muestreado a
+48 kHz excede el Nyquist destino y, al decimar, se pliega sobre
+
+$$f_{alias} = \left| ((9\,000 + 8\,000) \bmod 16\,000) - 8\,000 \right| = 7\,000 \text{ Hz}$$
+
+es decir, aparece como una fricativa de 7 kHz que nunca fue pronunciada. La
+medición de esa componente en la salida contrasta ambos procedimientos:
+
+| Procedimiento | Amplitud en 7 kHz | Nivel |
+|---|---:|---:|
+| Decimación directa, sin filtrar | 1.00000 | 0.0 dB |
+| **Filtrado previo y decimación** | **0.00021** | **−73.8 dB** |
+
+La mejora es de **73.8 dB**. El orden de las operaciones no admite inversión:
+una vez plegada, la componente de 9 kHz es matemáticamente indistinguible de una
+de 7 kHz legítima, y ningún filtrado posterior puede separarlas.
+
+**Compromiso asumido.** La banda de transición del filtro ocupa de 6.5 a 8 kHz,
+intervalo donde se sitúan las fricativas más agudas. Es una consecuencia
+inevitable de trabajar con un filtro real de longitud finita: con 127
+coeficientes la transición no puede ser más angosta. Se aceptó porque la energía
+dominante de esas fricativas se encuentra por debajo de 7 kHz. De resultar el
+evaluador de pronunciación sensible a esta atenuación, la variable a modificar es
+el número de coeficientes, no la frecuencia de corte.
+
 ### 5.2 Transformada discreta de Fourier
 
 El análisis espectral se apoya en la DFT:
@@ -290,6 +341,74 @@ calculada mediante FFT de base 2. Para señales no estacionarias como la voz se
 emplea la transformada de tiempo corto (STFT), que aplica la DFT sobre ventanas
 solapadas, previa multiplicación por una ventana de Hann para atenuar la fuga
 espectral introducida por el truncamiento.
+
+**Implementación y validación (S3-T1).** La transformada se implementó como una
+FFT de base 2 según el algoritmo de Cooley–Tukey, en su forma iterativa:
+permutación de las muestras por inversión de bits seguida de $\log_2 N$ etapas de
+mariposas. Los factores de giro se precalculan en una tabla en lugar de
+acumularse por multiplicación sucesiva dentro del bucle, decisión que evita la
+deriva del error a lo largo de las etapas.
+
+La verificación se realizó **contra la DFT calculada directamente a partir de su
+definición**, implementada dentro de la propia prueba. Se optó por esta
+referencia en lugar de una biblioteca externa por ser la definición matemática
+de la transformada: una biblioteca puede contener errores, la definición no.
+
+| N | Error absoluto máximo | Error relativo |
+|---:|---:|---:|
+| 128 | 4.63 × 10⁻¹³ | 2.61 × 10⁻¹⁴ |
+| **512** (tamaño de producción) | **4.90 × 10⁻¹²** | **1.45 × 10⁻¹³** |
+| 1024 | 1.59 × 10⁻¹¹ | 3.26 × 10⁻¹³ |
+| 2048 | 5.66 × 10⁻¹¹ | 7.00 × 10⁻¹³ |
+
+El error corresponde exclusivamente al redondeo de punto flotante —la precisión
+de un valor de doble precisión es del orden de 2 × 10⁻¹⁶— y crece con lentitud al
+aumentar N. Se verificaron adicionalmente las propiedades que caracterizan a la
+transformada con independencia de la implementación: linealidad, conservación de
+la energía (teorema de Parseval), reversibilidad mediante la transformada inversa
+y simetría conjugada de las señales reales.
+
+**Justificación del costo computacional.** El cálculo directo de la DFT requiere
+$N^2$ operaciones frente a las $N \log_2 N$ de la FFT:
+
+| N | Operaciones DFT | Operaciones FFT | Tiempo DFT | Tiempo FFT |
+|---:|---:|---:|---:|---:|
+| 512 | 262 144 | 4 608 | 11.31 ms | 0.0099 ms |
+| 1024 | 1 048 576 | 10 240 | 44.92 ms | 0.0185 ms |
+
+Con un salto de 256 muestras a 16 kHz se analizan 62.5 tramas por segundo. A
+0.0099 ms por transformada, el análisis espectral consume **0.62 ms por cada
+segundo de audio, equivalente al 0.06 % de un núcleo**; mediante cálculo directo
+serían 707 ms por segundo de audio, esto es, el 71 % de un núcleo dedicado
+únicamente a la transformada. Es lo que hace viable el análisis en tiempo real
+dentro del navegador.
+
+**Ventana de análisis.** La DFT asume que la trama se repite periódicamente. Si
+la señal no completa un número entero de ciclos dentro de la trama, los extremos
+no empalman y esa discontinuidad artificial se distribuye por todo el espectro.
+Medición con un tono situado exactamente entre dos bins, que constituye el caso
+más desfavorable:
+
+| Ventana | Fuga a más de 5 bins del pico | Nivel relativo |
+|---|---:|---:|
+| Rectangular (sin ventana) | 0.05415 | −21.5 dB |
+| **Hann** (adoptada) | 0.00198 | **−52.7 dB** |
+| Hamming | 0.00701 | −41.3 dB |
+| Blackman | 0.00068 | −62.3 dB |
+
+La ventana de Hann sitúa la fuga 31 dB por debajo del análisis sin ventana. La
+ventana de Blackman ofrece mejor rechazo, pero ensancha el lóbulo principal y
+sacrifica resolución para separar formantes próximos, razón por la que se adoptó
+Hann. Dado que el enventanado atenúa la señal, el espectro se corrige dividiendo
+entre la ganancia coherente de la ventana, lo que restituye la amplitud original
+del tono con un error del 0.00 % en las amplitudes verificadas.
+
+**Resolución de la STFT.** Con tramas de 512 muestras y solapamiento del 50 % a
+16 kHz se obtienen 31.25 Hz por bin y 16 ms de resolución temporal. La elección
+del tamaño de trama constituye un compromiso sin solución óptima —el principio de
+incertidumbre aplicado a señales—: tramas largas favorecen la resolución en
+frecuencia y degradan la temporal, y a la inversa. Los valores adoptados permiten
+separar formantes y seguir simultáneamente la evolución de una sílaba.
 
 ### 5.3 Inferencia de modelos en el navegador
 
@@ -349,6 +468,121 @@ activo del proyecto (véase sección 7.4).
 comparativos (*more tall* → *taller*) ni la inversión en preguntas con verbo modal
 (*Do you can* → *Can you*), ambos errores frecuentes en hispanohablantes. Se
 documentan explícitamente y se revisarán en la fase de optimización.
+
+### 5.4 Filtrado digital y preprocesamiento
+
+Entre la captura y el análisis la señal se acondiciona en dos etapas: un filtrado
+pasa-banda de 80 a 8 000 Hz y una normalización por valor eficaz (RMS).
+
+**Criterio de selección del tipo de filtro.** El proyecto emplea las dos familias
+de filtros digitales según lo que exige cada etapa:
+
+| | FIR (remuestreo) | Biquad IIR (preprocesamiento) |
+|---|---|---|
+| Coeficientes | 127 | 5 |
+| Fase | Lineal | No lineal |
+| Estabilidad | Garantizada | Depende de la posición de los polos |
+| Pendiente | Muy abrupta | −12 dB/octava |
+
+En el remuestreo la fase lineal es obligatoria, dado que esa señal alimenta al
+comparador acústico. En el preprocesamiento únicamente interesa suprimir energía
+fuera de la banda de voz, por lo que se adopta la estructura económica: cinco
+coeficientes en lugar de ciento veintisiete. Los biquads se implementaron en
+forma directa II transpuesta, preferible en punto flotante por acumular menor
+error numérico.
+
+**Respuesta medida del pasa-banda.** El filtro elimina íntegramente la componente
+continua del micrófono y atenúa el zumbido de la red eléctrica, preservando la
+banda fonética:
+
+| Frecuencia | Ganancia | Nivel | Contenido |
+|---:|---:|---:|---|
+| 0 Hz | 0.00000 | −∞ | Componente continua |
+| 50 Hz | 0.36382 | −8.78 dB | Zumbido de red (Europa) |
+| 60 Hz | 0.49023 | −6.19 dB | Zumbido de red (América) |
+| **80 Hz** | 0.70711 | **−3.01 dB** | Frecuencia de corte |
+| 150 Hz | 0.96188 | −0.34 dB | Fundamental masculina |
+| 300 Hz | 0.99749 | −0.02 dB | Fundamental y primer formante |
+| 3 400 Hz | 1.00000 | −0.00 dB | Formantes superiores |
+
+La atenuación de exactamente 3.01 dB en la frecuencia de corte confirma el diseño
+de Butterworth.
+
+**Observación sobre el límite superior de la banda.** A 16 kHz el borde superior
+especificado (8 000 Hz) coincide con la frecuencia de Nyquist. Un biquad diseñado
+en ese punto resulta degenerado: sus polos se sitúan sobre la circunferencia
+unitaria y el filtro pierde la estabilidad. La etapa, sin embargo, es
+innecesaria por dos razones concurrentes: por definición del muestreo la señal no
+puede contener componentes por encima de 8 kHz, y el filtro anti-aliasing
+descrito en 5.1 ya aporta 44.6 dB de atenuación en ese punto. **El límite
+superior de la banda lo impone la propia frecuencia de muestreo.** En
+consecuencia, la implementación construye la etapa pasa-bajos únicamente cuando
+el borde superior se sitúa por debajo del Nyquist, y a 16 kHz el pasa-banda se
+reduce correctamente a un pasa-altos de 80 Hz.
+
+**Normalización por valor eficaz.** Dos locutores que pronuncian la misma frase a
+distinto volumen deben obtener idéntica puntuación; sin normalizar, el comparador
+mediría intensidad en lugar de pronunciación. La señal se escala a un valor
+eficaz de 0.1, con la ganancia acotada por dos límites: un máximo absoluto que
+impide amplificar el silencio hasta convertir el ruido de fondo en señal, y un
+límite derivado del valor de pico que evita la saturación, cuyo recorte
+introduciría armónicos espurios en el espectro.
+
+El orden de las operaciones es determinante. Aplicado a una señal de voz
+contaminada con un zumbido de 60 Hz de amplitud triple:
+
+| | Valor eficaz |
+|---|---:|
+| Entrada limpia | 0.07071 |
+| Entrada contaminada | 0.22361 (inflado 3.2 veces) |
+| **Salida limpia** | **0.10000** |
+| **Salida contaminada** | **0.10000** |
+
+Filtrar antes de normalizar hace que el zumbido no influya en la ganancia
+aplicada: ambas salidas coinciden hasta la quinta cifra decimal. Con el orden
+inverso, la señal contaminada quedaría 3.2 veces más baja que la limpia.
+
+### 5.5 Detección de actividad de voz
+
+La detección de los instantes de inicio y fin del habla cumple dos funciones:
+recortar el silencio antes del reconocimiento —lo que reduce directamente la
+latencia— y delimitar el fragmento que el comparador acústico alineará contra la
+referencia sintetizada.
+
+La señal se divide en tramas de 32 ms con 50 % de solapamiento y de cada una se
+calcula la energía en decibelios, $E[m] = 20 \log_{10}(\mathrm{RMS}[m])$. Un
+umbral fijo no resulta viable porque el nivel de ruido depende del micrófono y
+del recinto, de modo que el umbral se determina **relativo al ruido de fondo
+medido en la propia grabación**, estimado como el percentil 10 de las energías
+por trama.
+
+| Recinto | Ruido de fondo | Umbral de entrada | Umbral de salida |
+|---|---:|---:|---:|
+| Silencioso | −64.8 dB | −50.0 dB | −54.0 dB |
+| Normal | −50.8 dB | −40.8 dB | −44.8 dB |
+| Ruidoso (20 veces más ruido) | −41.9 dB | −31.9 dB | −35.9 dB |
+
+Tres mecanismos corrigen los errores característicos de un umbral simple:
+histéresis entre los umbrales de entrada y salida, que impide la oscilación de la
+decisión; confirmación durante 48 ms, que evita que un impulso aislado abra un
+segmento; y un margen de permanencia de 200 ms antes de cerrar, sin el cual el
+detector fragmentaría la frase en cada oclusiva —/p/, /t/, /k/—, que constituyen
+silencios reales de hasta 100 ms en el interior de una palabra.
+
+**Precisión medida.** Sobre una señal construida con habla entre los 500 y los
+1 300 ms, el error de los límites detectados resulta **idéntico en los tres
+recintos** —20 ms de adelanto en el inicio y 28 ms de retraso en el fin— pese a
+que el ruido de fondo varía en un factor de veinte. Es la comprobación de que la
+adaptación opera sobre el umbral sin degradar la precisión. Ambos sesgos se
+producen hacia afuera del segmento, por lo que el detector nunca recorta habla.
+El recorte del silencio reduce en un 58 % las muestras entregadas al reconocedor.
+
+**Limitación conocida.** Al fundarse en la energía, un ruido intenso y sostenido
+—ventilación próxima al micrófono, música de fondo— supera el umbral y se
+clasifica como habla. Discriminar voz de ruido de energía equivalente exige
+atender a la estructura espectral, mediante la tasa de cruces por cero o la
+periodicidad que el estimador de tono calculará en la Semana 5. Queda registrado
+para la fase de tratamiento de casos límite.
 
 > **Secciones a completar para el documento final:** MFCC y banco de filtros mel
 > (Semana 5, Fabrizio), algoritmo YIN (Semana 5, Fabrizio), alineamiento temporal
@@ -431,11 +665,40 @@ módulo de interfaz con chat, control de micrófono con estados, visualización 
 forma de onda en tiempo real y resaltado de correcciones gramaticales; sonda de
 dispositivo de audio con determinación de la estrategia de remuestreo; validación
 experimental del reconocimiento de voz en el navegador con mediciones completas;
-marco teórico de muestreo, Nyquist y DFT.
+marco teórico de muestreo, Nyquist y DFT; **cadena completa de procesamiento de
+audio, desde la captura hasta el análisis espectral**.
 
-**En curso.** Módulo de captura definitivo con AudioWorklet; worker de
-reconocimiento de voz sobre el contrato definido; corrección gramatical con modelo
-real; integración de módulos reales en sustitución de los simulados.
+**Resultados del módulo de procesamiento de audio.** La cadena quedó operativa en
+sus cuatro etapas —captura y remuestreo, preprocesamiento, detección de actividad
+de voz y análisis espectral— con las siguientes mediciones, obtenidas sobre
+señales sintéticas de frecuencia y amplitud conocidas y reproducibles mediante la
+suite de pruebas del repositorio:
+
+| Etapa | Medición | Resultado |
+|---|---|---|
+| Captura y remuestreo | Supresión del plegamiento espectral | 73.8 dB de mejora frente a la decimación directa |
+| Captura y remuestreo | Atenuación en el Nyquist destino | −44.6 dB |
+| Captura y remuestreo | Retardo introducido por el filtro | 1.31 ms |
+| Preprocesamiento | Atenuación en la frecuencia de corte | −3.01 dB (Butterworth) |
+| Preprocesamiento | Estabilidad del nivel de salida | Idéntico ante entradas con 60 veces de diferencia en amplitud |
+| Detección de voz | Error de los límites del habla | 20 ms de adelanto, 28 ms de retraso, invariante ante 20 veces más ruido |
+| Detección de voz | Reducción de muestras al reconocedor | 58 % |
+| Análisis espectral | Exactitud frente a la DFT por definición | Error relativo de 1.45 × 10⁻¹³ |
+| Análisis espectral | Costo computacional | 1 145 veces más rápido que el cálculo directo |
+| Análisis espectral | Consumo en régimen | 0.06 % de un núcleo |
+
+La arquitectura separa el procesamiento del hilo de audio en tiempo real: el
+`AudioWorklet` se limita a acumular y transferir muestras, mientras que el
+filtrado, el remuestreo y la transformada se ejecutan en el hilo principal sobre
+funciones puras. La decisión tiene una consecuencia metodológica relevante:
+**todo el procesamiento de señales resulta verificable fuera del navegador**, lo
+que permitió construir 112 pruebas automatizadas del módulo de audio —de un total
+de 143 en el proyecto— que se ejecutan en la integración continua sin requerir
+micrófono ni intervención manual.
+
+**En curso.** Worker de reconocimiento de voz sobre el contrato definido;
+corrección gramatical con modelo real; integración de módulos reales en
+sustitución de los simulados.
 
 ### 7.4 Incidencias y decisiones de gestión
 
@@ -459,6 +722,10 @@ proyecto y ruta crítica en `docs/05-roadmap.md`.
 ### Anexo B — Evidencias experimentales
 - `docs/evidencias/s1/captura-audio-spike.md` — Sonda de dispositivo de audio: frecuencias soportadas y estrategia de remuestreo.
 - `docs/evidencias/s1/whisper-tiny-spike.md` — Reconocimiento de voz en el navegador: tamaño, tiempos de carga, latencia y precisión cualitativa.
+- `docs/evidencias/s2/s2-t1-remuestreo.md` — Captura y remuestreo a 16 kHz: respuesta del filtro anti-aliasing y verificación del plegamiento espectral.
+- `docs/evidencias/s2/s2-t2-preprocesamiento.md` — Pasa-banda de voz y normalización por valor eficaz: respuesta en frecuencia y estabilidad del nivel.
+- `docs/evidencias/s2/s2-t3-vad.md` — Detección de actividad de voz: umbrales adaptativos y precisión de los límites.
+- `docs/evidencias/s3/s3-t1-fft-stft.md` — FFT y STFT: tabla de error frente a la DFT por definición, costo computacional y fuga espectral por ventana.
 - `docs/evidencias/s3/ui-chat-waveform.md` — Módulo de interfaz: decisiones de implementación y verificación.
 
 ### Anexo C — Capturas de la aplicación
@@ -488,9 +755,13 @@ requests del repositorio, tablero de issues por sprint.
 
 ## Secciones pendientes de completar por el equipo
 
-> **Fabrizio (DSP):** ampliar la sección 5 con el desarrollo del filtro
-> anti-aliasing implementado y la respuesta en frecuencia obtenida; agregar a la
-> sección 7.3 los resultados del módulo de captura definitivo con sus mediciones.
+> **Fabrizio (DSP): ✅ completado.** Sección 5.1 ampliada con el desarrollo del
+> filtro anti-aliasing y su respuesta en frecuencia medida; secciones 5.2, 5.4 y
+> 5.5 añadidas (FFT/STFT validada, filtrado y preprocesamiento, detección de
+> actividad de voz); sección 7.3 con los resultados y mediciones del módulo.
+> Pendiente de coordinación: la validación cruzada de la FFT contra Meyda
+> requiere añadir la dependencia a `package.json`, lo que exige un PR
+> `shared-change` aprobado por el Project Manager.
 >
 > **Isaac (IA):** ampliar la sección 5.3 con la descripción del worker de
 > reconocimiento y el mecanismo de caché de modelos; agregar a la sección 7.3 las
