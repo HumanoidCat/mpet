@@ -69,6 +69,25 @@ transformada, independientes de la implementación:
 | Inversa | `ifft(fft(x)) == x`, con parte imaginaria nula |
 | Simetría conjugada de señales reales | $X[N-k] = \overline{X[k]}$ — por eso basta media FFT |
 
+### Casos con solución analítica cerrada
+
+Señales cuya transformada se conoce de forma exacta por teoría. No hay
+tolerancia estadística ni comparación contra una implementación ajena: el
+resultado correcto se deduce en papel y la FFT debe reproducirlo.
+
+| Señal de entrada | Resultado teórico | Verificado |
+|---|---|---|
+| $\sin(2\pi k_0 n/N)$ centrado en bin | $\|X[k_0]\| = N/2$, cero en los demás bins | ✅ exacto a 10⁻⁶, resto < 10⁻⁹ |
+| $\delta[n]$ (impulso en el origen) | $X[k] = 1$ para todo $k$ — espectro plano, fase nula | ✅ a 10⁻⁹ |
+| $\delta[n-n_0]$ (impulso desplazado) | $\|X[k]\| = 1$, fase lineal $e^{-j2\pi k n_0/N}$ | ✅ a 10⁻⁹ |
+| $x[n] = c$ (constante) | $X[0] = Nc$, cero en los demás bins | ✅ exacto a 10⁻⁶ |
+| $\cos(2\pi k_0 n/N)$ | $\Re X[k_0] = N/2$, $\Im X[k_0] = 0$ | ✅ |
+| $\sin(2\pi k_0 n/N)$ | $\Re X[k_0] = 0$, $\Im X[k_0] = -N/2$ | ✅ |
+
+Los dos últimos casos confirman además la convención de signo del exponente, y
+el par delta/constante ilustra la dualidad tiempo–frecuencia: lo que está
+concentrado en un dominio se reparte por completo en el otro.
+
 ## 4. Ventanas y fuga espectral
 
 La DFT supone que el frame se repite periódicamente. Si la señal no cabe un
@@ -152,19 +171,40 @@ bloques de 128 o de 1024**, e idéntico al análisis offline de la misma señal.
 | `src/audio/dsp/fft.ts` | FFT radix-2, espectro de amplitud, conversión a dB |
 | `src/audio/dsp/window.ts` | Hann, Hamming, Blackman, rectangular, ganancia coherente |
 | `src/audio/dsp/stft.ts` | STFT offline y en vivo, espectrograma |
-| `tests/audio/fft.test.ts` | 22 pruebas |
+| `tests/audio/fft.test.ts` | 27 pruebas |
 | `tests/audio/stft.test.ts` | 13 pruebas |
 
-## 7. Nota sobre la validación cruzada con Meyda
+## 7. Estrategia de validación: por qué no se usa Meyda
 
-El plan pedía validar contra **Meyda**. Meyda no está en `package.json`, y
-agregarlo modifica un archivo compartido, lo que según `docs/08-equipo-git.md`
-requiere un PR etiquetado `shared-change` aprobado por Alejandro. **Queda
-pendiente de coordinar.**
+El plan original pedía validar contra **Meyda**. Se escaló la decisión al
+Project Manager por implicar una dependencia nueva en `package.json`, y la
+resolución fue **no incorporarla**, sustituyendo la validación por referencias
+analíticas. El criterio:
 
-La validación entregada aquí es contra la DFT directa, que es la definición
-matemática de la transformada. Es una referencia más fuerte que Meyda —una
-librería puede tener errores; la definición, no— y el error medido (10⁻¹³
-relativo) está en el límite de la precisión de punto flotante. La comparación
-con Meyda, cuando se apruebe la dependencia, sería una verificación adicional de
-interoperabilidad, no de corrección.
+> Validar contra otra biblioteca demuestra que la implementación *coincide con
+> una caja negra*. Validarla contra resultados analíticos demuestra que es
+> *correcta*. Para un curso de Señales y Sistemas, lo segundo vale más.
+
+La validación entregada se apoya en cuatro pilares, ninguno de los cuales
+depende de código de terceros:
+
+| Pilar | Qué demuestra |
+|---|---|
+| DFT directa como referencia | La radix-2 coincide con la definición literal de la transformada |
+| Casos con solución cerrada | Señales cuyo espectro se deduce en papel: seno en bin ($N/2$), delta (plano), constante (bin 0) |
+| Teorema de Parseval | La transformada está correctamente normalizada |
+| Propiedades estructurales | Linealidad, reversibilidad, simetría conjugada |
+
+Una biblioteca externa puede contener errores; la definición matemática, no.
+El error medido (1.45 × 10⁻¹³ relativo) está en el límite de la precisión de
+punto flotante, de modo que una comparación adicional contra Meyda no podría
+aportar información: solo verificaría interoperabilidad, no corrección.
+
+### Nota para los MFCC (S5-T2)
+
+Para los coeficientes cepstrales sí conviene contrastar contra **librosa**, que
+es el estándar citado en la literatura. La comparación se hará **sin agregar
+dependencias**: se ejecuta librosa en Python una sola vez, se exportan los
+coeficientes de referencia a un JSON y ese archivo se versiona como fixture en
+`tests/audio/fixtures/`. Las pruebas comparan contra el archivo, de modo que ni
+el proyecto ni el navegador incorporan nada nuevo.

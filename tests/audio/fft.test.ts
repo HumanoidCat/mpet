@@ -215,6 +215,111 @@ describe('Propiedades de la transformada (S3-T1)', () => {
   });
 });
 
+describe('Casos analíticos con solución conocida (S3-T1)', () => {
+  /** Transforma una señal real y devuelve las magnitudes |X[k]| sin normalizar. */
+  function magnitudesCrudas(x: Float64Array): Float64Array {
+    const n = x.length;
+    const re = Float64Array.from(x);
+    const im = new Float64Array(n);
+    new Fft(n).forward(re, im);
+
+    const out = new Float64Array(n);
+    for (let k = 0; k < n; k++) out[k] = Math.hypot(re[k], im[k]);
+    return out;
+  }
+
+  it('un seno centrado en un bin da magnitud exactamente N/2', () => {
+    const n = 512;
+    const k0 = 32; // 1000 Hz a 16 kHz: centro exacto de bin
+
+    const x = new Float64Array(n);
+    for (let i = 0; i < n; i++) x[i] = Math.sin((2 * Math.PI * k0 * i) / n);
+
+    const mag = magnitudesCrudas(x);
+
+    // Toda la energía en su bin (y en el espejo N−k0), nada en el resto.
+    expect(mag[k0]).toBeCloseTo(n / 2, 6);
+    expect(mag[n - k0]).toBeCloseTo(n / 2, 6);
+    for (let k = 0; k < n; k++) {
+      if (k !== k0 && k !== n - k0) expect(mag[k]).toBeLessThan(1e-9);
+    }
+  });
+
+  it('una delta en n=0 da espectro plano', () => {
+    // δ[n] contiene todas las frecuencias por igual: X[k] = 1 para todo k.
+    const n = 128;
+    const x = new Float64Array(n);
+    x[0] = 1;
+
+    const re = Float64Array.from(x);
+    const im = new Float64Array(n);
+    new Fft(n).forward(re, im);
+
+    for (let k = 0; k < n; k++) {
+      expect(re[k]).toBeCloseTo(1, 9);
+      expect(im[k]).toBeCloseTo(0, 9); // fase nula: la delta está en el origen
+    }
+  });
+
+  it('una delta desplazada conserva la magnitud y gira la fase (teorema del desplazamiento)', () => {
+    const n = 128;
+    const n0 = 5;
+    const x = new Float64Array(n);
+    x[n0] = 1;
+
+    const re = Float64Array.from(x);
+    const im = new Float64Array(n);
+    new Fft(n).forward(re, im);
+
+    for (let k = 0; k < n; k++) {
+      // |X[k]| sigue siendo 1: desplazar en el tiempo no cambia el módulo…
+      expect(Math.hypot(re[k], im[k])).toBeCloseTo(1, 9);
+      // …solo introduce una fase lineal e^{-j2πk·n₀/N}.
+      const faseEsperada = (-2 * Math.PI * k * n0) / n;
+      expect(re[k]).toBeCloseTo(Math.cos(faseEsperada), 9);
+      expect(im[k]).toBeCloseTo(Math.sin(faseEsperada), 9);
+    }
+  });
+
+  it('una señal constante concentra todo en el bin 0', () => {
+    // El caso dual de la delta: constante en el tiempo ⇒ delta en frecuencia.
+    const n = 256;
+    const c = 0.75;
+    const mag = magnitudesCrudas(new Float64Array(n).fill(c));
+
+    expect(mag[0]).toBeCloseTo(n * c, 6);
+    for (let k = 1; k < n; k++) expect(mag[k]).toBeLessThan(1e-9);
+  });
+
+  it('un coseno reparte la energía en parte real, un seno en la imaginaria', () => {
+    const n = 256;
+    const k0 = 8;
+
+    const coseno = new Float64Array(n);
+    const seno_ = new Float64Array(n);
+    for (let i = 0; i < n; i++) {
+      coseno[i] = Math.cos((2 * Math.PI * k0 * i) / n);
+      seno_[i] = Math.sin((2 * Math.PI * k0 * i) / n);
+    }
+
+    const transformar = (x: Float64Array) => {
+      const re = Float64Array.from(x);
+      const im = new Float64Array(n);
+      new Fft(n).forward(re, im);
+      return { re, im };
+    };
+
+    // cos → +N/2 real, 0 imaginario.  sin → 0 real, −N/2 imaginario.
+    const fc = transformar(coseno);
+    expect(fc.re[k0]).toBeCloseTo(n / 2, 6);
+    expect(fc.im[k0]).toBeCloseTo(0, 6);
+
+    const fs = transformar(seno_);
+    expect(fs.re[k0]).toBeCloseTo(0, 6);
+    expect(fs.im[k0]).toBeCloseTo(-n / 2, 6);
+  });
+});
+
 describe('Espectro de amplitud (S3-T1)', () => {
   it('un seno centrado en un bin devuelve su amplitud exacta', () => {
     const n = 512;

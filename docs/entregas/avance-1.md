@@ -349,10 +349,13 @@ mariposas. Los factores de giro se precalculan en una tabla en lugar de
 acumularse por multiplicación sucesiva dentro del bucle, decisión que evita la
 deriva del error a lo largo de las etapas.
 
-La verificación se realizó **contra la DFT calculada directamente a partir de su
-definición**, implementada dentro de la propia prueba. Se optó por esta
-referencia en lugar de una biblioteca externa por ser la definición matemática
-de la transformada: una biblioteca puede contener errores, la definición no.
+La verificación se realizó **contra referencias analíticas y no contra
+bibliotecas de terceros**. El criterio metodológico adoptado es que contrastar
+una implementación con otra biblioteca demuestra únicamente que ambas coinciden;
+contrastarla con resultados deducibles de la teoría demuestra que es correcta.
+La primera referencia es la DFT calculada directamente a partir de su
+definición, implementada dentro de la propia prueba: una biblioteca puede
+contener errores, la definición matemática no.
 
 | N | Error absoluto máximo | Error relativo |
 |---:|---:|---:|
@@ -367,6 +370,23 @@ aumentar N. Se verificaron adicionalmente las propiedades que caracterizan a la
 transformada con independencia de la implementación: linealidad, conservación de
 la energía (teorema de Parseval), reversibilidad mediante la transformada inversa
 y simetría conjugada de las señales reales.
+
+**Señales con solución analítica cerrada.** El tercer nivel de verificación
+emplea entradas cuya transformada se deduce en papel, de modo que el resultado
+esperado no proviene de ninguna implementación:
+
+| Señal | Resultado teórico | Verificación |
+|---|---|---|
+| $\sin(2\pi k_0 n/N)$ centrada en bin | $\|X[k_0]\| = N/2$, nulo en el resto | Exacta a 10⁻⁶; resto por debajo de 10⁻⁹ |
+| $\delta[n]$ | $X[k] = 1$ para todo $k$: espectro plano | Exacta a 10⁻⁹ |
+| $\delta[n - n_0]$ | Módulo unitario y fase lineal $e^{-j2\pi k n_0/N}$ | Exacta a 10⁻⁹ |
+| $x[n] = c$ | $X[0] = Nc$, nulo en el resto | Exacta a 10⁻⁶ |
+
+El par formado por el impulso y la señal constante ilustra la dualidad
+tiempo–frecuencia: lo que aparece concentrado en un dominio se distribuye
+uniformemente en el otro. La verificación por separado de las partes real e
+imaginaria de un coseno y un seno confirma además la convención de signo del
+exponente.
 
 **Justificación del costo computacional.** El cálculo directo de la DFT requiere
 $N^2$ operaciones frente a las $N \log_2 N$ de la FFT:
@@ -692,8 +712,8 @@ La arquitectura separa el procesamiento del hilo de audio en tiempo real: el
 filtrado, el remuestreo y la transformada se ejecutan en el hilo principal sobre
 funciones puras. La decisión tiene una consecuencia metodológica relevante:
 **todo el procesamiento de señales resulta verificable fuera del navegador**, lo
-que permitió construir 112 pruebas automatizadas del módulo de audio —de un total
-de 143 en el proyecto— que se ejecutan en la integración continua sin requerir
+que permitió construir 117 pruebas automatizadas del módulo de audio —de un total
+de 148 en el proyecto— que se ejecutan en la integración continua sin requerir
 micrófono ni intervención manual.
 
 **En curso.** Worker de reconocimiento de voz sobre el contrato definido;
@@ -759,9 +779,6 @@ requests del repositorio, tablero de issues por sprint.
 > filtro anti-aliasing y su respuesta en frecuencia medida; secciones 5.2, 5.4 y
 > 5.5 añadidas (FFT/STFT validada, filtrado y preprocesamiento, detección de
 > actividad de voz); sección 7.3 con los resultados y mediciones del módulo.
-> Pendiente de coordinación: la validación cruzada de la FFT contra Meyda
-> requiere añadir la dependencia a `package.json`, lo que exige un PR
-> `shared-change` aprobado por el Project Manager.
 >
 > **Isaac (IA):** ampliar la sección 5.3 con la descripción del worker de
 > reconocimiento y el mecanismo de caché de modelos; agregar a la sección 7.3 las
