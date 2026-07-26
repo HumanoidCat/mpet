@@ -10,6 +10,10 @@ Estructura sugerida: capture/ · dsp/ · features/ · comparator/
   Evidencia y mediciones: `docs/evidencias/s2/s2-t1-remuestreo.md`.
 - **S2-T2 ✅** preprocesamiento: `dsp/biquad.ts` + `dsp/preprocess.ts` (pasa-banda de
   voz 80–8000 Hz y normalización RMS). Evidencia: `docs/evidencias/s2/s2-t2-preprocesamiento.md`.
+- **S2-T3 ✅** VAD por energía: `dsp/vad.ts` (umbral adaptativo al ruido del cuarto,
+  histéresis + hangover). Evidencia: `docs/evidencias/s2/s2-t3-vad.md`.
+
+Semana 2 completa. Cadena actual: captura → remuestreo → preprocesamiento → VAD.
 
 Criterio de filtros: FIR donde la fase lineal importa (remuestreo, porque ese PCM
 alimenta al comparador); biquad donde solo interesa quitar energía fuera de banda

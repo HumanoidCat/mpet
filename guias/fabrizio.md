@@ -12,7 +12,7 @@
 ## Semana 2
 - [x] S2-T1 · Captura: AudioWorklet, buffer circular, resampling a 16 kHz → FIR 7.2 kHz + decimación ÷3, alias −73.8 dB (ver `docs/evidencias/s2/s2-t1-remuestreo.md`)
 - [x] S2-T2 · Preprocesamiento: normalización RMS + filtro pasa-banda 80–8000 Hz → biquad Butterworth, −3.01 dB en el corte (ver `docs/evidencias/s2/s2-t2-preprocesamiento.md`)
-- [ ] S2-T3 · VAD por umbral de energía (inicio/fin de habla)
+- [x] S2-T3 · VAD por umbral de energía (inicio/fin de habla) → umbral adaptativo al ruido, error de bordes < 30 ms (ver `docs/evidencias/s2/s2-t3-vad.md`)
 
 ## Semana 3
 - [ ] S3-T1 · FFT radix-2 + STFT con ventana Hann, validada vs Meyda (tabla de error)
