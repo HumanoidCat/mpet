@@ -29,7 +29,7 @@
 - **Lunes (noche):** `dev` estable + mini-ensayo de lo que se muestra el martes en clase; reunión de sprint (30 min): asignar tareas, actualizar riesgos.
 - **Martes (después de clase):** retro de 15 min — feedback del profesor entra al backlog y, si aplica, se ajustan documentos.
 - **Jueves:** check-in corto (15 min, chat): bloqueos y ruta crítica.
-- **Viernes de semanas 3, 6 y 9:** code freeze parcial para preparar entregas (Avances son martes 4 ago, 25 ago y 15 sep).
+- **Viernes de semanas 3, 6 y 9:** code freeze parcial para preparar entregas (Avances son martes 28 jul, 18 ago y 8 sep).
 - Carga objetivo: ~7–8 h/persona/semana (pico ~9 h en semanas de entrega).
 
 ## 4. Definition of Done (por tarea)
