@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { createOrchestrator, type OrchestratorState } from '@core/orchestrator';
 import { createEventBus } from '@core/eventBus';
-import { createDemoMicEngine } from '@mocks/demoMicEngine';
+import { createMockAudioEngine } from '@mocks/mockAudioEngine';
 import { createMockAIPipeline } from '@mocks/mockAIPipeline';
 import { createAIPipeline } from '@ai/createAIPipeline';
+import { createDspAudioEngine } from '@core/audioEngineAdapter';
 import { Chat } from '@ui/chat/Chat';
 import { VisualizerScreen } from '@ui/visualizer/VisualizerScreen';
 import SplashScreen, { type ModelStatus } from '@ui/shell/Splash';
@@ -29,9 +30,10 @@ import type { AIPipeline, ChatMessage } from '@shared/contracts';
  * Con `?mock=1` la aplicacion se muestra igual con datos de ejemplo. Es una
  * decision declarada, no un maquillaje: el badge de la cabecera lo indica.
  *
- * El audio usa el adaptador de microfono de demostracion hasta que el modulo de
- * captura definitivo (S2-T1, Fabrizio) este disponible; se sustituye en esta
- * misma linea cuando llegue.
+ * AUDIO: en modo normal usa el modulo DSP real (captura con AudioWorklet,
+ * decimacion con anti-aliasing, pasa-banda de voz, normalizacion y FFT propia)
+ * a traves de `createDspAudioEngine`. En modo simulado usa el motor simulado de
+ * `mocks/`, que genera una senal sintetica y no pide permisos de microfono.
  */
 function useMockMode(): boolean {
   return new URLSearchParams(window.location.search).get('mock') === '1';
@@ -52,7 +54,7 @@ export function App() {
 
   const { bus, orch, audio } = useMemo(() => {
     const bus = createEventBus();
-    const audio = createDemoMicEngine();
+    const audio = mockMode ? createMockAudioEngine() : createDspAudioEngine();
     const ai: AIPipeline = mockMode ? createMockAIPipeline() : createAIPipeline();
     const orch = createOrchestrator({ audio, ai, bus });
     return { bus, orch, audio };
