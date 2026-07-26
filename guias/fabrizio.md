@@ -10,13 +10,14 @@
 - [x] S1-T9 · Iniciar marco teórico: muestreo, Nyquist, DFT (con Monestel) → `docs/09-marco-teorico.md`
 
 ## Semana 2
-- [ ] S2-T1 · Captura: AudioWorklet, buffer circular, resampling a 16 kHz
-- [ ] S2-T2 · Preprocesamiento: normalización RMS + filtro pasa-banda 80–8000 Hz
-- [ ] S2-T3 · VAD por umbral de energía (inicio/fin de habla)
+- [x] S2-T1 · Captura: AudioWorklet, buffer circular, resampling a 16 kHz → FIR 7.2 kHz + decimación ÷3, alias −73.8 dB (ver `docs/evidencias/s2/s2-t1-remuestreo.md`)
+- [x] S2-T2 · Preprocesamiento: normalización RMS + filtro pasa-banda 80–8000 Hz → biquad Butterworth, −3.01 dB en el corte (ver `docs/evidencias/s2/s2-t2-preprocesamiento.md`)
+- [x] S2-T3 · VAD por umbral de energía (inicio/fin de habla) → umbral adaptativo al ruido, error de bordes < 30 ms (ver `docs/evidencias/s2/s2-t3-vad.md`)
 
 ## Semana 3
-- [ ] S3-T1 · FFT radix-2 + STFT con ventana Hann, validada vs Meyda (tabla de error)
-- [ ] Mi sección del documento Avance 1 (procesamiento de audio)
+- [x] S3-T1 · FFT radix-2 + STFT con ventana Hann → error 1.45e-13 vs DFT directa, 1145× más rápida (ver `docs/evidencias/s3/s3-t1-fft-stft.md`)
+  - ⚠️ La validación cruzada vs **Meyda** queda pendiente: agregarlo toca `package.json`, que requiere PR `shared-change` aprobado por Alejandro. Coordinar.
+- [x] Mi sección del documento Avance 1 (procesamiento de audio) → §5.1 ampliada, §5.2/§5.4/§5.5 nuevas, §7.3 con mediciones, Anexo B actualizado
 
 ## Semana 4 — 🎯 AVANCE 1 (mar 28 jul)
 - [ ] Presentar mi parte en la demo
