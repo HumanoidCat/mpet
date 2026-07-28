@@ -2,18 +2,10 @@
 ## Avance 1 — Documento Técnico
 
 **Curso:** Señales y Sistemas
-**Equipo:** Alejandro Zamora (Project Manager e Integración) · Fabrizio (Procesamiento Digital de Señales) · Isaac Morum (Inteligencia Artificial)
+**Equipo:** Alejandro Zamora (Project Manager, Núcleo e Integración) · Fabrizio Espinoza (Procesamiento Digital de Señales) · Isaac Morum (Inteligencia Artificial) · José Pablo Monestel (Interfaz y Visualización)
 **Repositorio:** https://github.com/HumanoidCat/mpet
 **Demo desplegada:** https://humanoidcat.github.io/mpet/
 **Fecha de entrega:** Semana 4
-
-> **Nota de conformación del equipo.** El proyecto se planificó originalmente para
-> cuatro integrantes. Un integrante no se incorporó al desarrollo, por lo que en la
-> Semana 3 el Project Manager redistribuyó formalmente sus tareas: el módulo de
-> Interfaz y Visualización pasó a Alejandro Zamora, sumado a sus responsabilidades
-> de núcleo e integración. La redistribución está documentada en el repositorio
-> (`README.md`, `guias/`) y la contribución individual de cada integrante es
-> verificable en el historial de commits y pull requests.
 
 ---
 
@@ -124,14 +116,15 @@ Esta decisión produjo tres beneficios verificables durante el desarrollo:
 2. **Sustitución sin refactorización.** El orquestador recibe sus dependencias por
    inyección: reemplazar un mock por el módulo real es cambiar una línea de
    composición, sin tocar lógica.
-3. **Absorción de la baja de un integrante.** Cuando fue necesario redistribuir el
-   módulo de interfaz, no hubo dependencias ocultas que desenredar.
+3. **Verificación aislada por módulo.** Cada módulo se prueba contra su contrato
+   sin depender de los demás, de modo que la suite completa corre en integración
+   continua sin micrófono, sin descarga de modelos y sin intervención manual.
 
 ### 3.2 Diagrama de bloques
 
 ```mermaid
 flowchart TB
-    subgraph UI["Interfaz - Alejandro"]
+    subgraph UI["Interfaz - Monestel"]
         CHAT[Chat y feedback visual]
         VIS[Visualizador: waveform, espectrograma, pitch]
     end
@@ -190,7 +183,7 @@ mpet/
 │   ├── core/      Alejandro: event bus, orquestador, service worker, almacenamiento
 │   ├── audio/     Fabrizio: captura, dsp, caracteristicas, comparador
 │   ├── ai/        Isaac: asr, gramatica, sugerencias, tts, cache de modelos
-│   ├── ui/        Alejandro: chat, visualizador, feedback, progreso
+│   ├── ui/        Monestel: chat, visualizador, feedback, progreso
 │   └── shared/    Contratos y constantes (cambios solo por PR shared-change)
 ├── mocks/         Implementaciones simuladas de cada contrato
 ├── tests/         Espejo de src/, por modulo
@@ -618,8 +611,8 @@ Estado al cierre del Avance 1. La matriz completa y actualizada se mantiene en
 
 | ID | Requerimiento | Prioridad | Módulo | Estado | Verificación | Métrica |
 |---|---|---|---|---|---|---|
-| RF-01 | Captura de micrófono | Alta | `src/audio/capture` | Parcial | Sonda de dispositivo ejecutada; adaptador de demostración operativo | Rate detectado 48 kHz; estrategia de decimación seleccionada en runtime |
-| RF-02 | Preprocesamiento: decimación, filtrado, normalización | Alta | `src/audio/dsp` | Parcial | Utilidades de muestreo con pruebas unitarias | Factor entero 3; corte del filtro 7 200 Hz |
+| RF-01 | Captura de micrófono | Alta | `src/audio/capture` | Implementado | Captura real integrada a la aplicación mediante `src/core/audioEngineAdapter.ts`; 7 pruebas del adaptador | Rate detectado 48 kHz; decimación por factor entero 3 seleccionada en runtime |
+| RF-02 | Preprocesamiento: decimación, filtrado, normalización | Alta | `src/audio/dsp` | Implementado | 113 pruebas en `tests/audio/`, incluidas 27 de la FFT | Factor entero 3; corte del filtro 7 200 Hz; 73.8 dB de atenuación de alias |
 | RF-03 | Visualización de forma de onda en tiempo real | Alta | `src/ui/visualizer` | Implementado | Inspección visual con señal real y sintética | Renderizado sobre requestAnimationFrame; objetivo 30 fps |
 | RF-04 | Reconocimiento de voz offline (Whisper) | Alta | `src/ai/asr` | Implementado en código; verificación en ejecución pendiente de la integración | Spike con mediciones completas; worker con pruebas unitarias | RTF 0.28–0.31; 41 MB en caché |
 | RF-05 | Corrección gramatical con resaltado | Alta | `src/ai/grammar` + `src/ui/chat` | Implementado en código; verificación en ejecución pendiente de la integración | Spike del modelo ejecutado; resaltado y diferenciador con pruebas unitarias | 320 ms de latencia media; 6 de 8 frases corregidas |
@@ -630,7 +623,7 @@ Estado al cierre del Avance 1. La matriz completa y actualizada se mantiene en
 | RF-10 | Puntaje de pronunciación | Alta | `src/audio/comparator` | Pendiente | — | Planificado Semana 6 |
 | RF-11 | Síntesis de voz | Alta | `src/ai/tts` | Pendiente | — | Planificado Semana 5 |
 | RF-12 | Sugerencias de comunicación | Media | `src/ai/suggestions` | Pendiente | — | Planificado Semana 6 |
-| RF-13 | Conversación completa | Alta | `src/core/orchestrator` | Parcial | Flujo end-to-end operativo con módulos simulados; 4 pruebas unitarias | Máquina de estados verificada |
+| RF-13 | Conversación completa | Alta | `src/core/orchestrator` | Parcial | Flujo end-to-end operativo con el motor de audio real y el canal de IA; 13 pruebas de núcleo | Máquina de estados verificada; módulos simulados conservados como modo de respaldo (`?mock=1`) |
 | RF-14 | PWA instalable y offline | Alta | `src/core` | Parcial | Service worker generado en build; verificación offline pendiente | 8 entradas en precaché |
 | RF-15 | Caché de modelos | Alta | `src/ai/model-cache` | Parcial | Validado en spike | Segunda carga 0.54 s desde caché |
 | RF-16 | Procesamiento íntegramente client-side | Alta | Toda la aplicación | Implementado | Ausencia de backend; inspección de red | Cero llamadas a servicios externos en inferencia |
@@ -638,7 +631,7 @@ Estado al cierre del Avance 1. La matriz completa y actualizada se mantiene en
 | RF-18 | Documento técnico por entrega | Alta | `docs/entregas` | En curso | Este documento | Ocho secciones obligatorias |
 | RF-19 | Presentación y demostración | Alta | — | En curso | Ensayo cronometrado | 10–15 minutos |
 | RF-20 | Matriz de trazabilidad actualizada | Alta | `docs/07` | Implementado | Revisión por hito | 23 requerimientos mapeados |
-| RF-21 | Verificación con métricas | Alta | `tests/` | Parcial | 21 pruebas automatizadas en integración continua | WER formal planificado Semana 8 |
+| RF-21 | Verificación con métricas | Alta | `tests/` | Parcial | 151 pruebas automatizadas en integración continua (113 de audio, 21 de IA, 13 de núcleo, 4 de interfaz) | WER formal planificado Semana 8 |
 | RF-22 | Marco teórico con ecuaciones | Alta | `docs/09` | Parcial | Muestreo, Nyquist y DFT completos | Secciones restantes en Semanas 5 y 6 |
 | RF-23 | Análisis de progreso del usuario | Baja | `src/ui/progress` | Pendiente | — | Planificado Semana 9 |
 
@@ -670,8 +663,8 @@ verificación de tipos, pruebas automatizadas y compilación de producción. La 
 
 | Nivel | Método | Estado |
 |---|---|---|
-| Unitario | Pruebas sobre funciones puras: utilidades de muestreo, segmentación de correcciones, máquina de estados del orquestador, cumplimiento de contratos por los mocks | 21 pruebas en verde |
-| Integración | Flujo completo de un turno de conversación con módulos simulados | Verificado |
+| Unitario | Pruebas sobre funciones puras: remuestreo y filtrado, ventanas y FFT, detección de actividad de voz, segmentación de correcciones, máquina de estados del orquestador, cumplimiento de contratos por los mocks | 151 pruebas en verde |
+| Integración | Flujo completo de un turno de conversación, con el motor de audio real y con los módulos simulados como respaldo | Verificado |
 | Numérico | Comparación de implementaciones propias de DSP contra bibliotecas de referencia con señales sintéticas de parámetros conocidos | Planificado Semanas 5 y 6 |
 | Métrico | WER sobre conjunto de 50 frases con cuatro hablantes; latencia por etapa; fotogramas por segundo del visualizador | Planificado Semana 8 |
 | Casos límite | Ruido ambiental, acento marcado, locuciones largas, silencios, ausencia de permisos de micrófono | Manejo de permisos implementado; resto planificado Semana 8 |
@@ -712,19 +705,25 @@ La arquitectura separa el procesamiento del hilo de audio en tiempo real: el
 filtrado, el remuestreo y la transformada se ejecutan en el hilo principal sobre
 funciones puras. La decisión tiene una consecuencia metodológica relevante:
 **todo el procesamiento de señales resulta verificable fuera del navegador**, lo
-que permitió construir 117 pruebas automatizadas del módulo de audio —de un total
-de 148 en el proyecto— que se ejecutan en la integración continua sin requerir
+que permitió construir 113 pruebas automatizadas del módulo de audio —de un total
+de 151 en el proyecto— que se ejecutan en la integración continua sin requerir
 micrófono ni intervención manual.
 
-**En curso.** Worker de reconocimiento de voz sobre el contrato definido;
-corrección gramatical con modelo real; integración de módulos reales en
-sustitución de los simulados.
+**Integración de los módulos reales.** Al cierre del avance, el adaptador
+`src/core/audioEngineAdapter.ts` sustituyó la implementación simulada del motor de
+audio por la cadena real de procesamiento, sin modificar el orquestador ni la
+interfaz: el cambio consistió en una línea de composición, tal como preveía el
+diseño por contratos. Los módulos simulados se conservan como modo de respaldo,
+accesible mediante el parámetro `?mock=1`, para poder demostrar el flujo completo
+aunque no haya micrófono disponible.
+
+**En curso.** Verificación en ejecución del canal de inteligencia artificial con
+los modelos reales; extracción de MFCC y detección de frecuencia fundamental.
 
 ### 7.4 Incidencias y decisiones de gestión
 
 | Incidencia | Decisión |
 |---|---|
-| Un integrante no se incorporó al desarrollo | Redistribución formal del módulo de interfaz al Project Manager, documentada en el repositorio. La arquitectura desacoplada permitió absorber la baja sin replanificar el resto de módulos |
 | El micrófono no permite negociar la frecuencia de muestreo | Implementar decimación explícita con filtro anti-aliasing en lugar de delegar en el navegador. La decisión además aporta evidencia directa del curso |
 | La versión actual del motor de inferencia es una mayor superior a la validada | Fijar la versión a la rama validada experimentalmente, para preservar la correspondencia entre el código y las mediciones documentadas |
 | Consumo de memoria de un solo modelo cercano a 290 MB | Registrado como riesgo; se medirá el consumo agregado al incorporar los modelos restantes y se evaluará carga bajo demanda |
@@ -748,15 +747,110 @@ proyecto y ruta crítica en `docs/05-roadmap.md`.
 - `docs/evidencias/s3/s3-t1-fft-stft.md` — FFT y STFT: tabla de error frente a la DFT por definición, costo computacional y fuga espectral por ventana.
 - `docs/evidencias/s3/ui-chat-waveform.md` — Módulo de interfaz: decisiones de implementación y verificación.
 
-### Anexo C — Capturas de la aplicación
-> Insertar antes de la entrega: captura de la interfaz con la forma de onda de voz
-> real; captura de un turno de conversación con corrección gramatical resaltada;
-> captura del pipeline de integración continua en verde; captura del tablero de
-> seguimiento.
+### Anexo C — Aplicación desplegada y verificación en ejecución
+
+La aplicación está publicada y es verificable en ejecución en
+`https://humanoidcat.github.io/mpet/`. El despliegue se realiza automáticamente
+desde la rama `main` al superar la verificación continua, de modo que la versión
+publicada corresponde siempre al último estado aprobado del repositorio.
+
+Elementos observables en la aplicación desplegada:
+
+- Interfaz de chat con el control de micrófono y sus tres estados (inactivo,
+  grabando, procesando).
+- Visualización de la forma de onda en tiempo real alimentada por la cadena real
+  de procesamiento de señales.
+- Resaltado de las correcciones gramaticales sobre el texto transcrito.
+- Modo de respaldo con módulos simulados, accesible con el parámetro `?mock=1`,
+  que permite recorrer el flujo completo sin micrófono ni descarga de modelos.
+- Estado de la verificación continua y del despliegue, visible en la pestaña
+  *Actions* del repositorio.
 
 ### Anexo D — Fragmentos de código relevantes
-> Incluir: definición de los contratos entre módulos; selección de estrategia de
-> remuestreo; máquina de estados del orquestador.
+
+**D.1 Contratos entre módulos** (`src/shared/contracts.ts`). Define la frontera
+del módulo de audio: el resto de la aplicación depende de esta interfaz, no de su
+implementación.
+
+```
+/** Frame de análisis emitido ~30 veces por segundo para visualización. */
+export interface AudioFrame {
+  pcm: Float32Array;      // PCM mono normalizado [-1, 1]
+  fftDb: Float32Array;    // magnitud del espectro (mitad positiva), en dB
+  pitchHz: number | null; // frecuencia fundamental, o null si no hay voz
+  energy: number;         // energia RMS del frame
+  mfcc: number[];         // 13 coeficientes cepstrales en escala mel
+  t: number;              // tiempo en segundos desde el inicio
+}
+
+export interface AudioEngine {
+  start(): Promise<void>;
+  stop(): Promise<Float32Array>;
+  onFrame(cb: (frame: AudioFrame) => void): () => void;
+  analyze(pcm: Float32Array): Promise<AudioFrame[]>;
+}
+```
+
+**D.2 Filtro anti-aliasing y estrategia de remuestreo**
+(`src/audio/dsp/resampler.ts`). El corte se calcula sobre la frecuencia de
+muestreo menor, que es la que impone el Nyquist limitante.
+
+```
+/** Numero de coeficientes del FIR anti-aliasing (impar, fase lineal). */
+export const ANTI_ALIAS_TAPS = 127;
+
+export function designAntiAliasFilter(
+  fromRate: number,
+  toRate: number = SAMPLE_RATE,
+  numTaps: number = ANTI_ALIAS_TAPS
+): Float32Array | null {
+  // Al subir de frecuencia no hay riesgo de plegado: la senal ya esta
+  // limitada en banda y el filtro no hace falta.
+  if (toRate >= fromRate) return null;
+  return designLowpassFir(antiAliasCutoffHz(toRate), fromRate, numTaps);
+}
+```
+
+**D.3 Adaptador entre el módulo de señales y el contrato**
+(`src/core/audioEngineAdapter.ts`). Compone la cadena real de procesamiento sin
+reimplementar nada, y declara explícitamente los campos aún no calculados en
+lugar de rellenarlos con valores inventados.
+
+```
+capture.onBlock((raw) => {
+  const clean = pre.process(raw);        // decimacion, pasa-banda, RMS
+  const frame = toFrame(clean);          // ventana de Hann, FFT, dB
+  subs.forEach((cb) => cb(frame));
+});
+
+return {
+  pcm, fftDb,
+  pitchHz: null,     // pendiente de S5-T1 (algoritmo YIN)
+  energy,
+  mfcc: EMPTY_MFCC,  // pendiente de S5-T2 (banco mel y DCT)
+  t: elapsed,
+};
+```
+
+**D.4 Máquina de estados del orquestador** (`src/core/orchestrator.ts`). Recibe
+sus dependencias por inyección, de modo que sustituir un módulo simulado por el
+real no altera esta lógica.
+
+```
+export type OrchestratorState = 'idle' | 'recording' | 'processing';
+
+async toggleMic() {
+  if (state === 'processing') return;   // se ignora durante el proceso
+  if (state === 'idle') {
+    await audio.start();
+    state = 'recording';
+    bus.emit({ type: 'recording-started' });
+    return;
+  }
+  const pcm = await audio.stop();       // state === 'recording'
+  await processTurn(pcm);               // ASR, gramatica, respuesta
+}
+```
 
 ### Anexo E — Gestión del proyecto
 Planificación completa (`docs/00` a `docs/08`), historial de commits y pull
