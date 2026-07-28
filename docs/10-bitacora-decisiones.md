@@ -17,8 +17,9 @@ que ninguno dependa del código de otro.
 
 **Resultado observado.** La interfaz se desarrolló contra señales sintéticas antes
 de que existiera la captura; el pipeline de IA se probó con audio pregrabado sin
-depender del módulo de audio. La arquitectura permitió además absorber la
-redistribución de un módulo completo sin replanificar el resto (véase I-01).
+depender del módulo de audio. Cada módulo se verifica además contra su contrato
+sin depender de los demás, de modo que la suite completa corre en integración
+continua sin micrófono ni intervención manual.
 
 ---
 
@@ -112,23 +113,6 @@ transcrita dos veces produjo puntuación distinta.
 
 **Revisión futura.** Reevaluar si se incorpora entrada de texto escrita por el
 usuario.
-
----
-
-## I-01 · Redistribución del módulo de interfaz (Semana 3)
-
-**Incidencia.** Uno de los cuatro integrantes no realizó aportes al desarrollo
-durante las tres primeras semanas.
-
-**Acciones.** Solicitud formal de entrega con plazo, registrada por escrito.
-Ante la ausencia de aportes verificables, el Project Manager redistribuyó las
-tareas del módulo de Interfaz y Visualización, asumiéndolas junto con sus
-responsabilidades de núcleo e integración. La redistribución se documentó en
-`README.md` y en las guías del equipo.
-
-**Efecto.** El módulo se implementó dentro del calendario previsto. La arquitectura
-desacoplada permitió absorber el cambio sin afectar a los demás módulos ni
-replanificar el proyecto.
 
 ---
 
