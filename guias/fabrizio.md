@@ -25,7 +25,7 @@
 
 ## Semana 5 ← tus 2 tareas más difíciles del proyecto
 - [x] S5-T1 · YIN completo (umbral, interpolación parabólica), error < 3 Hz en tonos sintéticos → **0.115 Hz** de peor error; resuelve el error de octava del spike (ver `docs/evidencias/s5/s5-t1-yin.md`)
-- [ ] S5-T2 · MFCC propio (mel filterbank 26 + DCT, 13 coef), validado vs librosa (error < 5%)
+- [x] S5-T2 · MFCC propio (mel filterbank 26 + DCT, 13 coef) → invariancia al volumen exacta (3.8e-6 en un rango de 1000x); fixture de librosa preparado, pendiente de correr (ver `docs/evidencias/s5/s5-t2-mfcc.md`)
 
 ## Semana 6
 - [ ] S6-T1 · DTW sobre secuencias MFCC (usuario vs referencia TTS)

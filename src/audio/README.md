@@ -24,8 +24,14 @@ Estructura sugerida: capture/ · dsp/ · features/ · comparator/
   acumulada, umbral absoluto). Peor error 0.115 Hz y resuelve el error de octava
   que el spike documentó. Evidencia: `docs/evidencias/s5/s5-t1-yin.md`.
 
-Cadena actual: captura → remuestreo → preprocesamiento → VAD → STFT → pitch.
-Siguiente: MFCC (S5-T2) se monta sobre el espectrograma de `stft.ts`.
+- **S5-T2 ✅** MFCC: `features/mel.ts` + `features/mfcc.ts` (banco mel HTK de 26
+  bandas, DCT-II ortonormal, 13 coeficientes). Invariancia al volumen exacta.
+  Evidencia: `docs/evidencias/s5/s5-t2-mfcc.md`.
+
+**Semana 5 completa.** Cadena: captura → remuestreo → preprocesamiento → VAD →
+STFT → pitch (YIN) → MFCC. Con esto quedan cubiertos los dos campos que
+`audioEngineAdapter.ts` declaraba vacíos (`pitchHz` y `mfcc`).
+Siguiente: comparador DTW (S6-T1) sobre las secuencias de MFCC.
 
 ### Conclusiones del spike de pitch, para S5-T1 (YIN)
 La maquinaria base ya está validada y es reutilizable. El objetivo de exactitud
