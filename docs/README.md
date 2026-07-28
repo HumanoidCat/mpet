@@ -1,7 +1,7 @@
 # My Personal English Teacher — Planificación del Proyecto
 
 **Curso:** Señales y Sistemas · **Duración:** 10 semanas (7 jul – 8 sep 2026)
-**Equipo:** Alejandro Zamora (PM/Core-PWA) · Fabrizio (DSP) · Isaac Morum (IA/ML) · Monestel (UI/Visualización)
+**Equipo:** Alejandro Zamora (PM/Core-PWA) · Fabrizio Espinoza (DSP) · Isaac Morum (IA/ML) · José Pablo Monestel (UI/Visualización)
 
 PWA offline para práctica de inglés conversacional con procesamiento de señales de voz e IA client-side (Hugging Face + transformers.js).
 

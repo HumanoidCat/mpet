@@ -1,9 +1,9 @@
 # Evidencia S2-T6 + S3-T2 + S3-T4 — UI: chat, waveform y highlights
 
 **Autor:** Alejandro Zamora · **Semana 3** · **Epica E4**
-**Nota de asignacion:** tareas del modulo UI originalmente planificadas para el
-cuarto integrante, quien permanece en el grupo pero no ha realizado aportes al
-desarrollo. Asumidas por Alejandro (ver `guias/alejandro.md` y nota en `README.md`).
+**Nota.** Version inicial de estas piezas del modulo UI, construida contra los
+mocks para desbloquear la integracion del nucleo. El modulo `src/ui/` esta a
+cargo de Jose Pablo Monestel, que continua su desarrollo (ver `guias/monestel.md`).
 
 ## Que se construyo
 

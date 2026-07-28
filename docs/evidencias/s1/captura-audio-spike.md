@@ -1,6 +1,6 @@
 # Evidencia S1-T6 — Spike de captura de audio en el navegador
 
-**Autor:** Fabrizio (DSP) · **Semana 1**
+**Autor:** Fabrizio Espinoza (DSP) · **Semana 1**
 **Entorno:** Chrome · Web Audio API (`AudioContext`) · `navigator.mediaDevices.getUserMedia`.
 
 > Reproducible con `src/audio/capture/probeAudioDevice.ts` (ver instrucciones en la

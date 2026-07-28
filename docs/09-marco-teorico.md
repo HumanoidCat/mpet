@@ -1,6 +1,6 @@
 # 09 · Marco teórico — Señales y Sistemas
 
-> **S1-T9** · Fabrizio (DSP) + Monestel (visualización) · Iniciado Semana 1.
+> **S1-T9** · Fabrizio Espinoza (DSP) + José Pablo Monestel (visualización) · Iniciado Semana 1.
 > Este documento crece con el proyecto: Semana 1 cubre muestreo, Nyquist y DFT;
 > las secciones de MFCC, YIN y DTW se agregan en las Semanas 5 y 6.
 > Las ecuaciones usan KaTeX (`$...$` en línea, `$$...$$` en bloque).

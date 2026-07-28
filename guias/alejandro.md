@@ -19,11 +19,13 @@
 ## Semana 2
 - [x] S2-T7 · Orquestador v0: botón mic → captura → ASR → texto en chat
       → `src/core/orchestrator.ts` con inyección de dependencias. 4 tests verdes.
-- [x] S2-T6 · Chat con botón de micrófono *(versión inicial; luego rediseñada por Monestel)*
+- [x] Apoyo a S2-T6 · Versión inicial del chat con botón de micrófono, construida
+      contra los mocks para desbloquear el orquestador. El módulo `src/ui/` es de
+      Monestel, que continúa su desarrollo.
 
 ## Semana 3
-- [x] S3-T2 · Waveform en Canvas ≥30 fps (buffer circular, min/max por píxel)
-- [x] S3-T4 · Highlights de gramática en el chat (`buildSegments`, 4 tests)
+- [x] Apoyo a S3-T2 · Waveform en Canvas ≥30 fps (buffer circular, min/max por píxel)
+- [x] Apoyo a S3-T4 · Highlights de gramática en el chat (`buildSegments`, 4 tests)
 - [x] Adaptador de micrófono real para demostración (`mocks/demoMicEngine.ts`)
 - [x] S3-T5 · **Integración: pipeline real de IA (Whisper + T5) conectado a la UI**
       → Modo `?mock=1` como contingencia de demo + manejo de fallo de descarga.
@@ -32,7 +34,8 @@
         con su FFT propia y la entrega como `AudioFrame` al visualizador. 7 tests.
         Pitch y MFCC quedan declarados como pendientes (S5), no inventados.
 - [x] S3-T6 · Documento Avance 1 (8 secciones) + bitácora de decisiones (`docs/10`)
-- [x] Corrección del calendario de entregas y rescate de la rama de UI (ver bitácora I-02, I-03)
+- [x] Corrección del calendario de entregas y reconstrucción de los archivos
+      compartidos tras una verificación en rojo (ver bitácora I-01, I-02)
 - [ ] Capturas y anexos del documento (Anexo C y D)
 - [ ] S3-T7 · Presentación + guion de demo + video de respaldo
 

@@ -5,9 +5,9 @@
 | Integrante | Rol | Módulo (carpeta propia) | Épicas | % del código |
 |---|---|---|---|---|
 | **Alejandro Zamora** | PM + Integración/PWA | `src/core/` | E1, coordina E5/E6 | ~20% + gestión |
-| **Fabrizio** | Ingeniero DSP | `src/audio/` | E2 | ~30% (ruta crítica) |
+| **Fabrizio Espinoza** | Ingeniero DSP | `src/audio/` | E2 | ~30% (ruta crítica) |
 | **Isaac Morum** | Ingeniero IA/ML | `src/ai/` | E3 | ~30% |
-| **Monestel** | Frontend/Visualización | `src/ui/` | E4 | ~20% + QA de UI |
+| **José Pablo Monestel** | Frontend/Visualización | `src/ui/` | E4 | ~20% + QA de UI |
 
 **Cómo se logra que nadie dependa de nadie:**
 
