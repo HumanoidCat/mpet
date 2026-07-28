@@ -1,6 +1,6 @@
 # Evidencia S3-T1 — FFT radix-2 y STFT
 
-> Fabrizio (DSP) · Semana 3 · Código en `src/audio/dsp/fft.ts`, `window.ts`, `stft.ts`
+> Fabrizio Espinoza (DSP) · Semana 3 · Código en `src/audio/dsp/fft.ts`, `window.ts`, `stft.ts`
 > Reproducible con `npx vitest run tests/audio/fft.test.ts tests/audio/stft.test.ts` (35 pruebas).
 
 ## 1. Qué se implementó

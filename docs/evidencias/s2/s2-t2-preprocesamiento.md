@@ -1,6 +1,6 @@
 # Evidencia S2-T2 — Preprocesamiento: pasa-banda y normalización RMS
 
-> Fabrizio (DSP) · Semana 2 · Código en `src/audio/dsp/biquad.ts` y `preprocess.ts`
+> Fabrizio Espinoza (DSP) · Semana 2 · Código en `src/audio/dsp/biquad.ts` y `preprocess.ts`
 > Reproducible con `npx vitest run tests/audio` (25 pruebas de esta tarea).
 
 ## 1. Qué hace y en qué orden

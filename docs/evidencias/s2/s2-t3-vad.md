@@ -1,6 +1,6 @@
 # Evidencia S2-T3 — Detección de actividad de voz (VAD)
 
-> Fabrizio (DSP) · Semana 2 · Código en `src/audio/dsp/vad.ts`
+> Fabrizio Espinoza (DSP) · Semana 2 · Código en `src/audio/dsp/vad.ts`
 > Reproducible con `npx vitest run tests/audio/vad.test.ts` (20 pruebas).
 
 ## 1. Qué resuelve

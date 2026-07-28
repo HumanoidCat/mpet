@@ -1,6 +1,6 @@
 # My Personal English Teacher — Visión y Alcance
 
-**Curso:** Señales y Sistemas · **Duración:** 10 semanas · **Equipo:** Alejandro Zamora (PM/Integración), Fabrizio (DSP), Isaac Morum (IA/ML), Monestel (Frontend/Visualización)
+**Curso:** Señales y Sistemas · **Duración:** 10 semanas · **Equipo:** Alejandro Zamora (PM/Integración), Fabrizio Espinoza (DSP), Isaac Morum (IA/ML), José Pablo Monestel (Frontend/Visualización)
 
 ## 1. Visión
 

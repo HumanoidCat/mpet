@@ -1,6 +1,6 @@
 # Evidencia S2-T1 — Captura y remuestreo a 16 kHz
 
-> Fabrizio (DSP) · Semana 2 · Código en `src/audio/capture/` y `src/audio/dsp/`
+> Fabrizio Espinoza (DSP) · Semana 2 · Código en `src/audio/capture/` y `src/audio/dsp/`
 > Reproducible con `npx vitest run tests/audio` (32 pruebas, sin micrófono).
 
 ## 1. Cadena implementada

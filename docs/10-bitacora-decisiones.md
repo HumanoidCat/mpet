@@ -116,7 +116,7 @@ usuario.
 
 ---
 
-## I-02 · Corrección del calendario de entregas (Semana 3)
+## I-01 · Corrección del calendario de entregas (Semana 3)
 
 **Incidencia.** La planificación interna situaba el primer avance una semana
 después de la fecha real de la semana 4.
@@ -127,11 +127,11 @@ roadmap, el plan semanal y las guías del equipo.
 
 ---
 
-## I-03 · Solicitud de integración que comprometía la compilación (Semana 3)
+## I-02 · Solicitud de integración que comprometía la compilación (Semana 3)
 
-**Incidencia.** Una solicitud de integración del módulo de interfaz falló la
-verificación automática. El análisis determinó que la rama, pese a partir de un
-punto correcto de la rama de integración, eliminaba en su commit la dependencia
+**Incidencia.** Una solicitud de integración falló la verificación automática. El
+análisis determinó que la rama, pese a partir de un punto correcto de la rama de
+integración, eliminaba en su commit la dependencia
 `@huggingface/transformers` del manifiesto del proyecto y revertía la
 configuración de caché del runtime WebAssembly. La causa fue la regeneración
 completa de `package.json` y `vite.config.ts` por una herramienta de andamiaje, que

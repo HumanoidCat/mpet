@@ -869,7 +869,7 @@ requests del repositorio, tablero de issues por sprint.
 
 ## Secciones pendientes de completar por el equipo
 
-> **Fabrizio (DSP): ✅ completado.** Sección 5.1 ampliada con el desarrollo del
+> **Fabrizio Espinoza (DSP): ✅ completado.** Sección 5.1 ampliada con el desarrollo del
 > filtro anti-aliasing y su respuesta en frecuencia medida; secciones 5.2, 5.4 y
 > 5.5 añadidas (FFT/STFT validada, filtrado y preprocesamiento, detección de
 > actividad de voz); sección 7.3 con los resultados y mediciones del módulo.
