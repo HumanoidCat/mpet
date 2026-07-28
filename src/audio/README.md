@@ -20,8 +20,12 @@ Estructura sugerida: capture/ · dsp/ · features/ · comparator/
   (autocorrelación por Wiener–Khinchin, interpolación parabólica). Evidencia:
   `docs/evidencias/s4/s4-t4-pitch-autocorrelacion.md`.
 
-Cadena actual: captura → remuestreo → preprocesamiento → VAD → STFT.
-Siguiente: MFCC y YIN (Semana 5) se montan sobre el espectrograma de `stft.ts`.
+- **S5-T1 ✅** YIN: `features/yin.ts` (función de diferencia por FFT, normalización
+  acumulada, umbral absoluto). Peor error 0.115 Hz y resuelve el error de octava
+  que el spike documentó. Evidencia: `docs/evidencias/s5/s5-t1-yin.md`.
+
+Cadena actual: captura → remuestreo → preprocesamiento → VAD → STFT → pitch.
+Siguiente: MFCC (S5-T2) se monta sobre el espectrograma de `stft.ts`.
 
 ### Conclusiones del spike de pitch, para S5-T1 (YIN)
 La maquinaria base ya está validada y es reutilizable. El objetivo de exactitud

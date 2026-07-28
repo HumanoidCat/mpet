@@ -77,6 +77,44 @@ export function autocorrelationFft(x: Float32Array, maxLag?: number): Float64Arr
 }
 
 /**
+ * Correlación cruzada por FFT: cc[τ] = Σ_j a[j] · b[j+τ], para τ = 0 … maxLag.
+ *
+ * Se apoya en que correlacionar equivale a multiplicar por el conjugado en
+ * frecuencia: cc = IFFT( conj(A) · B ). YIN la necesita porque su función de
+ * diferencia compara una ventana fija contra el resto del frame, no el frame
+ * entero contra sí mismo.
+ */
+export function crossCorrelationFft(
+  a: Float32Array,
+  b: Float32Array,
+  maxLag: number
+): Float64Array {
+  const size = nextPowerOfTwo(a.length + b.length);
+  const fft = new Fft(size);
+
+  const reA = new Float64Array(size);
+  const imA = new Float64Array(size);
+  const reB = new Float64Array(size);
+  const imB = new Float64Array(size);
+  reA.set(a);
+  reB.set(b);
+
+  fft.forward(reA, imA);
+  fft.forward(reB, imB);
+
+  // conj(A)·B = (reA − j·imA)(reB + j·imB)
+  for (let k = 0; k < size; k++) {
+    const re = reA[k] * reB[k] + imA[k] * imB[k];
+    const im = reA[k] * imB[k] - imA[k] * reB[k];
+    reA[k] = re;
+    imA[k] = im;
+  }
+
+  fft.inverse(reA, imA);
+  return Float64Array.from(reA.subarray(0, maxLag + 1));
+}
+
+/**
  * Autocorrelación normalizada al intervalo [−1, 1], corrigiendo el sesgo del
  * solapamiento decreciente. Cada desfase se divide entre la energía de los dos
  * tramos que realmente se comparan:

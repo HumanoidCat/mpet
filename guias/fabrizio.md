@@ -24,7 +24,7 @@
 - [x] S4-T4 · Spike: pitch por autocorrelación → error 0.008 Hz en tonos puros; el error de octava con fundamental débil es lo que justifica YIN (ver `docs/evidencias/s4/s4-t4-pitch-autocorrelacion.md`)
 
 ## Semana 5 ← tus 2 tareas más difíciles del proyecto
-- [ ] S5-T1 · YIN completo (umbral, interpolación parabólica), error < 3 Hz en tonos sintéticos
+- [x] S5-T1 · YIN completo (umbral, interpolación parabólica), error < 3 Hz en tonos sintéticos → **0.115 Hz** de peor error; resuelve el error de octava del spike (ver `docs/evidencias/s5/s5-t1-yin.md`)
 - [ ] S5-T2 · MFCC propio (mel filterbank 26 + DCT, 13 coef), validado vs librosa (error < 5%)
 
 ## Semana 6
