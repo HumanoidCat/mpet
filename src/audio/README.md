@@ -16,8 +16,29 @@ Estructura sugerida: capture/ · dsp/ · features/ · comparator/
 - **S3-T1 ✅** FFT/STFT: `dsp/fft.ts` + `dsp/window.ts` + `dsp/stft.ts` (radix-2 a mano,
   ventana Hann, espectrograma offline y en vivo). Evidencia: `docs/evidencias/s3/s3-t1-fft-stft.md`.
 
-Cadena actual: captura → remuestreo → preprocesamiento → VAD → STFT.
-Siguiente: MFCC y YIN (Semana 5) se montan sobre el espectrograma de `stft.ts`.
+- **S4-T4 ✅** spike de pitch: `features/autocorrelation.ts` + `features/pitch.ts`
+  (autocorrelación por Wiener–Khinchin, interpolación parabólica). Evidencia:
+  `docs/evidencias/s4/s4-t4-pitch-autocorrelacion.md`.
+
+- **S5-T1 ✅** YIN: `features/yin.ts` (función de diferencia por FFT, normalización
+  acumulada, umbral absoluto). Peor error 0.115 Hz y resuelve el error de octava
+  que el spike documentó. Evidencia: `docs/evidencias/s5/s5-t1-yin.md`.
+
+- **S5-T2 ✅** MFCC: `features/mel.ts` + `features/mfcc.ts` (banco mel HTK de 26
+  bandas, DCT-II ortonormal, 13 coeficientes). Invariancia al volumen exacta.
+  Evidencia: `docs/evidencias/s5/s5-t2-mfcc.md`.
+
+**Semana 5 completa.** Cadena: captura → remuestreo → preprocesamiento → VAD →
+STFT → pitch (YIN) → MFCC. Con esto quedan cubiertos los dos campos que
+`audioEngineAdapter.ts` declaraba vacíos (`pitchHz` y `mfcc`).
+Siguiente: comparador DTW (S6-T1) sobre las secuencias de MFCC.
+
+### Conclusiones del spike de pitch, para S5-T1 (YIN)
+La maquinaria base ya está validada y es reutilizable. El objetivo de exactitud
+(< 3 Hz) **ya se cumple**: 0.008 Hz de peor error en tonos puros. YIN se necesita
+por el **error de octava con fundamental débil** (reporta el doble de la
+frecuencia, con confianza normal), que ningún ajuste de umbral o rango resuelve.
+Usar frames cortos: alargarlos no mejora la exactitud.
 
 ## Cómo se valida el DSP de este módulo
 

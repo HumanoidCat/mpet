@@ -21,11 +21,11 @@
 
 ## Semana 4 — 🎯 AVANCE 1 (mar 28 jul)
 - [ ] Presentar mi parte en la demo
-- [ ] S4-T4 · Spike: pitch por autocorrelación
+- [x] S4-T4 · Spike: pitch por autocorrelación → error 0.008 Hz en tonos puros; el error de octava con fundamental débil es lo que justifica YIN (ver `docs/evidencias/s4/s4-t4-pitch-autocorrelacion.md`)
 
 ## Semana 5 ← tus 2 tareas más difíciles del proyecto
-- [ ] S5-T1 · YIN completo (umbral, interpolación parabólica), error < 3 Hz en tonos sintéticos
-- [ ] S5-T2 · MFCC propio (mel filterbank 26 + DCT, 13 coef), validado vs librosa (error < 5%)
+- [x] S5-T1 · YIN completo (umbral, interpolación parabólica), error < 3 Hz en tonos sintéticos → **0.115 Hz** de peor error; resuelve el error de octava del spike (ver `docs/evidencias/s5/s5-t1-yin.md`)
+- [x] S5-T2 · MFCC propio (mel filterbank 26 + DCT, 13 coef) → invariancia al volumen exacta (3.8e-6 en un rango de 1000x); fixture de librosa preparado, pendiente de correr (ver `docs/evidencias/s5/s5-t2-mfcc.md`)
 
 ## Semana 6
 - [ ] S6-T1 · DTW sobre secuencias MFCC (usuario vs referencia TTS)
