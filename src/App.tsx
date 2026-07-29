@@ -16,6 +16,7 @@ import GrammarScreen from '@ui/feedback/Grammar';
 import SuggestionsScreen from '@ui/chat/Suggestions';
 import SummaryScreen from '@ui/progress/Progress';
 import ModelsScreen from '@ui/shell/Models';
+import { SAMPLE_RATE } from '@shared/constants';
 import type { AIPipeline, ChatMessage } from '@shared/contracts';
 
 /**
@@ -35,6 +36,9 @@ import type { AIPipeline, ChatMessage } from '@shared/contracts';
  * a traves de `createDspAudioEngine`. En modo simulado usa el motor simulado de
  * `mocks/`, que genera una senal sintetica y no pide permisos de microfono.
  */
+/** Velocidad de la reproduccion lenta: suficiente para distinguir fonemas. */
+const SLOW_RATE = 0.7;
+
 function useMockMode(): boolean {
   return new URLSearchParams(window.location.search).get('mock') === '1';
 }
@@ -52,12 +56,12 @@ export type Screen =
 export function App() {
   const mockMode = useMockMode();
 
-  const { bus, orch, audio } = useMemo(() => {
+  const { bus, orch, audio, ai } = useMemo(() => {
     const bus = createEventBus();
     const audio = mockMode ? createMockAudioEngine() : createDspAudioEngine();
     const ai: AIPipeline = mockMode ? createMockAIPipeline() : createAIPipeline();
     const orch = createOrchestrator({ audio, ai, bus });
-    return { bus, orch, audio };
+    return { bus, orch, audio, ai };
   }, [mockMode]);
 
   // ── Carga de modelos (Splash) ──────────────────────────────────
@@ -97,6 +101,7 @@ export function App() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [state, setState] = useState<OrchestratorState>('idle');
   const [micError, setMicError] = useState<string | null>(null);
+  const [playError, setPlayError] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
@@ -118,6 +123,44 @@ export function App() {
       setMicError('No se pudo acceder al microfono. Revisa los permisos del navegador.');
     } finally {
       setState(orch.getState());
+    }
+  }
+
+  /**
+   * Reproduce una frase con la voz sintetizada (S5-T5, Isaac).
+   *
+   * POR QUE `slow` NO TOCA EL CONTRATO
+   * `AIPipeline.speak(text)` devuelve el PCM de referencia y no recibe velocidad,
+   * a proposito: la velocidad de reproduccion es una decision de presentacion, no
+   * del modelo. Se resuelve aqui cambiando `playbackRate` del nodo de audio, que
+   * ademas conserva el mismo PCM que consumira el comparador de pronunciacion.
+   * Asi no hace falta un `shared-change` sobre los contratos congelados.
+   *
+   * El PCM viene a 16 kHz mono, que es el rate de todo el proyecto.
+   */
+  async function onPlay(text: string, slow: boolean) {
+    setPlayError(null);
+    try {
+      const pcm = await ai.speak(text);
+      if (pcm.length === 0) return;
+
+      const ctx = new AudioContext({ sampleRate: SAMPLE_RATE });
+      const buffer = ctx.createBuffer(1, pcm.length, SAMPLE_RATE);
+      // `getChannelData().set()` en vez de `copyToChannel()`: el PCM del worker
+      // puede venir respaldado por un SharedArrayBuffer y la firma de
+      // `copyToChannel` solo acepta ArrayBuffer.
+      buffer.getChannelData(0).set(pcm);
+
+      const source = ctx.createBufferSource();
+      source.buffer = buffer;
+      source.playbackRate.value = slow ? SLOW_RATE : 1;
+      source.connect(ctx.destination);
+      source.onended = () => void ctx.close();
+      source.start();
+    } catch (err) {
+      setPlayError(
+        err instanceof Error ? err.message : 'No se pudo reproducir la frase.'
+      );
     }
   }
 
@@ -194,16 +237,24 @@ export function App() {
         )}
 
         <main className="flex-1 flex flex-col overflow-hidden">
-          {micError && (
+          {(micError || playError) && (
             <p className="text-[var(--color-danger)] text-xs px-4 py-2 bg-[var(--color-danger-light)]">
-              {micError}
+              {micError ?? playError}
             </p>
           )}
 
-          {screen === 'chat' && <Chat messages={messages} state={state} onMicClick={onMicClick} />}
+          {screen === 'chat' && (
+            <Chat
+              messages={messages}
+              state={state}
+              onMicClick={onMicClick}
+              audio={audio}
+              onPlay={onPlay}
+            />
+          )}
           {screen === 'visualizer' && <VisualizerScreen audio={audio} />}
           {screen === 'pronunciation' && <PronunciationScreen />}
-          {screen === 'grammar' && <GrammarScreen />}
+          {screen === 'grammar' && <GrammarScreen messages={messages} />}
           {screen === 'suggestions' && <SuggestionsScreen />}
           {screen === 'summary' && <SummaryScreen />}
           {screen === 'models' && <ModelsScreen />}
