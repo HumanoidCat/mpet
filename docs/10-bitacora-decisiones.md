@@ -226,13 +226,23 @@ lugar de uno por salto de análisis.
 
 **Acción.** Sustituir el rellenado por `StreamingStft`, que acumula las muestras
 recibidas y emite un espectro por cada frame completo, conservando el sobrante
-entre llamadas, de modo que los frames dejan de depender de dónde caigan los
-límites de bloque. El instante del frame pasa a calcularse con
-`stft.currentTime`.
+entre llamadas, de modo que las tramas dejan de depender de dónde caigan los
+límites de bloque.
+
+**Resultado.** Corregido en `src/core/audioEngineAdapter.ts` con
+`FrameAccumulator`, que acumula las muestras y analiza tramas completas de 512
+con salto de 256, sin relleno. Se acumula la trama y no el espectro porque el
+tono y los MFCC necesitan la señal en el dominio del tiempo, sin enventanar. La
+amplitud del espectro vuelve a 1.0 y la tasa pasa de 46 a 62.5 tramas por
+segundo. El instante de cada trama se asigna al emitirla, no al cerrar el
+bloque, porque una sola llegada puede producir varias tramas.
 
 **Aprendizaje registrado.** El tamaño de bloque del AudioWorklet no divide de
-forma exacta al tamaño de frame de análisis tras la decimación, y ese desajuste
-no es visible por inspección del código: solo aparece al medir la amplitud de una
-señal de referencia. Se añaden dos pruebas al adaptador —amplitud unitaria ante
-un tono de amplitud conocida, y número de frames emitidos por bloque de entrada—
-para que la condición quede fijada.
+forma exacta al tamaño de trama de análisis tras la decimación, y ese desajuste
+no es visible por inspección del código: solo aparece al medir la amplitud de
+una señal de referencia. Se añadieron cinco pruebas al adaptador para fijar la
+condición: amplitud unitaria ante un tono de amplitud conocida, independencia
+del número de tramas respecto al tamaño de bloque de entrada, conservación del
+sobrante entre llamadas, tiempo de trama por salto, y equivalencia del espectro
+con `StreamingStft` muestra a muestra, de modo que las dos rutas de análisis del
+proyecto no puedan divergir.
