@@ -70,3 +70,16 @@
 
 ## Ritmo semanal (recordatorio PM)
 Lunes noche: `dev` estable + ensayo · Martes 1 pm: clase + retro · Jueves: check-in de bloqueos · Siempre: revisar PRs (único aprobador de `src/shared/` y `package.json`).
+
+---
+
+## Siguiente — plan vigente: `docs/11-plan-post-avance-1.md`
+
+- [ ] Corregir `audioEngineAdapter.ts` con `StreamingStft` y `stft.currentTime` (incidencia **I-03**)
+- [ ] Dos pruebas nuevas del adaptador: amplitud unitaria ante tono conocido, y frames por bloque
+- [ ] Conectar `detectPitchYin` y `MfccExtractor` cuando entre el PR de Fabrizio
+- [ ] Ordenar la entrada de los dos PR abiertos sin que choquen en el visualizador
+- [ ] **Convocar la sesión de verificación de extremo a extremo con los cuatro** (riesgo **R15**)
+- [ ] Fijar el conteo definitivo de pruebas y actualizar la matriz de trazabilidad
+- [ ] S5-T6 · Persistencia de sesiones en IndexedDB
+- [ ] S6-T5 y S6-T6 · PWA completa y verificación del arranque sin conexión

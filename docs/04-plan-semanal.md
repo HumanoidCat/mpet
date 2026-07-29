@@ -2,6 +2,12 @@
 
 Sprints de 1 semana (miércoles→martes: cada **martes 1:00 pm** hay clase y se muestra el avance; los hitos caen en martes: Avance 1 = 28 jul, Avance 2 = 18 ago, Final = 8 sep). Convenciones de tareas: **P** = prioridad (Alta/Media/Baja), **D** = dificultad (1 fácil – 5 difícil), **h** = horas estimadas. Herramientas base para todas: VS Code, Git/GitHub, Chrome DevTools. Solo se listan herramientas adicionales.
 
+> **Aviso (Semana 5).** El profesor autorizó adelantar trabajo, por lo que el
+> orden por semana de calendario dejó de aplicarse: las tareas se toman por
+> dependencia. El contenido de cada tarea sigue siendo válido tal como está
+> descrito aquí, pero el orden de ejecución vigente es el de
+> [`11-plan-post-avance-1.md`](11-plan-post-avance-1.md). Ver decisión D-08.
+
 ---
 
 ## Semana 1 — Planificación y fundación (Sprint 0)
@@ -53,7 +59,7 @@ Sprints de 1 semana (miércoles→martes: cada **martes 1:00 pm** hay clase y se
 
 | ID | Tarea | Dueño | P | D | h | Herramientas | Conocimientos |
 |---|---|---|---|---|---|---|---|
-| S3-T1 | Implementar FFT propia (radix-2) + STFT con ventana de Hann; validar vs Meyda | Fabrizio | Alta | 4 | 6 | Meyda (verificación) | DFT/FFT, ventaneo |
+| S3-T1 | Implementar FFT propia (radix-2) + STFT con ventana de Hann; validar contra la definición de la DFT y propiedades exactas | Fabrizio | Alta | 4 | 6 | — | DFT/FFT, ventaneo, Parseval |
 | S3-T2 | Visualizador de waveform en Canvas a 30+ fps (consume `onFrame`) | Monestel | Alta | 3 | 5 | Canvas 2D | requestAnimationFrame |
 | S3-T3 | Worker de gramática: T5 cuantizado, extraer diffs palabra a palabra | Isaac | Alta | 3 | 5 | transformers.js | seq2seq, diff |
 | S3-T4 | Mostrar correcciones en chat con highlights (rojo error → verde corrección) | Monestel | Alta | 2 | 3 | React | — |
@@ -62,7 +68,7 @@ Sprints de 1 semana (miércoles→martes: cada **martes 1:00 pm** hay clase y se
 | S3-T7 | Presentación Avance 1 (10–15 min) + guion de demo en vivo + plan B grabado | Todos | Alta | 2 | 4 | PowerPoint | — |
 
 **Riesgos:** demo en vivo falla (micrófono/permisos) → ensayo previo + video de respaldo. Documento a última hora → empezar lunes, congelar código el jueves. **Dependencias:** S3-T5 requiere S2 completa; S3-T6 requiere arquitectura (ya lista S1). **Resultado esperado:** MVP demostrable + documento Avance 1 terminado.
-**Evidencias:** el propio documento, deck, demo funcional, validación FFT propia vs Meyda (tabla de error).
+**Evidencias:** el propio documento, deck, demo funcional, validación de la FFT propia contra la DFT por definición (tabla de error).
 
 ---
 

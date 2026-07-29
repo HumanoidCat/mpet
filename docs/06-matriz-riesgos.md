@@ -5,7 +5,7 @@ Probabilidad/Impacto: Alta · Media · Baja. Exposición = P × I. Revisión sem
 | ID | Riesgo | Prob. | Impacto | Exposición | Mitigación | Dueño |
 |---|---|---|---|---|---|---|
 | R01 | Modelos demasiado pesados/lentos en laptops del equipo (inferencia > 5 s) | Media | Alto | 🔴 Alta | Spike en Semana 1 con hardware real; usar variantes quantized (q4/q8); Whisper-tiny en vez de base; WebGPU con fallback WASM | Isaac |
-| R02 | Implementación propia de MFCC/YIN incorrecta (base del puntaje de pronunciación) | Media | Alto | 🔴 Alta | Validación contra librosa/Meyda con señales sintéticas conocidas (seno, chirp); pruebas unitarias desde S5 | Fabrizio |
+| R02 | Implementación propia de MFCC/YIN incorrecta (base del puntaje de pronunciación) | Media | Alto | 🔴 Alta | Validación contra la definición matemática y contra señales sintéticas de parámetros conocidos (seno, chirp, delta); pruebas unitarias desde S5 | Fabrizio |
 | R03 | Puntaje de pronunciación no correlaciona con percepción real | Alta | Medio | 🔴 Alta | Calibrar con 4 voces del equipo; presentarlo como feedback educativo relativo, no veredicto; documentar limitaciones | Fabrizio |
 | R04 | Un integrante se atrasa y bloquea a los demás | Media | Alto | 🔴 Alta | Arquitectura por contratos + mocks (nadie depende del código de otro); revisión de avance 2×/semana; ruta crítica monitoreada | Alejandro |
 | R05 | Demo en vivo falla el día de la presentación (permisos mic, red, cache) | Media | Alto | 🔴 Alta | Checklist pre-demo; modelos pre-cacheados; probar en el equipo/aula real; video de respaldo grabado siempre | Todos |
@@ -18,3 +18,4 @@ Probabilidad/Impacto: Alta · Media · Baja. Exposición = P × I. Revisión sem
 | R12 | TTS SpeechT5 de baja calidad o pesado para audio de referencia | Media | Medio | 🟡 Media | Spike S4; plan B: grabaciones de referencia pregeneradas para frases de práctica (banco fijo de frases) | Isaac |
 | R13 | Pérdida de trabajo (disco, laptop) | Baja | Alto | 🟡 Media | Todo en GitHub, push diario obligatorio; documentos en la nube | Todos |
 | R14 | Exámenes/carga académica en semanas de entrega | Media | Medio | 🟡 Media | Buffer integrado (S4 y S10 son semanas ligeras); entregables listos 2 días antes | Todos |
+| R15 | La aplicación completa nunca se ha ejercido de extremo a extremo con micrófono y modelos reales: los módulos se verifican por separado y la integración solo se ha probado con mocks | Alta | Alto | 🔴 Alta | Sesión de verificación conjunta con los cuatro integrantes al cerrar el bloque 1 del plan post-Avance 1; registro de cada fallo observado | Alejandro |

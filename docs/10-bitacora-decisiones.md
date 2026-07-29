@@ -116,6 +116,53 @@ usuario.
 
 ---
 
+## D-07 · Verificación de la FFT contra la definición, sin biblioteca externa (Semana 3)
+
+**Contexto.** El plan preveía validar la transformada propia contra una
+biblioteca de referencia (Meyda). Incorporarla implicaba añadir una dependencia
+al manifiesto del proyecto, es decir, una solicitud `shared-change`, para un uso
+exclusivo de pruebas.
+
+**Decisión.** No incorporar la dependencia. La transformada se verifica contra la
+definición matemática directa de la DFT y contra propiedades que deben cumplirse
+de forma exacta: teorema de Parseval, linealidad, simetría conjugada, teorema del
+desplazamiento y casos analíticos de resultado conocido (delta, constante,
+sinusoide centrada en un bin).
+
+**Justificación.** La verificación contra la definición es más fuerte que la
+comparación con otra implementación, porque no traslada la confianza a un tercero:
+si ambas implementaciones compartieran un error de criterio, la comparación no lo
+detectaría. Además evita una dependencia cuyo único propósito sería la prueba.
+
+**Resultado observado.** 27 pruebas de la transformada, con un error relativo
+máximo de 1.45 × 10⁻¹³ frente al cálculo directo, dentro de la precisión de un
+`float64`.
+
+---
+
+## D-08 · Priorización por ruta crítica en lugar de por semana de calendario (Semana 5)
+
+**Contexto.** Hasta el Avance 1 el equipo trabajó estrictamente por semana del
+plan, sin tomar tareas futuras, para concentrar el esfuerzo antes de la entrega.
+Tras el Avance, el profesor autorizó adelantar todo el trabajo posible.
+
+**Decisión.** Sustituir el orden por número de semana por un orden por
+dependencia: cualquier tarea que no esté bloqueada puede iniciarse. Las reglas de
+proceso —trabajo por módulo, solicitudes de incorporación con verificación en
+verde, `shared-change` para archivos compartidos y evidencia escrita al completar
+cada tarea— se mantienen sin cambio.
+
+**Justificación.** Con la arquitectura desacoplada por contratos, el orden de
+calendario dejó de aportar protección: cada módulo se desarrolla y verifica
+contra su contrato con independencia del avance de los demás. Lo que sí sigue
+condicionando el orden son las dependencias reales, y la única que hoy bloquea a
+más de una persona es la síntesis de voz.
+
+**Efecto.** El plan de trabajo resultante queda en `11-plan-post-avance-1.md`,
+que tiene precedencia sobre el orden de tareas de `04-plan-semanal.md`.
+
+---
+
 ## I-01 · Corrección del calendario de entregas (Semana 3)
 
 **Incidencia.** La planificación interna situaba el primer avance una semana
@@ -158,3 +205,44 @@ de cuantización como solución (D-05). Medidas adoptadas: carga bajo demanda de
 corrector, de modo que la primera interacción dependa únicamente del reconocedor, y
 evaluación de un modelo de corrección de menor tamaño durante la fase de
 optimización.
+
+---
+
+## I-03 · Pérdida de amplitud en el espectro del adaptador de audio (Semana 5)
+
+**Incidencia.** El espectro que consume el visualizador salía aproximadamente un
+20 % por debajo de la amplitud real, y la tasa de frames era de 46 por segundo en
+lugar de 62.5. Detectado por medición del responsable del módulo de audio al
+revisar el código que consume su módulo.
+
+**Causa.** El AudioWorklet entrega bloques de 1024 muestras a 48 kHz, que tras la
+decimación por factor 3 equivalen a 341 muestras a 16 kHz, frente a un tamaño de
+transformada de 512. El adaptador completaba la diferencia con 171 ceros, de modo
+que un tercio de cada frame era relleno, y aplicaba la ventana de Hann sobre el
+frame ya completado. La señal quedaba multiplicada solo por el tramo inicial de
+la ventana, mientras que la corrección por ganancia coherente dividía por la
+ganancia de la ventana completa. Además se emitía un frame por bloque recibido en
+lugar de uno por salto de análisis.
+
+**Acción.** Sustituir el rellenado por `StreamingStft`, que acumula las muestras
+recibidas y emite un espectro por cada frame completo, conservando el sobrante
+entre llamadas, de modo que las tramas dejan de depender de dónde caigan los
+límites de bloque.
+
+**Resultado.** Corregido en `src/core/audioEngineAdapter.ts` con
+`FrameAccumulator`, que acumula las muestras y analiza tramas completas de 512
+con salto de 256, sin relleno. Se acumula la trama y no el espectro porque el
+tono y los MFCC necesitan la señal en el dominio del tiempo, sin enventanar. La
+amplitud del espectro vuelve a 1.0 y la tasa pasa de 46 a 62.5 tramas por
+segundo. El instante de cada trama se asigna al emitirla, no al cerrar el
+bloque, porque una sola llegada puede producir varias tramas.
+
+**Aprendizaje registrado.** El tamaño de bloque del AudioWorklet no divide de
+forma exacta al tamaño de trama de análisis tras la decimación, y ese desajuste
+no es visible por inspección del código: solo aparece al medir la amplitud de
+una señal de referencia. Se añadieron cinco pruebas al adaptador para fijar la
+condición: amplitud unitaria ante un tono de amplitud conocida, independencia
+del número de tramas respecto al tamaño de bloque de entrada, conservación del
+sobrante entre llamadas, tiempo de trama por salto, y equivalencia del espectro
+con `StreamingStft` muestra a muestra, de modo que las dos rutas de análisis del
+proyecto no puedan divergir.

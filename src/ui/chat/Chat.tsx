@@ -1,8 +1,9 @@
-import { useEffect, useRef } from 'react';
-import { Mic, Square, Clock, AlertCircle } from 'lucide-react';
-import type { ChatMessage } from '@shared/contracts';
+import { useEffect, useRef, useState } from 'react';
+import { Mic, Square, Clock, AlertCircle, Play, Gauge, ChevronDown } from 'lucide-react';
+import type { AudioEngine, ChatMessage } from '@shared/contracts';
 import type { OrchestratorState } from '@core/orchestrator';
 import { buildSegments } from './highlight';
+import { Waveform } from '@ui/visualizer/Waveform';
 
 /**
  * Chat de conversacion (S2-T6 + S3-T4).
@@ -21,10 +22,23 @@ interface Props {
   messages: ChatMessage[];
   state: OrchestratorState;
   onMicClick: () => void;
+  /**
+   * Motor de audio real, opcional — solo para mostrar la onda en vivo
+   * mientras se graba. Si App.tsx (Alejandro) todavía no lo pasa, el
+   * Chat funciona igual, solo sin esa onda.
+   */
+  audio?: AudioEngine;
+  /**
+   * Reproduce texto con AIPipeline.speak(). Opcional: si App.tsx no lo
+   * conecta todavia, los botones Play/Slow quedan deshabilitados en vez
+   * de simular audio falso.
+   */
+  onPlay?: (text: string, slow: boolean) => void;
 }
 
-export function Chat({ messages, state, onMicClick }: Props) {
+export function Chat({ messages, state, onMicClick, audio, onPlay }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [openExplanation, setOpenExplanation] = useState<string | null>(null);
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -43,6 +57,7 @@ export function Chat({ messages, state, onMicClick }: Props) {
         {messages.map((m) => {
           const isUser = m.role === 'user';
           const hasCorrection = isUser && !!m.correction && m.correction.edits.length > 0;
+          const explanationOpen = openExplanation === m.id;
 
           return (
             <div key={m.id} className={`flex gap-2 sm:gap-3 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
@@ -78,10 +93,55 @@ export function Chat({ messages, state, onMicClick }: Props) {
                     : m.text}
                 </div>
 
+                {/* Play / Slow: llaman a AIPipeline.speak() real via onPlay. Si no hay
+                    onPlay (TTS aun no integrado a la UI), quedan deshabilitados en vez
+                    de simular audio. */}
+                <div className="flex items-center gap-3 px-1">
+                  <button
+                    onClick={() => onPlay?.(m.text, false)}
+                    disabled={!onPlay}
+                    className="flex items-center gap-1 text-xs text-slate-500 hover:text-blue-600 disabled:opacity-40 disabled:hover:text-slate-500"
+                  >
+                    <Play className="w-3 h-3" /> Play
+                  </button>
+                  <button
+                    onClick={() => onPlay?.(m.text, true)}
+                    disabled={!onPlay}
+                    className="flex items-center gap-1 text-xs text-slate-500 hover:text-blue-600 disabled:opacity-40 disabled:hover:text-slate-500"
+                  >
+                    <Gauge className="w-3 h-3" /> Slow
+                  </button>
+
+                  {hasCorrection && (
+                    <button
+                      onClick={() => setOpenExplanation(explanationOpen ? null : m.id)}
+                      className="flex items-center gap-1 text-xs text-blue-600 font-medium"
+                    >
+                      Explanation
+                      <ChevronDown className={`w-3 h-3 transition-transform ${explanationOpen ? 'rotate-180' : ''}`} />
+                    </button>
+                  )}
+                </div>
+
                 {hasCorrection && (
                   <div className="flex items-center gap-1 text-xs text-orange-600 bg-orange-50 px-2 py-1 rounded-lg border border-orange-200">
                     <AlertCircle className="w-3 h-3" />
                     Correccion de gramatica disponible
+                  </div>
+                )}
+
+                {/* Detalle de la correccion: cada Edit real del contrato, sin datos inventados */}
+                {hasCorrection && explanationOpen && (
+                  <div className="bg-blue-50 border border-blue-100 rounded-xl px-3 py-2 text-xs text-slate-700 flex flex-col gap-1 max-w-full">
+                    <p className="font-medium text-slate-800">{m.correction!.corrected}</p>
+                    {m.correction!.edits.map((e, i) => (
+                      <p key={i} className="text-slate-500">
+                        <span className="line-through text-red-500">{e.original}</span>
+                        {' → '}
+                        <span className="font-medium text-emerald-600">{e.corrected}</span>
+                        <span className="text-slate-400"> ({e.type})</span>
+                      </p>
+                    ))}
                   </div>
                 )}
 
@@ -117,6 +177,16 @@ export function Chat({ messages, state, onMicClick }: Props) {
           </div>
         )}
       </div>
+
+      {/* Onda en vivo (real, via AudioEngine.onFrame) mientras se graba —
+          solo si App.tsx conecta el motor de audio real */}
+      {state === 'recording' && audio && (
+        <div className="px-3 sm:px-6 pb-2">
+          <div className="rounded-xl overflow-hidden bg-[#0b1220]">
+            <Waveform audio={audio} width={640} height={64} />
+          </div>
+        </div>
+      )}
 
       {/* Controles: onMicClick real, sin simulacion */}
       <div className="px-3 sm:px-6 py-4 sm:py-5 border-t border-slate-200 bg-white flex flex-col items-center gap-3 sm:gap-4">

@@ -2,6 +2,10 @@ node_modules/
 dist/
 dev-dist/
 coverage/
+
+# Vite deja este temporal al cargar una config en TypeScript. Deberia borrarlo
+# al terminar, pero en Windows suele quedar bloqueado y se acumula.
+vite.config.ts.timestamp-*.mjs
 *.local
 .DS_Store
 Thumbs.db

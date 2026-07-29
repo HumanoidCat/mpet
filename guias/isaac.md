@@ -53,3 +53,19 @@ ASR: `Xenova/whisper-tiny.en` · Gramática: `Xenova/t5-base-grammar-correction`
 
 ## Cómo trabajas sin depender de nadie
 Tu contrato: `AIPipeline` en `src/shared/contracts.ts`. No necesitas la captura real: usa WAVs pregrabados en `tests/ai/fixtures/`. Tu implementación debe pasar los mismos tests que `mocks/mockAIPipeline.ts`.
+
+---
+
+## Siguiente — plan vigente: `docs/11-plan-post-avance-1.md`
+
+El orden ya no lo fija la semana del calendario sino la dependencia (D-08).
+
+- [ ] **S5-T5 · Worker de TTS (SpeechT5): reproducir y exponer el PCM de referencia**
+      → Es hoy **la única tarea de la ruta crítica del proyecto**. No depende de
+        nadie y desbloquea a Fabrizio (comparador DTW) y a José Pablo
+        (retroalimentación por palabra). Prioridad sobre todo lo demás.
+- [ ] S6-T2 · Puntaje por palabra con las marcas temporales de Whisper (con Fabrizio)
+- [ ] S6-T4 · Worker de sugerencias del tutor
+- [ ] S7-T4 · Bajar el peso de la descarga inicial (~300 MB). La cuantización a 4 bits
+      ya quedó descartada por medición (D-05): las vías son carga bajo demanda y
+      evaluar un modelo de corrección más liviano.

@@ -64,7 +64,7 @@ Estimación en *story points* (SP, Fibonacci) y horas-persona aproximadas.
 │   ├── 1.3.5 Pitch: autocorrelación → YIN
 │   ├── 1.3.6 Energía y formantes (LPC básico)
 │   ├── 1.3.7 Comparador acústico (DTW + puntaje)
-│   └── 1.3.8 Validación contra librosa/Meyda
+│   └── 1.3.8 Validación contra la definición matemática (D-07)
 ├── 1.4 Pipeline de IA (Isaac) — 25%
 │   ├── 1.4.1 Setup transformers.js + gestión de modelos
 │   ├── 1.4.2 ASR Whisper-tiny (worker + streaming de resultados)

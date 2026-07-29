@@ -81,9 +81,9 @@ verifica contra señales sintéticas de parámetros conocidos.
 | Valor eficaz (RMS) | Normalización de nivel y detección de actividad de voz | Implementado |
 | DFT y FFT radix-2 | Análisis espectral, implementación propia verificada contra la definición | Implementado |
 | Ventanas y fuga espectral | Ventana de Hann con corrección de ganancia coherente | Implementado |
-| STFT | Espectrograma en tiempo real | Semana 5 |
-| Detección de periodicidad (YIN) | Frecuencia fundamental para entonación | Semana 5 |
-| MFCC (banco mel + DCT) | Características robustas a la variabilidad entre hablantes | Semana 5 |
+| STFT | Espectrograma en tiempo real | Implementado |
+| Detección de periodicidad (YIN) | Frecuencia fundamental para entonación | Implementado |
+| MFCC (banco mel + DCT) | Características robustas a la variabilidad entre hablantes | Implementado |
 | Alineamiento temporal dinámico (DTW) | Comparación contra la pronunciación de referencia | Semana 6 |
 
 ---
@@ -104,6 +104,8 @@ con `npm test`. El detalle está en [`docs/evidencias/`](docs/evidencias/).
 | Análisis espectral | Costo computacional | 1 145 veces más rápido que el cálculo directo |
 | Reconocimiento de voz | Factor de tiempo real | 0.28 – 0.31 |
 | Corrección gramatical | Latencia media | 320 ms |
+| Frecuencia fundamental | Peor error en tonos puros (YIN) | 0.115 Hz, con criterio de 3 Hz |
+| MFCC | Invariancia al volumen en un rango de ganancia de 1000x | 3.8 × 10⁻⁶, la precisión de un float32 |
 
 **Hallazgo documentado:** bajar la cuantización del corrector de 8 a 4 bits resultó
 3.8 veces más lento **y** más pesado en caché. ONNX Runtime sobre WebAssembly no
@@ -114,15 +116,16 @@ su evidencia están en [`docs/10-bitacora-decisiones.md`](docs/10-bitacora-decis
 
 ## Estado actual
 
-- **151 pruebas automatizadas** en verde (113 de audio, 21 de IA, 13 de núcleo, 4 de interfaz).
-- Cadena de audio completa e integrada a la aplicación, de la captura al espectro.
+- **265 pruebas automatizadas** en verde, en 21 archivos.
+- Cadena de audio completa e integrada: captura, remuestreo, preprocesamiento, detección de actividad de voz, STFT, frecuencia fundamental y MFCC.
 - Reconocimiento de voz y corrección gramatical implementados sobre sus contratos.
-- Interfaz con chat, control de micrófono con estados y forma de onda en tiempo real.
+- Interfaz con chat, control de micrófono con estados, forma de onda, espectrograma y contorno de tono en tiempo real.
 - PWA instalable con service worker y caché de modelos.
 
-Pendiente: espectrograma, detección de frecuencia fundamental, MFCC y comparador DTW
-(Semanas 5 y 6). El estado por requerimiento está en la
-[matriz de trazabilidad](docs/07-matriz-trazabilidad.md).
+Pendiente: síntesis de voz, comparador por alineamiento temporal dinámico y puntaje
+de pronunciación. El estado por requerimiento está en la
+[matriz de trazabilidad](docs/07-matriz-trazabilidad.md), y el orden de trabajo en el
+[plan vigente](docs/11-plan-post-avance-1.md).
 
 ---
 
@@ -209,6 +212,8 @@ El historial de commits y pull requests documenta la contribución de cada integ
 4. Pull request a `dev` con la verificación en verde y una revisión. Nunca push
    directo a `main` ni a `dev`.
 5. Push diario aunque el trabajo esté incompleto, en tu rama.
+6. El orden de trabajo lo fija [`docs/11-plan-post-avance-1.md`](docs/11-plan-post-avance-1.md),
+   no el número de semana: si una tarea no está bloqueada, se puede empezar.
 
 ### Integración continua
 
@@ -236,6 +241,7 @@ Toda la planificación y la evidencia está en [`docs/`](docs/README.md):
 | [`08-equipo-git.md`](docs/08-equipo-git.md) | Reparto de módulos y flujo de trabajo con Git |
 | [`09-marco-teorico.md`](docs/09-marco-teorico.md) | Marco teórico con las ecuaciones del curso |
 | [`10-bitacora-decisiones.md`](docs/10-bitacora-decisiones.md) | Registro de decisiones técnicas y su justificación |
+| [`11-plan-post-avance-1.md`](docs/11-plan-post-avance-1.md) | Plan de trabajo vigente: orden de tareas por ruta crítica |
 | [`evidencias/`](docs/evidencias/) | Mediciones por tarea, reproducibles con la suite de pruebas |
 
 ---

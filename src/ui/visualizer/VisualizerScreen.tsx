@@ -1,12 +1,27 @@
+import { useEffect, useState } from 'react';
 import type { AudioEngine } from '@shared/contracts';
+import { SAMPLE_RATE, FFT_SIZE } from '@shared/constants';
 import { Waveform } from './Waveform';
+import { Spectrogram } from './Spectrogram';
+import { PitchTrace } from './PitchTrace';
 
 /**
  * Pantalla standalone del visualizador (S3-T2 shell). Dueño: Monestel (UI).
  * Usa el Waveform real conectado a AudioEngine — NO el canvas de seno
- * falso del prototipo de Figma Make. El espectrograma + overlay de pitch
- * (S5-T3, S5-T4) todavía no existen, se agregan cuando el DSP real de
- * Fabrizio esté listo; por ahora se deja el aviso "Próximamente".
+ * falso del prototipo de Figma Make.
+ *
+ * Importante: esta pantalla NO controla el micrófono (no llama
+ * audio.start()/stop()). El único dueño de ese estado es el orquestador
+ * de Alejandro (src/core/orchestrator.ts), disparado desde el botón de
+ * Chat. Aquí solo nos suscribimos a onFrame para mostrar la señal en
+ * vivo mientras haya una grabación activa desde Chat.
+ *
+ * "Signal Information" muestra SOLO métricas reales (Sampling Rate real,
+ * RMS Energy calculada en vivo desde AudioFrame.energy, duración real).
+ * El espectrograma y el contorno de tono ya consumen datos reales: la STFT
+ * (S3-T1) y el detector YIN (S5-T1) de Fabrizio están integrados al motor a
+ * través de src/core/audioEngineAdapter.ts, así que `pitchHz` dejó de ser
+ * null y `fftDb` viene del micrófono.
  */
 
 interface Props {
@@ -14,6 +29,19 @@ interface Props {
 }
 
 export function VisualizerScreen({ audio }: Props) {
+  const [energy, setEnergy] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [receivingFrames, setReceivingFrames] = useState(false);
+
+  useEffect(() => {
+    const off = audio.onFrame((frame) => {
+      setReceivingFrames(true);
+      setEnergy(frame.energy);
+      setDuration(frame.t);
+    });
+    return off;
+  }, [audio]);
+
   return (
     <div className="flex-1 overflow-y-auto p-4 sm:p-6 flex flex-col gap-5">
       <div>
@@ -21,21 +49,77 @@ export function VisualizerScreen({ audio }: Props) {
         <p className="text-sm text-[var(--color-muted)]">Señal del micrófono en tiempo real</p>
       </div>
 
+      {!receivingFrames && (
+        <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 text-sm text-blue-700">
+          Todavía no hay señal — ve a <span className="font-medium">Chat</span> y presiona el micrófono para grabar.
+        </div>
+      )}
+
       <div className="bg-white rounded-2xl border border-[var(--color-border)] p-4">
-        <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
-          Waveform — dominio del tiempo
-        </p>
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+            Real-time Waveform — dominio del tiempo
+          </p>
+          {receivingFrames && (
+            <span className="flex items-center gap-1 text-xs font-medium text-green-600">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" /> LIVE
+            </span>
+          )}
+        </div>
         <div className="rounded-xl overflow-hidden w-full">
           <Waveform audio={audio} width={900} height={160} />
         </div>
       </div>
 
-      <div className="bg-slate-50 rounded-2xl border border-dashed border-[var(--color-border)] p-6 text-center">
-        <p className="text-sm font-medium text-slate-500">Espectrograma + contorno de pitch</p>
-        <p className="text-xs text-[var(--color-muted)] mt-1">
-          Próximamente — Semana 5 (S5-T3, S5-T4), cuando el DSP real esté disponible.
+      {/* Signal Information: SOLO métricas reales, ninguna inventada */}
+      <div className="bg-white rounded-2xl border border-[var(--color-border)] p-4">
+        <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Signal Information</p>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+          <Metric label="Sampling Rate" value={`${SAMPLE_RATE.toLocaleString('en-US')} Hz`} />
+          <Metric label="FFT Size (config)" value={`${FFT_SIZE} bins`} />
+          <Metric label="RMS Energy" value={energy.toFixed(3)} />
+          <Metric label="Signal Duration" value={`${duration.toFixed(1)} s`} />
+        </div>
+        <p className="text-xs text-[var(--color-muted)] mt-3">
+          Dominant Freq, Noise Level y Voice Activity Detection necesitan el FFT real (S3-T1) — se agregan cuando esté listo.
         </p>
       </div>
+
+      <div className="grid sm:grid-cols-2 gap-4">
+        <div className="bg-white rounded-2xl border border-[var(--color-border)] p-4">
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
+            Espectrograma — STFT
+          </p>
+          <div className="rounded-xl overflow-hidden w-full">
+            <Spectrogram audio={audio} width={420} height={180} />
+          </div>
+          <p className="text-xs text-[var(--color-muted)] mt-2">
+            FFT real (S3-T1, Fabrizio) ✅ — esta señal ya viene del micrófono de verdad.
+          </p>
+        </div>
+
+        <div className="bg-white rounded-2xl border border-[var(--color-border)] p-4">
+          <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
+            Pitch Tracking
+          </p>
+          <div className="rounded-xl overflow-hidden w-full">
+            <PitchTrace audio={audio} width={420} height={180} />
+          </div>
+          <p className="text-xs text-[var(--color-muted)] mt-2">
+            Igual: listo, pero <code>pitchHz</code> siempre es <code>null</code> hasta el
+            detector real de pitch de Fabrizio (S5-T1).
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Metric({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <p className="text-xs text-[var(--color-muted)]">{label}</p>
+      <p className="font-mono text-sm font-semibold text-slate-800">{value}</p>
     </div>
   );
 }
