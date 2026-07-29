@@ -209,6 +209,8 @@ El historial de commits y pull requests documenta la contribución de cada integ
 4. Pull request a `dev` con la verificación en verde y una revisión. Nunca push
    directo a `main` ni a `dev`.
 5. Push diario aunque el trabajo esté incompleto, en tu rama.
+6. El orden de trabajo lo fija [`docs/11-plan-post-avance-1.md`](docs/11-plan-post-avance-1.md),
+   no el número de semana: si una tarea no está bloqueada, se puede empezar.
 
 ### Integración continua
 
@@ -236,6 +238,7 @@ Toda la planificación y la evidencia está en [`docs/`](docs/README.md):
 | [`08-equipo-git.md`](docs/08-equipo-git.md) | Reparto de módulos y flujo de trabajo con Git |
 | [`09-marco-teorico.md`](docs/09-marco-teorico.md) | Marco teórico con las ecuaciones del curso |
 | [`10-bitacora-decisiones.md`](docs/10-bitacora-decisiones.md) | Registro de decisiones técnicas y su justificación |
+| [`11-plan-post-avance-1.md`](docs/11-plan-post-avance-1.md) | Plan de trabajo vigente: orden de tareas por ruta crítica |
 | [`evidencias/`](docs/evidencias/) | Mediciones por tarea, reproducibles con la suite de pruebas |
 
 ---

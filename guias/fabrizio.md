@@ -3,7 +3,7 @@
 > Marca `[x]` cuando completes cada tarea. **Solo tú editas este archivo.**
 > Detalle de cada tarea (horas, dificultad, herramientas): `docs/04-plan-semanal.md`.
 > Regla: trabaja solo en `src/audio/` y `tests/audio/`, en ramas `feat/audio-*`, PR a `dev`.
-> ⚠️ Estás en la **ruta crítica**: FFT, MFCC y YIN se implementan a mano (Meyda/librosa solo para validar) — es la evidencia principal de Señales y Sistemas.
+> ⚠️ Estás en la **ruta crítica**: FFT, MFCC y YIN se implementan a mano y se verifican contra la definición matemática, sin bibliotecas externas (D-07) — es la evidencia principal de Señales y Sistemas.
 
 ## Semana 1 (7–13 jul)
 - [x] S1-T6 · Spike: getUserMedia + AudioContext, confirmar sample rates → mic fijo a 48 kHz, decimación ÷3 (ver `docs/09-marco-teorico.md`)
@@ -16,7 +16,7 @@
 
 ## Semana 3
 - [x] S3-T1 · FFT radix-2 + STFT con ventana Hann → error 1.45e-13 vs DFT directa, 1145× más rápida (ver `docs/evidencias/s3/s3-t1-fft-stft.md`)
-  - ⚠️ La validación cruzada vs **Meyda** queda pendiente: agregarlo toca `package.json`, que requiere PR `shared-change` aprobado por Alejandro. Coordinar.
+  - Validación cerrada sin dependencia externa: se verifica contra la definición directa de la DFT, Parseval, linealidad, simetría conjugada, desplazamiento y casos analíticos (decisión **D-07**). No hace falta Meyda.
 - [x] Mi sección del documento Avance 1 (procesamiento de audio) → §5.1 ampliada, §5.2/§5.4/§5.5 nuevas, §7.3 con mediciones, Anexo B actualizado
 
 ## Semana 4 — 🎯 AVANCE 1 (mar 28 jul)
@@ -47,3 +47,14 @@
 
 ## Cómo trabajas sin depender de nadie
 Tu contrato: `AudioEngine` y `PronunciationScorer` en `src/shared/contracts.ts`. Valida con `npm test` y señales generadas por código (seno, chirp) — no necesitas UI ni IA reales. El TTS de referencia lo simulas con `mocks/mockAIPipeline.ts`.
+
+---
+
+## Siguiente — plan vigente: `docs/11-plan-post-avance-1.md`
+
+El orden ya no lo fija la semana del calendario sino la dependencia (D-08).
+
+- [ ] Subir S4-T4, S5-T1 y S5-T2 como PR a `dev`, con evidencia en `docs/evidencias/s5/`
+- [ ] S6-T1 · DTW sobre secuencias de MFCC — **arranca cuando Isaac entregue el TTS (S5-T5)**
+- [ ] S6-T2 · Puntaje global y por palabra (con Isaac)
+- [ ] S5-T7 · Marco teórico de MFCC, YIN y STFT — no depende de nadie, hacelo ahora que está fresco

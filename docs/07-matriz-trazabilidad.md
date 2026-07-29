@@ -10,7 +10,7 @@ Formato exigido por el curso: ID, Descripción, Prioridad, Fuente, Módulo/Funci
 | RF-04 | ASR offline con Whisper vía transformers.js | Alta | Curso | `src/ai/asr` (F03) | MVP | Pendiente | Set de 50 frases, 4 hablantes | WER ≤ 25% |
 | RF-05 | Corrección gramatical (T5 cuantizado) con resaltado | Alta | Curso | `src/ai/grammar` + `src/ui/chat` (F04) | MVP | Pendiente | 50 frases con errores típicos | Precisión ≥ 80% |
 | RF-06 | Interfaz tipo chat con botón de micrófono | Alta | Curso | `src/ui/chat` (F05) | MVP | Pendiente | Prueba de usabilidad con 3 usuarios | Flujo completable sin ayuda |
-| RF-07 | Espectrograma en tiempo real (FFT/STFT propia) | Alta | Curso | `src/audio/dsp` + `src/ui/visualizer` (F06) | V1 | Pendiente | Vocal sostenida: formantes visibles; FFT propia vs Meyda | Error FFT < 1%; ≥30 fps |
+| RF-07 | Espectrograma en tiempo real (FFT/STFT propia) | Alta | Curso | `src/audio/dsp` + `src/ui/visualizer` (F06) | V1 | Pendiente | Vocal sostenida: formantes visibles; FFT propia contra la DFT por definición | Error FFT < 1%; ≥30 fps |
 | RF-08 | Pitch tracking (autocorrelación/YIN) | Alta | Curso | `src/audio/features` (F07) | V1 | Pendiente | Tonos sintéticos 100–400 Hz | Error < 3 Hz |
 | RF-09 | Extracción de MFCC | Alta | Curso | `src/audio/features` (F08) | V1 | Pendiente | Comparación vs librosa | Error < 5% |
 | RF-10 | Corrección de pronunciación: distancia acústica vs referencia + puntaje + highlights | Alta | Curso | `src/audio/comparator` + `src/ui/feedback` (F09, F14) | V1 | Pendiente | Pares mínimos (ship/sheep); buena vs mala pronunciación | Puntaje discrimina casos (Δ>20 pts) |

@@ -14,9 +14,12 @@ PWA offline para práctica de inglés conversacional con procesamiento de señal
 | [02-product-backlog.md](02-product-backlog.md) | Épicas, 19 historias de usuario estimadas + WBS completa |
 | [04-plan-semanal.md](04-plan-semanal.md) | Sprint backlog de cada semana: objetivos, tareas (prioridad/dificultad/horas/herramientas/conocimientos), riesgos, evidencias |
 | [05-roadmap.md](05-roadmap.md) | Gantt (Mermaid) + ruta crítica |
-| [06-matriz-riesgos.md](06-matriz-riesgos.md) | 14 riesgos con probabilidad, impacto y mitigación |
+| [06-matriz-riesgos.md](06-matriz-riesgos.md) | 15 riesgos con probabilidad, impacto y mitigación |
 | [07-matriz-trazabilidad.md](07-matriz-trazabilidad.md) | 23 requisitos del curso → módulo, prueba y métrica |
 | [08-equipo-git.md](08-equipo-git.md) | División de trabajo desacoplada, flujo Git, Definition of Done |
+| [09-marco-teorico.md](09-marco-teorico.md) | Marco teórico con las ecuaciones del curso |
+| [10-bitacora-decisiones.md](10-bitacora-decisiones.md) | Decisiones técnicas e incidencias, con su justificación y medición |
+| [11-plan-post-avance-1.md](11-plan-post-avance-1.md) | **Plan vigente**: orden de tareas por ruta crítica en lugar de por semana |
 
 ## Hitos
 
