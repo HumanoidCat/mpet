@@ -28,10 +28,18 @@ Estructura sugerida: capture/ · dsp/ · features/ · comparator/
   bandas, DCT-II ortonormal, 13 coeficientes). Invariancia al volumen exacta.
   Evidencia: `docs/evidencias/s5/s5-t2-mfcc.md`.
 
-**Semana 5 completa.** Cadena: captura → remuestreo → preprocesamiento → VAD →
-STFT → pitch (YIN) → MFCC. Con esto quedan cubiertos los dos campos que
-`audioEngineAdapter.ts` declaraba vacíos (`pitchHz` y `mfcc`).
-Siguiente: comparador DTW (S6-T1) sobre las secuencias de MFCC.
+- **S6-T1 y S6-T2 ✅** comparador: `comparator/dtw.ts` + `comparator/scorer.ts`
+  (alineamiento temporal, normalización cepstral, puntaje global y por palabra).
+  Implementa el contrato `PronunciationScorer`. Evidencia:
+  `docs/evidencias/s6/s6-t1-t2-comparador.md`.
+
+**Semanas 2 a 6 completas.** Cadena: captura → remuestreo → preprocesamiento →
+VAD → STFT → pitch (YIN) → MFCC → DTW → puntaje.
+Los dos contratos del módulo (`AudioEngine` y `PronunciationScorer`) tienen ya
+implementación real.
+
+⚠️ **No aplicar CMN a sonidos sostenidos**: en una señal estacionaria la media
+es la señal, y restarla borra la información. Ver la evidencia de S6.
 
 ### Conclusiones del spike de pitch, para S5-T1 (YIN)
 La maquinaria base ya está validada y es reutilizable. El objetivo de exactitud

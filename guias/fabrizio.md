@@ -28,8 +28,8 @@
 - [x] S5-T2 · MFCC propio (mel filterbank 26 + DCT, 13 coef) → invariancia al volumen exacta (3.8e-6 en un rango de 1000x); fixture de librosa preparado, pendiente de correr (ver `docs/evidencias/s5/s5-t2-mfcc.md`)
 
 ## Semana 6
-- [ ] S6-T1 · DTW sobre secuencias MFCC (usuario vs referencia TTS)
-- [ ] S6-T2 · Puntaje global + por palabra con timestamps de Whisper (con Isaac)
+- [x] S6-T1 · DTW sobre secuencias MFCC (usuario vs referencia TTS) → invariante a velocidad y volumen (ver `docs/evidencias/s6/s6-t1-t2-comparador.md`)
+- [x] S6-T2 · Puntaje global + por palabra con timestamps de Whisper → RF-10 cumplido: separa bien/mal por **31 puntos** (exigía 20)
 
 ## Semana 7 — 🎯 AVANCE 2 (mar 18 ago)
 - [ ] S7-T4 · Optimización de latencia del análisis (con Isaac)

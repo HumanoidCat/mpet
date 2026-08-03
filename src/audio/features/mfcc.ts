@@ -166,6 +166,46 @@ function ajustar(frame: Float32Array, size: number): Float32Array {
   return out;
 }
 
+/**
+ * Normalización cepstral por media (CMN): a cada trama se le resta el promedio
+ * de la secuencia, coeficiente a coeficiente.
+ *
+ * Es la técnica estándar para comparar voces distintas. Lo que diferencia a dos
+ * hablantes que dicen lo mismo es, sobre todo, una **inclinación espectral
+ * constante** a lo largo del enunciado —el largo de su tracto vocal, su tono, el
+ * micrófono que usan—. Esa componente constante es justo la media, así que
+ * restarla deja lo que varía dentro de la frase, que es la secuencia de fonemas.
+ *
+ * En este proyecto no es opcional: la referencia la genera un TTS, así que
+ * usuario y referencia son **siempre** voces distintas. Medido sobre frases de
+ * tres vocales (evidencia S6):
+ *
+ * | | Peor caso "bien pronunciado" | Mejor caso "mal pronunciado" |
+ * |---|---:|---:|
+ * | Sin CMN | 39.39 | 11.66 — **las clases se solapan** |
+ * | Con CMN | 6.45 | 17.91 — separadas 2.8× |
+ *
+ * Sin CMN el evaluador puntuaría peor una pronunciación correcta dicha con otra
+ * voz que una equivocada dicha con la misma voz.
+ *
+ * ⚠️ **No aplicar a sonidos sostenidos.** Si la secuencia es un único fonema
+ * mantenido, la media *es* la señal y restarla deja casi cero: se pierde toda la
+ * información. CMN sirve cuando el enunciado contiene varios sonidos distintos,
+ * que es el caso de cualquier palabra o frase real.
+ */
+export function cepstralMeanNormalize(sequence: Float32Array[]): Float32Array[] {
+  if (sequence.length === 0) return [];
+
+  const nCoeffs = sequence[0].length;
+  const media = new Float64Array(nCoeffs);
+  for (const trama of sequence) {
+    for (let k = 0; k < nCoeffs; k++) media[k] += trama[k];
+  }
+  for (let k = 0; k < nCoeffs; k++) media[k] /= sequence.length;
+
+  return sequence.map((trama) => Float32Array.from(trama, (v, k) => v - media[k]));
+}
+
 /** MFCC de una sola trama. Para varias conviene reutilizar `MfccExtractor`. */
 export function mfcc(frame: Float32Array, options: MfccOptions = {}): Float32Array {
   return new MfccExtractor(options).process(frame);
