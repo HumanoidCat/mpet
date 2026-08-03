@@ -1,4 +1,4 @@
-# S4-T5 · Spike de síntesis de voz (SpeechT5) en el navegador
+# S4-T5 · Spike de síntesis de voz en el navegador
 
 **Responsable:** Isaac Morum (módulo `src/ai/`) · **Fecha:** 3 de agosto de 2026
 **Código:** `src/ai/spike-s4-t5/` (`index.html` + `spike.ts`)
@@ -15,123 +15,132 @@ responder cuatro preguntas que ningún test automático puede contestar:
    `src/App.tsx` crea el `AudioContext` fijo a 16 kHz **sin remuestrear**.
 2. ¿Cuánto pesa la descarga real?
 3. ¿Cuánto tarda por frase, contra el objetivo de 2 s?
-4. ¿Cómo suena cuantizado?
+4. ¿Cómo suena?
 
-## 2. Qué es SpeechT5 y qué se comparó
+## 2. Qué se comparó
 
-SpeechT5 no es un modelo sino **tres piezas ONNX que se cuantizan por separado**:
-el *encoder* (entiende el texto), el *decoder* (genera el espectrograma paso a paso)
-y el *vocoder* (convierte el espectrograma en onda de audio). El vocoder vive además
-en **otro repositorio** (`Xenova/speecht5_hifigan`).
+**SpeechT5** (`Xenova/speecht5_tts`) no es un modelo sino **tres piezas ONNX que se
+cuantizan por separado**: el *encoder* (entiende el texto), el *decoder* (genera el
+espectrograma paso a paso) y el *vocoder* (convierte el espectrograma en onda). El
+vocoder vive además en **otro repositorio** (`Xenova/speecht5_hifigan`). Necesita
+también un vector de voz de 512 números que define quién habla.
 
-Detalle que condicionó el diseño: el atajo `pipeline('text-to-speech', ...)` de
-transformers.js **carga el vocoder en fp32 escrito a fuego** y no acepta uno propio
-(verificado en la versión instalada 3.8.1, `pipelines.js` ~línea 2943). Pidiendo
-`dtype: 'q8'` igual se descargarían 55 MB de vocoder sin cuantizar. Por eso el spike
-—y el worker— arman las piezas a mano con `SpeechT5ForTextToSpeech` +
-`SpeechT5HifiGan`.
+Detalle que condicionó el diseño: el atajo `pipeline('text-to-speech', ...)`
+**carga el vocoder en fp32 escrito a fuego** y no acepta uno propio (verificado en la
+versión instalada 3.8.1, `pipelines.js` ~línea 2943). Pidiendo `dtype: 'q8'` igual se
+descargarían 55 MB de vocoder sin cuantizar. Por eso el spike —y el worker— arman las
+piezas a mano con `SpeechT5ForTextToSpeech` + `SpeechT5HifiGan`.
 
-| Config | encoder | decoder | vocoder | Peso esperado (Hub) |
-|---|---|---|---|---|
-| A | fp32 | fp32 | fp32 | ~643 MB |
-| B | q8 | q8 | fp32 | ~215 MB |
-| C | q8 | q8 | q8 | ~178 MB |
+**MMS-TTS** (`Xenova/mms-tts-eng`, arquitectura VITS) entró a la comparación *después*
+de que la escucha descartara las tres configuraciones de SpeechT5. Es un único archivo
+ONNX que va de texto a onda en una sola pasada: sin vocoder aparte, sin vector de voz y
+sin generación cuadro a cuadro.
 
 No se evaluó q4: la decisión **D-05** ya lo descartó por medición en el corrector
 gramatical, y aquí corre el mismo motor (ONNX sobre WASM, sin núcleos de 4 bits).
 
-## 3. Resultados medidos
+## 3. Resultados
 
-### Configuración C — todo q8 (corrida completa)
+| Config | Modelo | Cuantización | Descarga real | RTF medio | Calidad al oído |
+|---|---|---|---|---|---|
+| A | SpeechT5 | todo fp32 | **613.0 MB** | 1.12 | Entendible, con voz algo robótica e interferencia de fondo |
+| B | SpeechT5 | q8 + vocoder fp32 | 205.0 MB | 3.2–6.4 | Peor que A |
+| C | SpeechT5 | todo q8 | 169.5 MB | 1.49 ⚠ | **Ininteligible** |
+| D | MMS-TTS (VITS) | fp32 | **109.0 MB** | **1.08** | ⏳ pendiente de escuchar |
+| E | MMS-TTS (VITS) | q8 | 36.6 MB | ~1.6 | ⏳ pendiente de escuchar |
 
-| Medida | Valor |
-|---|---|
-| Descarga real (suma exacta de archivos) | **169.51 MB** |
-| Carga en frío | 37.29 s |
-| Carga con caché | **8.22 s** |
-| Frecuencia de salida | **16 000 Hz** |
-| Latencia media / máxima | 3 248 ms / 7 864 ms |
-| RTF medio | 1.49 |
-| Heap JS | 33 MB |
+Todas las configuraciones, de las dos familias, declaran **16 000 Hz**.
 
-Archivos que descargó realmente (esto prueba qué variante se usó):
+### Detalle por frase (ms)
 
-| Archivo | Tamaño |
-|---|---|
-| `onnx/encoder_model_quantized.onnx` | 84.31 MB |
-| `onnx/decoder_model_merged_quantized.onnx` | 67.79 MB |
-| `onnx/model_quantized.onnx` (vocoder) | 17.41 MB |
-| tokenizer y configuraciones | 0.02 MB |
+| Frase | A (fp32) | C (q8) ⚠ | D (VITS fp32) | E (VITS q8) ⚠ |
+|---|---|---|---|---|
+| Hello, my name is Isaac and I am learning English. | 3 267 | 3 843 | 4 882 | 7 611 |
+| Would you like to order something to drink? | 2 539 | 2 225 | 2 731 | 4 224 |
+| The class starts at 8 o'clock. | 1 957 | 2 224 | 2 715 | 3 948 |
+| ship, sheep, ship, sheep. | 1 574 | 1 898 | 1 745 | 2 258 |
+| bad, bed, bad, bed. | 1 414 | 1 435 | 1 780 | 2 753 |
+| I went to the supermarket yesterday… (103 caracteres) | 8 528 | 7 864 | 7 358 | — |
 
-Por frase:
+⚠ Las columnas C y E se midieron con la pestaña en segundo plano (ver §5).
 
-| Frase | ms | Audio (s) | RTF |
+### Carga y archivos
+
+| Config | Carga en frío | Carga cacheada | Archivos descargados |
 |---|---|---|---|
-| Hello, my name is Isaac and I am learning English. | 3 843 | 2.53 | 1.52 |
-| Would you like to order something to drink? | 2 225 | 1.57 | 1.42 |
-| The class starts at 8 o'clock. | 2 224 | 1.66 | 1.34 |
-| ship, sheep, ship, sheep. | 1 898 | 1.41 | 1.35 |
-| bad, bed, bad, bed. | 1 435 | 1.02 | 1.40 |
-| I went to the supermarket yesterday… (103 caracteres) | 7 864 | 4.13 | 1.91 |
+| A | — (falló 3 veces, ver §5) | 3.01 s | encoder 342.8 + decoder 244.5 + vocoder 52.9 MB |
+| C | 37.29 s | 8.22 s | `encoder_model_quantized` 84.31 + `decoder_model_merged_quantized` 67.79 + `model_quantized` 17.41 MB |
+| D | 27.78 s | — | `onnx/model.onnx` 108.97 MB (**un solo archivo**) |
+| E | 12.35 s | — | `onnx/model_quantized.onnx` 36.6 MB |
 
-### Configuración B — vocoder fp32 (corrida parcial)
-
-| Medida | Valor |
-|---|---|
-| Descarga real | **204.97 MB** (el vocoder fp32 son 52.86 MB frente a 17.41 MB) |
-| Carga | 20.38 s (con encoder y decoder ya en caché) |
-| Latencias | 12 680 · 5 762 · 4 855 · 3 555 ms — se detuvo en la 5.ª frase |
-| RTF | 6.39 · 3.40 · 3.23 · 2.65 |
-
-Frase a frase contra la misma frase en C: **B tarda entre 2.4× y 3.3× más**.
-
-### Configuración A — fp32
-
-No se ejecutó. Con 643 MB duplica por sí sola toda la descarga actual de la
-aplicación (~300 MB); solo tendría sentido si B y C sonaran inaceptables.
+Heap JS: 33 MB con SpeechT5 q8, **11 MB** con VITS fp32.
 
 ## 4. Conclusiones
 
-1. **No hace falta remuestrear.** El modelo declara 16 000 Hz, exactamente los
+1. **No hace falta remuestrear.** Las dos familias declaran 16 000 Hz, exactamente el
    `SAMPLE_RATE` del proyecto. La duda que quedaba del contrato queda cerrada: lo que
    devuelva `speak()` entra directo al `AudioContext` de `App.tsx` y al comparador de
    Fabrizio sin conversión intermedia.
-2. **Cuantizar el vocoder no cuesta velocidad: la regala.** La hipótesis previa era
-   que convenía dejar el vocoder en fp32 porque es la pieza que se oye. La medición
-   dice que además de pesar 35 MB más, **es entre 2.4× y 3.3× más lento**. Es el mismo
-   patrón de D-05: en WASM sobre CPU, más bits no salen gratis. Salvo que la diferencia
-   al oído sea grande, la configuración elegida es **C**.
-3. **La latencia no cumple el objetivo de 2 s en frases largas.** Con C, una frase de
-   ~100 caracteres tardó 7.9 s y el RTF se mantuvo por encima de 1 (más lento que
-   tiempo real) en todos los casos. Esto no bloquea el puntaje de pronunciación —el
-   audio de referencia se puede sintetizar mientras el estudiante lee— pero sí obliga
-   a decidir cómo se presenta: sintetizar por adelantado la frase del tutor, o mostrar
-   un indicador de espera en el botón de escuchar.
-4. **Peso:** aun con la configuración más liviana, el TTS suma ~170 MB a los ~300 MB
-   actuales. Es insumo directo para S7-T4.
+
+2. **SpeechT5 solo sirve sin cuantizar, y sin cuantizar no cabe.** La escucha ordenó
+   las tres configuraciones A > B > C, con C directamente ininteligible. La única
+   aceptable pesa 613 MB, es decir **el triple de todo lo que la aplicación descarga
+   hoy** (~300 MB), y además falló al cargar tres veces seguidas. Queda descartada
+   como modelo de producción y se conserva solo como referencia de calidad.
+
+3. **Cuantizar cuesta velocidad, no la ahorra — tercera confirmación en este
+   proyecto.** A (fp32) tuvo mejor RTF que C (q8); B, con el vocoder en fp32, fue la
+   más lenta de todas; y en VITS, E (q8) resultó ~50 % más lento que D (fp32). Es el
+   mismo mecanismo de D-05: ONNX sobre WASM no tiene núcleos enteros optimizados para
+   CPU y descuantiza en cada inferencia. **En este proyecto, bajar bits empeora las dos
+   dimensiones a la vez.** Es un resultado citable para el Avance 2.
+
+4. **La latencia no cumple el objetivo de 2 s en frases largas, con ningún modelo.**
+   El RTF nunca bajó de 1, es decir que sintetizar siempre tarda más que escuchar. Con
+   VITS el RTF se mantiene casi constante (1.04–1.15) y la latencia crece de forma
+   proporcional al texto, que es más predecible que SpeechT5 (1.05–1.30 y con picos).
+   No bloquea el puntaje de pronunciación —el audio de referencia se puede sintetizar
+   mientras el estudiante lee— pero obliga a decidir la presentación: sintetizar por
+   adelantado la frase del tutor, o mostrar espera en el botón de escuchar.
+
+5. **VITS es 5.6× más liviano que la única versión usable de SpeechT5** (109 MB contra
+   613 MB), usa un tercio de la memoria y es un único archivo, sin vocoder ni vector de
+   voz. **Si la calidad al oído es aceptable, es la elección.**
 
 ## 5. Lo que NO está verificado (honestidad de la medición)
 
-- **La calidad al oído está pendiente.** Es la pregunta 4 y la que decide entre B y C.
-  Los WAV se descargan desde la propia página del spike.
-- **Los tiempos absolutos son provisionales.** Toda la medición se hizo con la pestaña
-  en segundo plano (`document.visibilityState === 'hidden'`), y el navegador limita el
-  procesamiento de las pestañas ocultas. Las comparaciones entre configuraciones son
-  válidas porque se hicieron en las mismas condiciones, pero **los milisegundos hay que
-  rehacerlos en una ventana visible** antes de citarlos en el documento del Avance 2.
-- **La corrida de B se detuvo** en la quinta frase y no llegó a completar la tabla.
+- **Falta escuchar D y E.** Es la pregunta que decide. Los WAV se descargan desde la
+  propia página del spike.
+- **Las columnas C y E se midieron con la pestaña en segundo plano**
+  (`document.visibilityState === 'hidden'`), donde el navegador limita el
+  procesamiento; sus milisegundos son probablemente pesimistas. A y D se midieron en
+  ventana visible y son los números buenos. Antes de citar cifras en el documento del
+  Avance 2 hay que rehacer C y E en ventana visible.
+- **La configuración A falló al cargar tres veces seguidas** antes de conseguirlo.
+  El texto del error se perdió al recargar la página; el spike ya registra el error
+  completo (nombre + mensaje) para la próxima. Sin ese dato no se puede afirmar la
+  causa, pero un modelo de 613 MB que no carga de forma fiable no es aceptable en
+  producción aunque sonara perfecto.
+- **La corrida de B se detuvo** en la quinta frase, y la de E en la sexta, ambas con la
+  pestaña oculta.
 - **Observación a vigilar:** la misma frase produjo audios de distinta duración entre
-  configuraciones (2.53 s en C contra 1.98 s en B) aunque el decodificador era q8 en
-  ambas. La longitud generada no parece perfectamente reproducible. Importa para
-  Fabrizio: si el audio de referencia cambia entre corridas, el puntaje de una misma
-  pronunciación también varía. Hay que confirmarlo repitiendo la misma frase dos veces
-  en la misma configuración.
+  configuraciones del mismo modelo (2.53 s en C contra 1.98 s en B, con el mismo
+  decodificador q8). La longitud generada no parece perfectamente reproducible. Importa
+  para Fabrizio: si el audio de referencia cambia entre corridas, el puntaje de una
+  misma pronunciación también. Hay que confirmarlo repitiendo una frase dos veces en la
+  misma configuración.
 
 ## 6. Decisiones que alimenta
 
-- Configuración del worker S5-T5 (`DEFAULT_TTS_CONFIG` en `src/ai/tts/ttsProtocol.ts`).
+- Elección de modelo y configuración del worker S5-T5 (`DEFAULT_TTS_CONFIG` en
+  `src/ai/tts/ttsProtocol.ts`).
+- **S7-T4 (peso de la descarga inicial):** si se adopta VITS, el TTS suma 109 MB en vez
+  de 613 MB. Y como la cuantización queda descartada por tercera vez, la vía para
+  reducir peso es **cambiar de modelo o cargar bajo demanda**, no bajar bits.
 - El vector de voz va **embebido en el código** (`src/ai/tts/speakerEmbedding.ts`), no
   descargado: el ejemplo oficial hace `fetch` a huggingface.co en cada arranque, lo que
-  rompería el requisito de funcionar sin conexión.
-- Insumo de S7-T4 (peso de la descarga inicial) y del riesgo R03 (comparar voz humana
-  contra voz sintética).
+  rompería el requisito de funcionar sin conexión. **Si se adopta VITS este archivo
+  sobra**, porque VITS lleva la voz en los pesos; habría que borrarlo junto con su test.
+- Riesgo R03 (comparar voz humana contra voz sintética): la voz de VITS es distinta de
+  la de SpeechT5, así que la calibración prevista con las cuatro voces del equipo se
+  hace contra la que quede elegida.
