@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Spike S4-T5 · Síntesis de voz (SpeechT5) en el navegador</title>
+  <style>
+    :root { color-scheme: light dark; }
+    body { font-family: system-ui, sans-serif; max-width: 1000px; margin: 2rem auto; padding: 0 1rem; line-height: 1.5; }
+    h1 { font-size: 1.35rem; } h2 { font-size: 1.05rem; margin-top: 1.6rem; }
+    button { padding: .5rem .9rem; margin: .2rem .3rem .2rem 0; cursor: pointer; border-radius: 6px; border: 1px solid #8888; background: #8881; }
+    button:disabled { opacity: .45; cursor: not-allowed; }
+    textarea { width: 100%; min-height: 130px; font-family: ui-monospace, monospace; font-size: .85rem; padding: .6rem; border-radius: 6px; border: 1px solid #8886; background: transparent; color: inherit; }
+    table { border-collapse: collapse; width: 100%; margin-top: .6rem; font-size: .85rem; }
+    th, td { border: 1px solid #8886; padding: .4rem .55rem; text-align: left; vertical-align: top; }
+    #log { white-space: pre-wrap; font-family: ui-monospace, monospace; font-size: .8rem; background: #8881; padding: .7rem; border-radius: 8px; max-height: 220px; overflow: auto; }
+    .muted { opacity: .7; font-size: .85rem; }
+    .ok { color: #2e7d32; font-weight: 600; }
+    .bad { color: #c62828; font-weight: 600; }
+    .row { margin: .6rem 0; }
+    .warn { border-left: 3px solid #ed6c02; padding-left: .7rem; }
+    audio { height: 32px; vertical-align: middle; }
+  </style>
+</head>
+<body>
+  <h1>🔊 Spike S4-T5 — Síntesis de voz con SpeechT5</h1>
+  <p class="muted">
+    Decide con qué configuración se construye el worker de TTS (S5-T5), que es hoy la
+    <strong>única tarea de la ruta crítica</strong>. Responde cuatro preguntas:
+    ¿a qué frecuencia sale el audio (¿hace falta remuestrear a 16 kHz?), cuánto pesa la
+    descarga real, cuánto tarda por frase, y <strong>cómo suena</strong> al cuantizar.
+  </p>
+  <p class="muted warn">
+    Ejecuta las tres configuraciones <strong>en pestañas o sesiones distintas</strong> si
+    quieres medir la descarga de cada una por separado: una vez cacheada la primera, la
+    medida de almacenamiento de las siguientes ya no es comparable (le pasó a q4 en S3-T3).
+    La tabla de archivos ONNX de abajo sí es exacta siempre: viene del propio descargador.
+  </p>
+
+  <h2>1) Configuración</h2>
+  <div class="row">
+    <label>Cuantización:
+      <select id="config"></select>
+    </label>
+    <button id="btnLoad">Cargar modelo + medir</button>
+  </div>
+  <p id="configInfo" class="muted"></p>
+
+  <h2>2) Frases de prueba</h2>
+  <p class="muted">
+    Una por línea. Incluyen frases del tutor, dígitos (el tokenizador de SpeechT5 trabaja
+    carácter a carácter y conviene comprobar qué hace con los números) y los pares mínimos
+    que el equipo usará en S6-T7 para el puntaje de pronunciación.
+  </p>
+  <textarea id="sentences">Hello, my name is Isaac and I am learning English.
+Would you like to order something to drink?
+The class starts at 8 o'clock.
+ship, sheep, ship, sheep.
+bad, bed, bad, bed.
+I went to the supermarket yesterday because I needed to buy vegetables, bread and something for dinner.</textarea>
+
+  <div class="row">
+    <button id="btnRun" disabled>Sintetizar todas + medir</button>
+  </div>
+
+  <h2>Resultados</h2>
+  <p class="muted">
+    Escucha cada frase y descarga los WAV: la calidad de una voz no la mide ningún test
+    automático. Los archivos se adjuntan a la evidencia.
+  </p>
+  <div id="results"></div>
+
+  <h2>Resumen</h2>
+  <table id="summary">
+    <thead><tr><th>Medida</th><th>Valor</th></tr></thead>
+    <tbody></tbody>
+  </table>
+
+  <h2>Archivos descargados (medida exacta del peso)</h2>
+  <div id="files"></div>
+
+  <h2>Registro</h2>
+  <div id="log"></div>
+
+  <script type="module" src="./spike.ts"></script>
+</body>
+</html>
