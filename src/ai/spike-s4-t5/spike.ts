@@ -227,6 +227,13 @@ $('btnLoad').addEventListener('click', async () => {
       modelSampleRate =
         (model.config as unknown as { sampling_rate?: number }).sampling_rate ?? 0;
 
+      // Qué entradas acepta el grafo ONNX. Importa para saber si la velocidad del
+      // habla (`speaking_rate` de la configuración) se puede cambiar en cada
+      // llamada o si quedó fijada como constante al exportar el modelo.
+      const names = (model as unknown as { sessions?: Record<string, { inputNames?: string[] }> })
+        .sessions?.model?.inputNames;
+      log(`  entradas del grafo ONNX: ${names ? names.join(', ') : 'no legibles'}`);
+
       loaded = { engine: 'vits', tokenizer, model };
     }
 

@@ -46,8 +46,8 @@ gramatical, y aquí corre el mismo motor (ONNX sobre WASM, sin núcleos de 4 bit
 | A | SpeechT5 | todo fp32 | **613.0 MB** | 1.12 | Entendible, con voz algo robótica e interferencia de fondo |
 | B | SpeechT5 | q8 + vocoder fp32 | 205.0 MB | 3.2–6.4 | Peor que A |
 | C | SpeechT5 | todo q8 | 169.5 MB | 1.49 ⚠ | **Ininteligible** |
-| D | MMS-TTS (VITS) | fp32 | **109.0 MB** | **1.08** | ⏳ pendiente de escuchar |
-| E | MMS-TTS (VITS) | q8 | 36.6 MB | ~1.6 | ⏳ pendiente de escuchar |
+| D | MMS-TTS (VITS) | fp32 | **109.0 MB** | **1.08** | **Inteligible.** Articulación apresurada; pronuncia mal *vegetables* |
+| E | MMS-TTS (VITS) | q8 | 36.6 MB | ~1.6 | Prácticamente igual que D, algo peor |
 
 Todas las configuraciones, de las dos familias, declaran **16 000 Hz**.
 
@@ -104,13 +104,38 @@ Heap JS: 33 MB con SpeechT5 q8, **11 MB** con VITS fp32.
    adelantado la frase del tutor, o mostrar espera en el botón de escuchar.
 
 5. **VITS es 5.6× más liviano que la única versión usable de SpeechT5** (109 MB contra
-   613 MB), usa un tercio de la memoria y es un único archivo, sin vocoder ni vector de
-   voz. **Si la calidad al oído es aceptable, es la elección.**
+   613 MB), usa un tercio de la memoria, es un único archivo sin vocoder ni vector de
+   voz, y su **carga cacheada es de 0.86 s** frente a los 8.22 s de SpeechT5 — del
+   orden del ASR (0.54 s). Es la elección para S5-T5.
+
+6. **La velocidad del habla no se puede cambiar desde el código.** El grafo ONNX de
+   MMS-TTS solo acepta `input_ids` y `attention_mask`: el `speaking_rate` de la
+   configuración quedó fijado como constante al exportar el modelo. Verificado leyendo
+   `inputNames` de la sesión ONNX en ejecución.
+
+   Ahora bien, la percepción de que "habla muy rápido" no se sostiene como tempo: para
+   la misma frase, D produce **4.32 s de audio frente a los 2.91 s de A**, es decir que
+   habla más despacio que SpeechT5. Lo que se percibe es la articulación —palabras
+   pegadas, sin pausas— no la velocidad. Un estiramiento temporal no lo arreglaría:
+   ralentizaría lo mismo. Y para el estudiante, la aplicación **ya tiene** el botón de
+   reproducción lenta a 0.7× que conectó Alejandro (`SLOW_RATE` en `src/App.tsx`).
+
+7. **Limitación real de MMS-TTS: pronuncia mal algunas palabras.** En la escucha,
+   *vegetables* sonó como "veyitables". Es una debilidad de conversión de letra a
+   sonido del modelo, no se corrige por configuración. **Importa más de lo que parece
+   en este proyecto concreto:** si el audio de referencia pronuncia mal una palabra, el
+   estudiante imita el error y, peor, el comparador de Fabrizio penalizará a quien la
+   pronuncie *bien*. Queda anotado como limitación documentada y como insumo de la
+   evaluación de Kokoro (§7).
 
 ## 5. Lo que NO está verificado (honestidad de la medición)
 
-- **Falta escuchar D y E.** Es la pregunta que decide. Los WAV se descargan desde la
-  propia página del spike.
+- **La escucha es de un solo oyente (yo) y sin prueba a ciegas.** Las cinco
+  configuraciones se juzgaron sabiendo cuál era cuál. Para el Avance 2 conviene que
+  otro integrante confirme al menos la comparación A contra D.
+- **No se midió cuán frecuente es la mala pronunciación de MMS-TTS.** Se detectó en una
+  palabra (*vegetables*) de seis frases. Antes de aceptarla como limitación menor hay
+  que pasar por el spike un puñado de frases típicas del tutor y contar los fallos.
 - **Las columnas C y E se midieron con la pestaña en segundo plano**
   (`document.visibilityState === 'hidden'`), donde el navegador limita el
   procesamiento; sus milisegundos son probablemente pesimistas. A y D se midieron en
@@ -130,7 +155,34 @@ Heap JS: 33 MB con SpeechT5 q8, **11 MB** con VITS fp32.
   misma pronunciación también. Hay que confirmarlo repitiendo una frase dos veces en la
   misma configuración.
 
-## 6. Decisiones que alimenta
+## 6. Alternativa evaluada sobre el papel: Kokoro-82M
+
+Ante la pronunciación defectuosa de MMS-TTS se revisó la única alternativa de calidad
+claramente superior que corre en el navegador. **No se adoptó**, y estas son las cifras
+que sostienen la decisión:
+
+| | MMS-TTS (elegido) | Kokoro-82M |
+|---|---|---|
+| Peso sin cuantizar | 109 MB | 325 MB |
+| Peso cuantizado | 36.6 MB | 92 MB |
+| Frecuencia de salida | **16 kHz** (la del proyecto) | 24 kHz → habría que remuestrear |
+| Dependencias nuevas | ninguna | `kokoro-js` + `phonemizer` |
+| Control de velocidad | no | sí, nativo |
+| Pronunciación | falla en algunas palabras | usa un conversor fonético real |
+
+Kokoro requeriría una solicitud etiquetada `shared-change` sobre `package.json` (dos
+dependencias nuevas; `kokoro-js` 1.2.1 pide `@huggingface/transformers ^3.5.1`, así que
+es compatible con la 3.8.1 que ya usa el proyecto), más código propio de remuestreo de
+24 kHz a 16 kHz con sus pruebas. Es decir: aprobación de terceros y trabajo nuevo sobre
+la tarea que hoy bloquea a dos compañeros.
+
+La decisión es entregar S5-T5 con MMS-TTS —que desbloquea el puntaje de pronunciación
+hoy— y dejar la evaluación de Kokoro como tarea aparte dentro de S7-T4, que ya existe
+para revisar peso y calidad de los modelos. El worker queda parametrizado por
+configuración, de modo que cambiar de motor después es añadir una rama y cambiar una
+constante, no rehacerlo.
+
+## 7. Decisiones que alimenta
 
 - Elección de modelo y configuración del worker S5-T5 (`DEFAULT_TTS_CONFIG` en
   `src/ai/tts/ttsProtocol.ts`).
