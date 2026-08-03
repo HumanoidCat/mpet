@@ -1,7 +1,7 @@
 # S4-T5 · Spike de síntesis de voz en el navegador
 
 **Responsable:** Isaac Morum (módulo `src/ai/`) · **Fecha:** 3 de agosto de 2026
-**Código:** `src/ai/spike-s4-t5/` (`index.html` + `spike.ts`)
+**Código:** `src/ai/spike-s4-t5/` (spike + verificación del worker real)
 **Cómo se corre:** `npm.cmd run dev` → <http://localhost:5173/src/ai/spike-s4-t5/index.html>
 
 ## 1. Para qué se hizo
@@ -126,7 +126,7 @@ Heap JS: 33 MB con SpeechT5 q8, **11 MB** con VITS fp32.
    en este proyecto concreto:** si el audio de referencia pronuncia mal una palabra, el
    estudiante imita el error y, peor, el comparador de Fabrizio penalizará a quien la
    pronuncie *bien*. Queda anotado como limitación documentada y como insumo de la
-   evaluación de Kokoro (§7).
+   evaluación de Kokoro (§6).
 
 ## 5. Lo que NO está verificado (honestidad de la medición)
 
@@ -196,3 +196,50 @@ constante, no rehacerlo.
 - Riesgo R03 (comparar voz humana contra voz sintética): la voz de VITS es distinta de
   la de SpeechT5, así que la calibración prevista con las cuatro voces del equipo se
   hace contra la que quede elegida.
+
+## 8. Lo que apareció al ejecutar el worker real (S5-T5)
+
+El worker se verificó con una página que usa el `ttsClient` y el `ttsWorker` reales
+(`src/ai/spike-s4-t5/verificacion-worker.html`), no una copia. Encontró dos fallos que
+ni el compilador ni los tests veían, y ninguno de los dos era evidente sobre el papel.
+
+### 8.1. El audio de referencia no era reproducible
+
+La misma frase, sintetizada tres veces seguidas en la misma sesión y con el mismo
+modelo, dio **53 760, 55 040 y 57 088 muestras**. No es un fallo del código: VITS lleva
+un predictor de duración estocástico —muestrea ruido a propósito— para que la prosodia
+no suene idéntica siempre. Y como el grafo ONNX solo acepta `input_ids` y
+`attention_mask`, ese ruido no se puede apagar.
+
+Para una aplicación cualquiera sería un detalle simpático. Aquí no: es la referencia
+contra la que se puntúa la pronunciación, así que la misma pronunciación sacaría
+puntajes distintos y las pruebas del comparador no tendrían contra qué fijarse.
+
+**Solución:** `src/ai/tts/pcmCache.ts` guarda el PCM por frase. La referencia queda
+estable durante la sesión y, de paso, volver a escuchar una frase ya sintetizada pasó
+de ~10 s a **0 ms**, verificado en ejecución. Limitación honesta: al recargar la página
+la caché se vacía y la frase se vuelve a sintetizar distinta; persistirla entre
+sesiones es trabajo del almacenamiento en IndexedDB (S5-T6, Alejandro).
+
+### 8.2. La barra de progreso estaba rota para los tres modelos
+
+Al cargar el modelo con caché fría, la barra saltaba a 100 % de inmediato y se quedaba
+ahí durante los 109 MB restantes. El registro de los eventos crudos dio la causa exacta:
+
+```
+{"file":"config.json","loaded":1656,"total":1656}            ← llega completo de una vez
+{"file":"onnx/model.onnx","loaded":16375,"total":114258806}  ← empieza después
+```
+
+El agregador de S2-T5 contaba `config.json`, calculaba 1656/1656 = 100 % y, como la
+barra es monótona por diseño, quedaba bloqueada. De 1928 eventos de progreso recibidos,
+**reportaba exactamente uno**.
+
+No era un problema del TTS: le pasaba igual al reconocedor y al corrector, porque todos
+descargan configuraciones pequeñas antes de sus pesos. Explica por qué en todas las
+corridas anteriores el registro mostraba un único `carga: 100%`.
+
+**Solución:** en `src/ai/model-cache/progress.ts`, los archivos que aparecen completos
+en su primer evento ya no cuentan para la barra — un archivo que se descarga de verdad
+llega troceado. La regla no depende de ningún tamaño arbitrario. Verificado con
+descarga real de 109 MB: pasó de **1 reporte a 1690 graduales**.
