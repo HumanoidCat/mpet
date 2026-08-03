@@ -1,5 +1,11 @@
 /**
- * S4-T5/S5-T5 · Vector de voz (speaker embedding) para SpeechT5. Dueño: Isaac.
+ * Vector de voz (speaker embedding) para SpeechT5. Dueño: Isaac.
+ *
+ * SOLO LO USA EL SPIKE. SpeechT5 quedó descartado por medición (613 MB para la única
+ * configuración inteligible) y el worker de producción usa MMS-TTS, que lleva la voz
+ * en sus propios pesos y no necesita este vector. Se conserva aquí, dentro del spike,
+ * para que las mediciones documentadas en `docs/evidencias/s4/s4-t5-tts-spike.md`
+ * sigan siendo reproducibles.
  *
  * QUÉ ES: SpeechT5 no tiene una voz propia. Además del texto hay que darle un
  * vector de 512 números (un "x-vector") que describe *quién* habla: timbre, tono

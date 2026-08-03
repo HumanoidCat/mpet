@@ -42,7 +42,7 @@ import {
 } from '@huggingface/transformers';
 import { SAMPLE_RATE } from '@shared/constants';
 import { createProgressAggregator, type RawProgressEvent } from '../model-cache/progress';
-import { loadSpeakerEmbedding } from '../tts/speakerEmbedding';
+import { loadSpeakerEmbedding } from './speakerEmbedding';
 import {
   TTS_CONFIGS,
   getTtsConfig,
@@ -168,8 +168,15 @@ $('btnLoad').addEventListener('click', async () => {
     // Un solo agregador para todas las descargas: para la UI el TTS es un modelo,
     // aunque por dentro sean varios repositorios.
     const aggregator = createProgressAggregator((p) => log(`  carga: ${(p * 100).toFixed(0)}%`));
+
+    // Cuenta de eventos por tipo. Sirve para saber si transformers.js informa el
+    // avance de la descarga de forma continua o solo avisa al empezar y al acabar:
+    // de eso depende que la barra de progreso de la aplicación pueda existir.
+    const eventCount = new Map<string, number>();
+
     const progress_callback = (e: unknown) => {
       const ev = e as RawProgressEvent;
+      eventCount.set(ev.status, (eventCount.get(ev.status) ?? 0) + 1);
       if (ev.file && typeof ev.total === 'number' && ev.total > 0) {
         downloadedFiles.set(ev.file, ev.total);
       }
@@ -245,6 +252,8 @@ $('btnLoad').addEventListener('click', async () => {
     const downloadedMB = [...downloadedFiles.values()].reduce((a, b) => a + b, 0) / 1048576;
 
     log(`✔ Cargado en ${loadSeconds.toFixed(2)} s`);
+    log(`  Eventos de progreso recibidos: ` +
+        [...eventCount.entries()].map(([k, v]) => `${k}=${v}`).join(' · '));
     log(`  Descarga sumada de archivos: ${downloadedMB.toFixed(1)} MB (esperado ~${cfg.expectedMB} MB)`);
     log(`  Almacenamiento Δ ≈ ${cacheDeltaMB.toFixed(1)} MB (aproximado: el navegador redondea)`);
     log(`  Frecuencia declarada por el modelo: ${modelSampleRate || 'desconocida'} Hz ` +
@@ -274,6 +283,47 @@ function renderFiles() {
     `<tr><td><strong>Total</strong></td><td><strong>${totalMB.toFixed(2)} MB</strong></td></tr>` +
     `</tbody></table>`;
 }
+
+// ── Banco de frases de pronunciación difícil ─────────────────────────────────
+
+/**
+ * Frases para medir cuán frecuente es el fallo de pronunciación que apareció con
+ * *vegetables*.
+ *
+ * POR QUÉ ESTAS: MMS-TTS trabaja carácter a carácter, así que falla donde la
+ * escritura del inglés no se corresponde con el sonido. Cada línea ataca una
+ * familia distinta de esa trampa, de modo que el resultado no sea "falló una
+ * palabra" sino "falla en tal tipo de palabras":
+ *
+ *   1–4   sílabas que se comprimen al hablar (el caso de *vegetables*)
+ *   5–6   ge/gi suaves, que se leen como /dʒ/ y no como g dura
+ *   7–9   letras mudas (k, l, s, w, p)
+ *   10–11 terminaciones -ture, -tion, -sion, -sure
+ *   12    las cuatro pronunciaciones distintas de "ch"
+ *   13    la familia "ough", que se lee de seis formas
+ *   14    números, símbolos y horas, que el tokenizador tiene que deletrear
+ */
+const HARD_SENTENCES = [
+  'Comfortable chocolate and fresh vegetables.',
+  'The temperature in the restaurant is different.',
+  'My favorite camera is very interesting.',
+  'Several average business meetings every Wednesday.',
+  'The generous giant ordered ginger and orange juice.',
+  'Imagine the energy of that engine in this region.',
+  'I know the knife is in the old castle.',
+  'Listen, half the island has a strong muscle.',
+  'Could you answer about the salmon receipt?',
+  'The picture of nature raised a good question.',
+  'Her decision brought pleasure and leisure.',
+  'The chef has a character like a machine.',
+  'Though it was tough, I thought it through.',
+  'It costs $25 and starts at 8:30 in the morning.',
+].join('\n');
+
+$('btnHard').addEventListener('click', () => {
+  ($('sentences') as HTMLTextAreaElement).value = HARD_SENTENCES;
+  log('Cargadas 14 frases de pronunciación difícil. Cuenta en cuántas falla.');
+});
 
 // ── 2) Sintetizar y medir ────────────────────────────────────────────────────
 

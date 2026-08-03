@@ -1,19 +1,18 @@
 /**
- * S4-T5/S5-T5 · Vector de voz embebido para SpeechT5.
+ * S4-T5 · Vector de voz embebido para SpeechT5 (solo lo usa el spike).
  *
  * QUÉ PROTEGE ESTE TEST: el vector va guardado como texto en base64 dentro del
- * código para que la síntesis funcione sin conexión. Un carácter perdido en un
- * merge, un reformateo automático o un salto de línea mal metido no darían error
- * de compilación: darían una voz distinta, o ruido, y solo se notaría al oír la
- * app. Aquí se comprueba que los bytes siguen siendo exactamente los que se
- * descargaron del Hub.
+ * código. Un carácter perdido en un merge, un reformateo automático o un salto de
+ * línea mal metido no darían error de compilación: darían una voz distinta, o
+ * ruido. Como de este vector dependen las mediciones de SpeechT5 que quedaron
+ * documentadas en la evidencia, el test las mantiene reproducibles.
  */
 
 import { describe, expect, it } from 'vitest';
 import {
   SPEAKER_EMBEDDING_DIM,
   loadSpeakerEmbedding,
-} from '../../src/ai/tts/speakerEmbedding';
+} from '../../src/ai/spike-s4-t5/speakerEmbedding';
 
 describe('Vector de voz de SpeechT5 (S4-T5)', () => {
   it('tiene los 512 valores que espera el modelo', () => {
