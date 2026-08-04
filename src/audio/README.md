@@ -38,6 +38,13 @@ VAD → STFT → pitch (YIN) → MFCC → DTW → puntaje.
 Los dos contratos del módulo (`AudioEngine` y `PronunciationScorer`) tienen ya
 implementación real.
 
+- **S7-T4 ✅** (parte DSP) optimización de latencia: caché de planes de FFT y
+  decimación polifásica. Evidencia: `docs/evidencias/s7/s7-t4-latencia-dsp.md`.
+
+Costo del pipeline en vivo: **2.14 % de un núcleo**. Analizar una frase de 3 s
+cuesta ~67 ms contra un presupuesto de 2000 ms por turno. El DSP no es el cuello
+de botella; lo son los modelos de IA.
+
 ⚠️ **No aplicar CMN a sonidos sostenidos**: en una señal estacionaria la media
 es la señal, y restarla borra la información. Ver la evidencia de S6.
 

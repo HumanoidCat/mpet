@@ -32,7 +32,7 @@
 - [x] S6-T2 · Puntaje global + por palabra con timestamps de Whisper → RF-10 cumplido: separa bien/mal por **31 puntos** (exigía 20)
 
 ## Semana 7 — 🎯 AVANCE 2 (mar 18 ago)
-- [ ] S7-T4 · Optimización de latencia del análisis (con Isaac)
+- [x] S7-T4 · Optimización de latencia del análisis → parte DSP: caché de planes FFT (YIN −29.7 %) y decimación polifásica (3.00×). Total 2.14 % de un núcleo (ver `docs/evidencias/s7/s7-t4-latencia-dsp.md`). Falta la parte de modelos, de Isaac.
 - [ ] Mi sección del documento Avance 2
 
 ## Semana 8

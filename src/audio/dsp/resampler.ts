@@ -97,13 +97,85 @@ export function resample(
 }
 
 /**
+ * Decimador polifásico para relaciones enteras (S7-T4, optimización).
+ *
+ * El camino directo filtra el bloque completo y después se queda con una de
+ * cada `factor` muestras. Eso calcula `factor` veces más productos de los que
+ * se usan: para 48 → 16 kHz, dos de cada tres salidas del filtro se tiran.
+ *
+ * La versión polifásica evalúa el FIR **solo en las posiciones que se
+ * conservan**. El resultado es idéntico —es la misma convolución, en menos
+ * puntos— y el costo baja por el factor de decimación. Es la razón por la que
+ * en multitasa nunca se filtra y luego se decima por separado.
+ *
+ * Emite exactamente en las mismas posiciones que el camino genérico, de modo
+ * que la optimización no cambia ni una muestra de la salida.
+ */
+class PolyphaseDecimator {
+  private readonly history: Float64Array;
+  /** Posición dentro del próximo bloque donde toca la siguiente salida. */
+  private phase = 0;
+
+  constructor(
+    private readonly coeffs: Float32Array,
+    private readonly factor: number
+  ) {
+    // Se guardan `taps` muestras y no `taps - 1`: la fase puede quedar en −1,
+    // y la salida en esa posición necesita la entrada desde −1 hasta −taps.
+    // Con una muestra menos se leería fuera del arreglo y saldría NaN.
+    this.history = new Float64Array(coeffs.length);
+  }
+
+  process(block: Float32Array): Float32Array {
+    const { coeffs, factor, history } = this;
+    const taps = coeffs.length;
+    const histLen = history.length;
+    const n = block.length;
+
+    // Mismo criterio de parada que el camino genérico: se emite mientras la
+    // posición no pase de n-2. Así ambos caminos producen las mismas muestras.
+    const salida: number[] = [];
+    let i = this.phase;
+    for (; i <= n - 2; i += factor) {
+      let acc = 0;
+      for (let k = 0; k < taps; k++) {
+        const idx = i - k;
+        acc += coeffs[k] * (idx >= 0 ? block[idx] : history[histLen + idx]);
+      }
+      salida.push(acc);
+    }
+    this.phase = i - n;
+
+    // La cola del bloque queda como historia del siguiente.
+    if (histLen > 0) {
+      if (n >= histLen) {
+        history.set(block.subarray(n - histLen));
+      } else {
+        history.copyWithin(0, n);
+        history.set(block, histLen - n);
+      }
+    }
+    return Float32Array.from(salida);
+  }
+
+  reset(): void {
+    this.history.fill(0);
+    this.phase = 0;
+  }
+}
+
+/**
  * Remuestreador con estado, para la captura en vivo. Mantiene la historia del
  * FIR y la fase fraccionaria entre bloques, así que procesar por bloques da el
  * mismo resultado que procesar la señal entera (salvo el retardo de grupo, que
  * en tiempo real no se compensa: son ~1.3 ms a 48 kHz con 127 taps).
+ *
+ * Con relación entera usa el camino polifásico, que calcula solo las muestras
+ * que se conservan; con relación fraccionaria, el genérico con interpolación.
  */
 export class StreamingResampler {
   private readonly filter: FirFilter | null;
+  private readonly polyphase: PolyphaseDecimator | null;
   private readonly step: number;
   /** Posición de lectura relativa al inicio del bloque actual. */
   private pos = 0;
@@ -118,6 +190,13 @@ export class StreamingResampler {
     const coeffs = designAntiAliasFilter(fromRate, toRate, numTaps);
     this.filter = coeffs ? new FirFilter(coeffs) : null;
     this.step = chooseResampleStrategy(fromRate, toRate).factor;
+
+    // El camino polifásico solo aplica cuando la relación es entera y hay
+    // filtro que aplicar (es decir, cuando se está bajando de frecuencia).
+    this.polyphase =
+      coeffs && Number.isInteger(this.step) && this.step > 1
+        ? new PolyphaseDecimator(coeffs, this.step)
+        : null;
   }
 
   /** Retardo introducido por el filtro anti-aliasing, en milisegundos. */
@@ -133,6 +212,7 @@ export class StreamingResampler {
   process(block: Float32Array): Float32Array {
     if (block.length === 0) return new Float32Array(0);
     if (this.step === 1) return block.slice();
+    if (this.polyphase) return this.polyphase.process(block);
 
     const filtered = this.filter ? this.filter.process(block) : block;
     const { out, nextPos } = readAtStep(filtered, this.step, this.pos, this.prev);
@@ -144,6 +224,7 @@ export class StreamingResampler {
 
   reset(): void {
     this.filter?.reset();
+    this.polyphase?.reset();
     this.pos = 0;
     this.prev = 0;
   }
