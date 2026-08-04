@@ -21,7 +21,7 @@
  * se hizo con la FFT en S3-T1.
  */
 
-import { Fft, nextPowerOfTwo } from '../dsp/fft';
+import { getFft, nextPowerOfTwo } from '../dsp/fft';
 
 /**
  * Autocorrelación por definición. Devuelve r[τ] para τ = 0 … maxLag.
@@ -58,7 +58,7 @@ export function autocorrelationFft(x: Float32Array, maxLag?: number): Float64Arr
   const lags = Math.min(maxLag ?? n - 1, n - 1);
 
   const size = nextPowerOfTwo(2 * n);
-  const fft = new Fft(size);
+  const fft = getFft(size);
   const re = new Float64Array(size);
   const im = new Float64Array(size);
   re.set(x);
@@ -90,7 +90,7 @@ export function crossCorrelationFft(
   maxLag: number
 ): Float64Array {
   const size = nextPowerOfTwo(a.length + b.length);
-  const fft = new Fft(size);
+  const fft = getFft(size);
 
   const reA = new Float64Array(size);
   const imA = new Float64Array(size);
