@@ -80,9 +80,12 @@ export function VisualizerScreen({ audio }: Props) {
           <Metric label="RMS Energy" value={energy.toFixed(3)} />
           <Metric label="Signal Duration" value={`${duration.toFixed(1)} s`} />
         </div>
-        <p className="text-xs text-[var(--color-muted)] mt-3">
-          Dominant Freq, Noise Level y Voice Activity Detection necesitan el FFT real (S3-T1) — se agregan cuando esté listo.
-        </p>
+        {/*
+          Aqui iba una nota de equipo que se renderizaba al usuario, diciendo que
+          Dominant Freq, Noise Level y VAD "se agregan cuando el FFT este listo".
+          El FFT esta integrado desde S3-T1, asi que la nota quedo falsa. Si esas
+          tres metricas se agregan, salen de `AudioFrame.fftDb` y `energy`.
+        */}
       </div>
 
       <div className="grid sm:grid-cols-2 gap-4">
@@ -94,7 +97,7 @@ export function VisualizerScreen({ audio }: Props) {
             <Spectrogram audio={audio} width={420} height={180} />
           </div>
           <p className="text-xs text-[var(--color-muted)] mt-2">
-            FFT real (S3-T1, Fabrizio) ✅ — esta señal ya viene del micrófono de verdad.
+            Transformada de Fourier de tiempo corto, ventana de Hann de {FFT_SIZE} muestras.
           </p>
         </div>
 
@@ -106,8 +109,7 @@ export function VisualizerScreen({ audio }: Props) {
             <PitchTrace audio={audio} width={420} height={180} />
           </div>
           <p className="text-xs text-[var(--color-muted)] mt-2">
-            Igual: listo, pero <code>pitchHz</code> siempre es <code>null</code> hasta el
-            detector real de pitch de Fabrizio (S5-T1).
+            Frecuencia fundamental por autocorrelación (YIN), rango de voz 60–400 Hz.
           </p>
         </div>
       </div>
