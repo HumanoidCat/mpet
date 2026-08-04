@@ -20,7 +20,7 @@
 - [x] Mi sección del documento Avance 1 (procesamiento de audio) → §5.1 ampliada, §5.2/§5.4/§5.5 nuevas, §7.3 con mediciones, Anexo B actualizado
 
 ## Semana 4 — 🎯 AVANCE 1 (mar 28 jul)
-- [ ] Presentar mi parte en la demo
+- [x] Presentar mi parte en la demo
 - [x] S4-T4 · Spike: pitch por autocorrelación → error 0.008 Hz en tonos puros; el error de octava con fundamental débil es lo que justifica YIN (ver `docs/evidencias/s4/s4-t4-pitch-autocorrelacion.md`)
 
 ## Semana 5 ← tus 2 tareas más difíciles del proyecto
@@ -31,7 +31,7 @@
 - [x] S6-T1 · DTW sobre secuencias MFCC (usuario vs referencia TTS) → invariante a velocidad y volumen (ver `docs/evidencias/s6/s6-t1-t2-comparador.md`)
 - [x] S6-T2 · Puntaje global + por palabra con timestamps de Whisper → RF-10 cumplido: separa bien/mal por **31 puntos** (exigía 20)
 
-## Semana 7 — 🎯 AVANCE 2 (mar 18 ago)
+## Semana 7 — 🎯 AVANCE 2 (mar 11 ago)
 - [x] S7-T4 · Optimización de latencia del análisis → parte DSP: caché de planes FFT (YIN −29.7 %) y decimación polifásica (3.00×). Total 2.14 % de un núcleo (ver `docs/evidencias/s7/s7-t4-latencia-dsp.md`). Falta la parte de modelos, de Isaac.
 - [x] Mi sección del documento Avance 2 → redactada en `docs/entregas/avance-2-seccion-dsp.md`, lista para que Alejandro la integre cuando exista `avance-2.md`
 
@@ -54,7 +54,25 @@ Tu contrato: `AudioEngine` y `PronunciationScorer` en `src/shared/contracts.ts`.
 
 El orden ya no lo fija la semana del calendario sino la dependencia (D-08).
 
-- [ ] Subir S4-T4, S5-T1 y S5-T2 como PR a `dev`, con evidencia en `docs/evidencias/s5/`
-- [ ] S6-T1 · DTW sobre secuencias de MFCC — **arranca cuando Isaac entregue el TTS (S5-T5)**
-- [ ] S6-T2 · Puntaje global y por palabra (con Isaac)
+- [x] Subir S4-T4, S5-T1 y S5-T2 como PR a `dev`, con evidencia en `docs/evidencias/s5/`
+- [x] S6-T1 · DTW sobre secuencias de MFCC
+- [x] S6-T2 · Puntaje global y por palabra (con Isaac)
 - [x] S5-T7 · Marco teórico de MFCC, YIN y STFT → §4 STFT, §5 MFCC, §6 YIN y §7 DTW en `docs/09-marco-teorico.md`, con índice de evidencias
+
+---
+
+## Lo que falta — actualizado 4 ago
+
+Tu módulo está prácticamente cerrado. Quedan **3 tareas**, y las dos primeras son
+las que deciden si el puntaje sirve.
+
+- [ ] **S9-T3 · Calibrar el comparador con las cuatro voces del equipo** (riesgo **R03**).
+      Comparar voz humana contra voz sintetizada puede castigar pronunciación correcta.
+      Si el puntaje no separa bien, la función principal del producto no sirve aunque
+      el código esté bien. Las herramientas de calibración ya las subiste
+- [ ] **S6-T7 · Pares mínimos**: ship/sheep, bad/bed. Es la evidencia más directa de que
+      el puntaje mide pronunciación y no timbre ni volumen (con el equipo)
+- [ ] **RF-09 · Verificación cruzada de MFCC contra librosa.** Son las 3 pruebas omitidas
+      de la suite; el fixture está preparado en `tests/audio/fixtures/` y nunca se corrió.
+      Métrica exigida: error menor al 5 %
+- [ ] S10-T6 · Preparar respuestas: Nyquist, por qué MFCC, cómo funcionan YIN y DTW
