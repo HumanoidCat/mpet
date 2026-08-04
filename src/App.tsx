@@ -5,6 +5,8 @@ import { createMockAudioEngine } from '@mocks/mockAudioEngine';
 import { createMockAIPipeline } from '@mocks/mockAIPipeline';
 import { createAIPipeline } from '@ai/createAIPipeline';
 import { createDspAudioEngine } from '@core/audioEngineAdapter';
+import { createPronunciationScorer } from '@audio/comparator/scorer';
+import { createMockScorer } from '@mocks/mockScorer';
 import { Chat } from '@ui/chat/Chat';
 import { VisualizerScreen } from '@ui/visualizer/VisualizerScreen';
 import SplashScreen, { type ModelStatus } from '@ui/shell/Splash';
@@ -60,7 +62,8 @@ export function App() {
     const bus = createEventBus();
     const audio = mockMode ? createMockAudioEngine() : createDspAudioEngine();
     const ai: AIPipeline = mockMode ? createMockAIPipeline() : createAIPipeline();
-    const orch = createOrchestrator({ audio, ai, bus });
+    const scorer = mockMode ? createMockScorer() : createPronunciationScorer();
+    const orch = createOrchestrator({ audio, ai, bus, scorer });
     return { bus, orch, audio, ai };
   }, [mockMode]);
 
@@ -105,7 +108,18 @@ export function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
-    const offMsg = bus.on('message', (e) => setMessages((m) => [...m, e.message]));
+    // El puntaje de pronunciacion llega despues del turno y vuelve a emitir el
+    // mismo mensaje con el mismo `id`. Por eso se actualiza en vez de agregar:
+    // si no, cada mensaje puntuado aparecería dos veces en el chat.
+    const offMsg = bus.on('message', (e) =>
+      setMessages((m) => {
+        const i = m.findIndex((msg) => msg.id === e.message.id);
+        if (i === -1) return [...m, e.message];
+        const next = m.slice();
+        next[i] = e.message;
+        return next;
+      })
+    );
     const offErr = bus.on('error', (e) => console.error(`[${e.stage}] ${e.error}`));
     return () => {
       offMsg();
