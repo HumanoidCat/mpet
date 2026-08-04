@@ -5,11 +5,11 @@
 > Regla: trabaja solo en `src/core/` y `tests/core/`, en ramas `feat/core-*`, PR a `dev`.
 
 ## Semana 1 (7–13 jul)
-- [ ] S1-T2 · Repo GitHub, protección de ramas, plantilla PR
-- [ ] S1-T3 · Scaffold Vite+React+PWA con estructura modular
-- [ ] S1-T4 · Contratos congelados en `shared/contracts.ts` + mocks
-- [ ] S1-T5 · CI (Actions) + deploy a GitHub Pages
-- [ ] Tablero con issues de Semana 1 asignados
+- [x] S1-T2 · Repo GitHub, protección de ramas, plantilla PR
+- [x] S1-T3 · Scaffold Vite+React+PWA con estructura modular
+- [x] S1-T4 · Contratos congelados en `shared/contracts.ts` + mocks
+- [x] S1-T5 · CI (Actions) + deploy a GitHub Pages
+- [x] Tablero con issues de Semana 1 asignados
 
 ## Semana 1 (extra)
 - [x] Contratos congelados + mocks de los 4 módulos (base del trabajo en paralelo)
@@ -36,12 +36,12 @@
 - [x] S3-T6 · Documento Avance 1 (8 secciones) + bitácora de decisiones (`docs/10`)
 - [x] Corrección del calendario de entregas y reconstrucción de los archivos
       compartidos tras una verificación en rojo (ver bitácora I-01, I-02)
-- [ ] Capturas y anexos del documento (Anexo C y D)
-- [ ] S3-T7 · Presentación + guion de demo + video de respaldo
+- [x] Capturas y anexos del documento (Anexo C y D)
+- [x] S3-T7 · Presentación + guion de demo + video de respaldo
 
 ## Semana 4 — 🎯 AVANCE 1 (mar 28 jul)
-- [ ] S4-T1 · Ensayo general (2 corridas cronometradas)
-- [ ] S4-T2 · Entrega en plataforma + presentación
+- [x] S4-T1 · Ensayo general (2 corridas cronometradas)
+- [x] S4-T2 · Entrega en plataforma + presentación
 - [ ] S4-T3 · Retrospectiva → ajustes al backlog
 
 ## Semana 5
@@ -52,7 +52,7 @@
 - [ ] S6-T5 · PWA completa: manifest, service worker, precache
 - [ ] S6-T6 · Verificar cache de modelos y arranque 100% offline
 
-## Semana 7 — 🎯 AVANCE 2 (mar 18 ago)
+## Semana 7 — 🎯 AVANCE 2 (mar 11 ago)
 - [ ] S7-T1 · Orquestador conversación completa (ASR→gramática→sugerencias→respuesta→TTS→comparador)
 - [ ] S7-T5 · Coordinar documento Avance 2
 
@@ -73,13 +73,33 @@ Lunes noche: `dev` estable + ensayo · Martes 1 pm: clase + retro · Jueves: che
 
 ---
 
-## Siguiente — plan vigente: `docs/11-plan-post-avance-1.md`
+## Cerrado desde el Avance 1
 
-- [ ] Corregir `audioEngineAdapter.ts` con `StreamingStft` y `stft.currentTime` (incidencia **I-03**)
-- [ ] Dos pruebas nuevas del adaptador: amplitud unitaria ante tono conocido, y frames por bloque
-- [ ] Conectar `detectPitchYin` y `MfccExtractor` cuando entre el PR de Fabrizio
-- [ ] Ordenar la entrada de los dos PR abiertos sin que choquen en el visualizador
-- [ ] **Convocar la sesión de verificación de extremo a extremo con los cuatro** (riesgo **R15**)
-- [ ] Fijar el conteo definitivo de pruebas y actualizar la matriz de trazabilidad
+- [x] Corregir `audioEngineAdapter.ts` con acumulador de tramas (incidencia **I-03**)
+- [x] Pruebas del adaptador: amplitud unitaria, tramas por bloque y equivalencia con `StreamingStft`
+- [x] Conectar `detectPitchYin` y `MfccExtractor` al adaptador
+- [x] Ordenar la entrada de los PR de Fabrizio e Isaac sin que chocaran
+- [x] Conectar el comparador de pronunciación al orquestador, con puntaje asíncrono
+- [x] Simetrizar la cadena que alimenta al comparador (`AnalyzeOptions`)
+- [x] Retirar de la interfaz las notas internas del equipo que se renderizaban al usuario
+
+---
+
+## Lo que falta — actualizado 4 ago
+
+**Producto**
+
+- [ ] **Correr la aplicación completa con micrófono y modelos reales** (riesgo **R15**). Nunca se ha hecho. Es la única tarea del proyecto sin estimar
+- [ ] S6-T5 y S6-T6 · PWA completa y arranque verificado en modo avión (RF-14, RF-15)
 - [ ] S5-T6 · Persistencia de sesiones en IndexedDB
-- [ ] S6-T5 y S6-T6 · PWA completa y verificación del arranque sin conexión
+- [ ] S7-T1 · Cerrar el orquestador cuando existan sugerencias y respuesta del tutor
+- [ ] S8-T5 · Prueba offline integral en máquina limpia
+
+**Coordinación**
+
+- [ ] Actualizar la matriz de trazabilidad: 365 pruebas en 28 archivos, RF-10 y RF-11 al día
+- [ ] Registrar la incidencia **I-04** (barra de progreso) en la bitácora
+- [ ] Repoblar el tablero: no hay issues de Semana 6 ni 7
+- [ ] S7-T5 y S9-T4 · Coordinar los documentos del Avance 2 y final
+- [ ] S9-T6 · Congelamiento de código antes de cada entrega
+- [ ] S10-T2 y S10-T5 · Matriz final y entrega en plataforma
