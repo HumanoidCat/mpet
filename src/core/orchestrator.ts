@@ -94,8 +94,13 @@ export function createOrchestrator({ audio, ai, bus, scorer }: Deps): Orchestrat
       // omite el puntaje en silencio, sin ensuciar el chat con un error.
       if (referencePcm.length === 0) return;
 
+      // Las dos senales tienen que recorrer la MISMA cadena, o el puntaje mide
+      // la diferencia entre las dos rutas en vez de la pronunciacion. El PCM del
+      // usuario sale de `stop()` y ya viene acondicionado; el del sintetizador
+      // viene crudo. Se declara cada caso en vez de suponerlo (ver
+      // `AnalyzeOptions`): el acondicionamiento no es idempotente.
       const [userFrames, referenceFrames] = await Promise.all([
-        audio.analyze(pcm),
+        audio.analyze(pcm, { conditioned: true }),
         audio.analyze(referencePcm),
       ]);
 

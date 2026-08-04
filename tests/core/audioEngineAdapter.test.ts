@@ -85,12 +85,12 @@ describe('FrameAccumulator (I-03)', () => {
 describe('Adaptador DSP -> AudioEngine (S3-T5)', () => {
   it('analyze emite una trama por salto, no una por bloque', async () => {
     const muestras = FRAME_SIZE * 4;
-    const frames = await createDspAudioEngine().analyze(seno(440, muestras));
+    const frames = await createDspAudioEngine().analyze(seno(440, muestras), { conditioned: true });
     expect(frames).toHaveLength(tramasEsperadas(muestras));
   });
 
   it('cada frame respeta la forma del contrato AudioFrame', async () => {
-    const [frame] = await createDspAudioEngine().analyze(seno(440, FRAME_SIZE * 2));
+    const [frame] = await createDspAudioEngine().analyze(seno(440, FRAME_SIZE * 2), { conditioned: true });
 
     expect(frame.pcm.length).toBe(FRAME_SIZE);
     expect(frame.fftDb.length).toBe(spectrumLength(FFT_SIZE));
@@ -103,7 +103,7 @@ describe('Adaptador DSP -> AudioEngine (S3-T5)', () => {
     // Frecuencia centrada exactamente en un bin, para que no haya fuga.
     const bin = 32;
     const freq = binFrequency(bin, FFT_SIZE, SAMPLE_RATE);
-    const [frame] = await createDspAudioEngine().analyze(seno(freq, FRAME_SIZE * 2, 1));
+    const [frame] = await createDspAudioEngine().analyze(seno(freq, FRAME_SIZE * 2, 1), { conditioned: true });
 
     // Amplitud 1.0 -> 0 dB. Antes de I-03 salia en torno a -1.9 dB (0.8021).
     expect(frame.fftDb[bin]).toBeCloseTo(0, 1);
@@ -113,7 +113,7 @@ describe('Adaptador DSP -> AudioEngine (S3-T5)', () => {
     // Bloquea la divergencia entre las dos rutas de analisis del proyecto.
     const senal = seno(1000, FRAME_SIZE * 4, 0.7);
 
-    const frames = await createDspAudioEngine().analyze(senal);
+    const frames = await createDspAudioEngine().analyze(senal, { conditioned: true });
     const stft = new StreamingStft({
       sampleRate: SAMPLE_RATE,
       frameSize: FRAME_SIZE,
@@ -133,7 +133,7 @@ describe('Adaptador DSP -> AudioEngine (S3-T5)', () => {
   it('el espectro localiza el tono de entrada en el bin correcto', async () => {
     const bin = 32;
     const freq = binFrequency(bin, FFT_SIZE, SAMPLE_RATE);
-    const [frame] = await createDspAudioEngine().analyze(seno(freq, FRAME_SIZE * 2));
+    const [frame] = await createDspAudioEngine().analyze(seno(freq, FRAME_SIZE * 2), { conditioned: true });
 
     let pico = 0;
     for (let k = 1; k < frame.fftDb.length; k++) {
@@ -144,20 +144,20 @@ describe('Adaptador DSP -> AudioEngine (S3-T5)', () => {
 
   it('el tono fundamental sale del detector real, no de un valor fijo', async () => {
     // 200 Hz cae dentro del rango de voz configurado (60-400 Hz).
-    const [frame] = await createDspAudioEngine().analyze(seno(200, FRAME_SIZE * 2));
+    const [frame] = await createDspAudioEngine().analyze(seno(200, FRAME_SIZE * 2), { conditioned: true });
     expect(frame.pitchHz).not.toBeNull();
     expect(frame.pitchHz!).toBeCloseTo(200, 0);
   });
 
   it('los MFCC salen del extractor real y no son todos cero', async () => {
-    const [frame] = await createDspAudioEngine().analyze(seno(300, FRAME_SIZE * 2));
+    const [frame] = await createDspAudioEngine().analyze(seno(300, FRAME_SIZE * 2), { conditioned: true });
     expect(frame.mfcc).toHaveLength(N_MFCC);
     expect(frame.mfcc.some((c) => c !== 0)).toBe(true);
     expect(frame.mfcc.every((c) => Number.isFinite(c))).toBe(true);
   });
 
   it('el tiempo de las tramas avanza un salto y es monotono', async () => {
-    const frames = await createDspAudioEngine().analyze(seno(440, FRAME_SIZE * 3));
+    const frames = await createDspAudioEngine().analyze(seno(440, FRAME_SIZE * 3), { conditioned: true });
     const salto = HOP_SIZE / SAMPLE_RATE;
 
     frames.forEach((frame, i) => expect(frame.t).toBeCloseTo(i * salto, 9));
@@ -167,7 +167,7 @@ describe('Adaptador DSP -> AudioEngine (S3-T5)', () => {
   });
 
   it('el silencio da energia practicamente nula y sin tono', async () => {
-    const [frame] = await createDspAudioEngine().analyze(new Float32Array(FRAME_SIZE * 2));
+    const [frame] = await createDspAudioEngine().analyze(new Float32Array(FRAME_SIZE * 2), { conditioned: true });
     expect(frame.energy).toBeLessThan(1e-6);
     expect(frame.pitchHz).toBeNull();
   });

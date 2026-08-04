@@ -25,15 +25,52 @@ export interface AudioFrame {
   t: number;
 }
 
+export interface AnalyzeOptions {
+  /**
+   * Declara si el PCM ya pasó por el acondicionamiento de S2-T2 (pasa-altas de
+   * 80 Hz y normalización RMS). Por defecto `false`: `analyze` acondiciona.
+   *
+   * POR QUE ESTO ES EXPLICITO Y NO UNA SUPOSICION
+   * El comparador de pronunciación mide la distancia entre dos análisis, así que
+   * ambas señales tienen que haber recorrido exactamente la misma cadena. El PCM
+   * que devuelve `stop()` ya viene acondicionado; el que devuelve `speak()` del
+   * sintetizador, no. Sin este parámetro las dos ramas recorrían cadenas
+   * distintas y el puntaje cargaba un sesgo que no venía del hablante.
+   *
+   * Medido sobre una vocal sintética comparada contra sí misma, donde lo
+   * correcto es 100:
+   *
+   * | Referencia | Sin declarar (antes) | Declarando (ahora) |
+   * |---|---:|---:|
+   * | Limpia                   | 99.28 | 100.00 |
+   * | Con offset de continua   | 96.56 |  99.99 |
+   * | Con retumbe de 40 Hz     | 89.30 |  96.98 |
+   *
+   * El caso del retumbe se comía 10.7 puntos de los 31 de margen que RF-10 exige
+   * entre la peor pronunciación buena y la mejor mala. Y el tamaño del sesgo
+   * dependía de qué entregara el sintetizador, que no controlamos.
+   *
+   * El residuo de 3 puntos de la última fila no es un defecto de esta corrección:
+   * a 40 Hz el pasa-altas atenúa pero no elimina, así que queda algo de retumbe
+   * que sí es una diferencia real entre las dos señales. Lo que se corrige aquí
+   * es el sesgo de ruta, no el ruido que traiga la referencia.
+   *
+   * Importante: el acondicionamiento NO es idempotente. Aplicar el pasa-altas
+   * dos veces cuesta 0.72 puntos sobre la misma señal, por eso el parámetro
+   * declara el estado en vez de acondicionar siempre por las dudas.
+   */
+  conditioned?: boolean;
+}
+
 export interface AudioEngine {
   /** Pide permiso de micrófono e inicia captura a 16 kHz mono. */
   start(): Promise<void>;
-  /** Detiene la captura y devuelve el PCM completo (16 kHz). */
+  /** Detiene la captura y devuelve el PCM completo (16 kHz), ya acondicionado. */
   stop(): Promise<Float32Array>;
   /** Suscripción a frames de análisis en tiempo real. Devuelve unsubscribe. */
   onFrame(cb: (frame: AudioFrame) => void): () => void;
   /** Analiza un buffer offline (p. ej. audio TTS de referencia). */
-  analyze(pcm: Float32Array): Promise<AudioFrame[]>;
+  analyze(pcm: Float32Array, opts?: AnalyzeOptions): Promise<AudioFrame[]>;
 }
 
 // ── Pronunciación (Fabrizio + Isaac) ─────────────────────────────
