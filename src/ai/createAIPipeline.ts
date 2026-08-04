@@ -5,7 +5,7 @@
  *   ✅ init           — S2-T4/S2-T5: carga los modelos en workers y reporta progreso
  *   ✅ transcribe     — S2-T4: ASR real con timestamps por palabra
  *   ✅ correctGrammar — S3-T3: T5 cuantizado + diff palabra a palabra
- *   ⏳ speak          — S5-T5 (SpeechT5)
+ *   ✅ speak          — S5-T5: MMS-TTS, PCM de referencia a 16 kHz
  *   ⏳ suggest        — S6-T4 (LLM ligero)
  *   ⏳ reply          — S7-T2 (prompt de tutor)
  *
@@ -19,15 +19,18 @@
 import type { AIPipeline, Edit, Transcription } from '@shared/contracts';
 import { createAsrClient, type AsrClientOptions } from './asr/asrClient';
 import { createGrammarClient, type GrammarClientOptions } from './grammar/grammarClient';
+import { createTtsClient, type TtsClientOptions } from './tts/ttsClient';
 
 export interface AIPipelineOptions {
   asr?: AsrClientOptions;
   grammar?: GrammarClientOptions;
+  tts?: TtsClientOptions;
 }
 
 export function createAIPipeline(options: AIPipelineOptions = {}): AIPipeline {
   const asr = createAsrClient(options.asr);
   const grammar = createGrammarClient(options.grammar);
+  const tts = createTtsClient(options.tts);
 
   return {
     async init(onProgress) {
@@ -38,9 +41,17 @@ export function createAIPipeline(options: AIPipelineOptions = {}): AIPipeline {
       //
       // El orquestador reenvía cada reporte como evento `model-progress`, y como el
       // callback incluye el nombre del modelo, la UI puede mostrar cuál va cargando.
+      //
+      // El TTS va al final porque es el que se necesita más tarde en el turno: el
+      // estudiante primero habla y solo después escucha la referencia. Se carga aquí
+      // y no bajo demanda para que toda la espera ocurra en la pantalla de carga,
+      // que ya existe, en vez de dejar un silencio de varios segundos la primera vez
+      // que se pulsa el botón de escuchar. Revisar en S7-T4, que es la tarea de
+      // reducir el peso de la descarga inicial: son 109 MB más.
       const report = (model: string, progress: number) => onProgress?.(model, progress);
       await asr.init(report);
       await grammar.init(report);
+      await tts.init(report);
     },
 
     transcribe(pcm: Float32Array): Promise<Transcription> {
@@ -49,6 +60,18 @@ export function createAIPipeline(options: AIPipelineOptions = {}): AIPipeline {
 
     correctGrammar(text: string): Promise<{ corrected: string; edits: Edit[] }> {
       return grammar.correct(text);
+    },
+
+    /**
+     * S5-T5 · Audio de referencia de la frase, como PCM mono a 16 kHz.
+     *
+     * Lo consumen dos módulos: `App.tsx` lo reproduce (con botón de 0.7× para
+     * escucharlo despacio) y el comparador de pronunciación extrae sus MFCC para
+     * alinearlos contra la voz del estudiante. Por eso el contrato devuelve las
+     * muestras y no reproduce por su cuenta.
+     */
+    speak(text: string): Promise<Float32Array> {
+      return tts.speak(text);
     },
 
     // ── Pendientes: paso a través temporal ───────────────────────────────────
@@ -61,11 +84,6 @@ export function createAIPipeline(options: AIPipelineOptions = {}): AIPipeline {
     /** PENDIENTE S7-T2. Respuesta fija para que el chat no quede mudo. */
     async reply(): Promise<string> {
       return 'Got it! (respuesta del tutor pendiente — S7-T2)';
-    },
-
-    /** PENDIENTE S5-T5. Devuelve silencio: el reproductor no falla, no suena nada. */
-    async speak(): Promise<Float32Array> {
-      return new Float32Array(0);
     },
   };
 }

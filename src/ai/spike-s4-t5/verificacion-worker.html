@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>S5-T5 · Verificación del worker de TTS real</title>
+  <style>
+    :root { color-scheme: light dark; }
+    body { font-family: system-ui, sans-serif; max-width: 900px; margin: 2rem auto; padding: 0 1rem; line-height: 1.5; }
+    h1 { font-size: 1.3rem; }
+    button { padding: .5rem .9rem; margin: .2rem .3rem .2rem 0; cursor: pointer; border-radius: 6px; border: 1px solid #8888; background: #8881; }
+    button:disabled { opacity: .45; cursor: not-allowed; }
+    input[type=text] { width: 100%; padding: .5rem; border-radius: 6px; border: 1px solid #8886; background: transparent; color: inherit; }
+    #log { white-space: pre-wrap; font-family: ui-monospace, monospace; font-size: .8rem; background: #8881; padding: .7rem; border-radius: 8px; max-height: 380px; overflow: auto; }
+    .muted { opacity: .7; font-size: .85rem; }
+    progress { width: 100%; height: 14px; }
+  </style>
+</head>
+<body>
+  <h1>🔌 Verificación del worker de TTS (S5-T5)</h1>
+  <p class="muted">
+    A diferencia de la página del spike, esta <strong>no</strong> carga el modelo por su
+    cuenta: usa el <code>ttsClient</code> y el <code>ttsWorker</code> reales, los mismos
+    que consume <code>createAIPipeline().speak()</code>. Comprueba en ejecución que el
+    worker arranca, que la barra de progreso avanza de verdad (el fallo que destapó el
+    spike), que el PCM llega a 16 kHz y que se puede reproducir.
+  </p>
+
+  <div class="row">
+    <button id="btnInit">1) Iniciar worker + cargar modelo</button>
+    <progress id="bar" value="0" max="1"></progress>
+  </div>
+
+  <p><input type="text" id="text" value="Would you like to practice your pronunciation today?" /></p>
+
+  <div class="row">
+    <button id="btnSpeak" disabled>2) speak() y reproducir</button>
+    <button id="btnSpeakTwice" disabled>3) Dos llamadas seguidas (prueba de reproducibilidad)</button>
+    <button id="btnDispose" disabled>4) dispose()</button>
+  </div>
+
+  <div id="log"></div>
+
+  <script type="module" src="./verificacion-worker.ts"></script>
+</body>
+</html>
