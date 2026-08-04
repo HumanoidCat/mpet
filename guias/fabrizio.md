@@ -33,7 +33,7 @@
 
 ## Semana 7 — 🎯 AVANCE 2 (mar 18 ago)
 - [x] S7-T4 · Optimización de latencia del análisis → parte DSP: caché de planes FFT (YIN −29.7 %) y decimación polifásica (3.00×). Total 2.14 % de un núcleo (ver `docs/evidencias/s7/s7-t4-latencia-dsp.md`). Falta la parte de modelos, de Isaac.
-- [ ] Mi sección del documento Avance 2
+- [x] Mi sección del documento Avance 2 → redactada en `docs/entregas/avance-2-seccion-dsp.md`, lista para que Alejandro la integre cuando exista `avance-2.md`
 
 ## Semana 8
 - [x] S8-T2 · Edge cases: ruido ambiental, frases largas, silencios → el VAD por energía confundía ruido con habla a cualquier nivel; resuelto con periodicidad (ver `docs/evidencias/s8/s8-t2-t3-casos-limite.md`)
