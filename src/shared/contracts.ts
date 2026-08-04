@@ -107,6 +107,16 @@ export type AppEvent =
   | { type: 'recording-stopped'; pcm: Float32Array }
   | { type: 'frame'; frame: AudioFrame }
   | { type: 'transcription'; result: Transcription }
+  /**
+   * Alta O actualizacion de un mensaje, segun el `id`. Quien lo consuma debe
+   * reemplazar el mensaje existente con ese `id` y agregarlo solo si no existe.
+   *
+   * Se emite mas de una vez para el mismo mensaje porque el puntaje de
+   * pronunciacion se calcula despues del turno (ver `src/core/orchestrator.ts`):
+   * primero llega el mensaje sin `pronunciation` y luego el mismo con el
+   * puntaje. Se manda el mensaje completo y no un delta para que la operacion
+   * sea idempotente: repetir el evento no duplica ni corrompe nada.
+   */
   | { type: 'message'; message: ChatMessage }
   | { type: 'model-progress'; model: string; progress: number }
   | { type: 'error'; stage: string; error: string };
