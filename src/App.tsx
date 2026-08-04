@@ -7,6 +7,7 @@ import { createAIPipeline } from '@ai/createAIPipeline';
 import { createDspAudioEngine } from '@core/audioEngineAdapter';
 import { createPronunciationScorer } from '@audio/comparator/scorer';
 import { createMockScorer } from '@mocks/mockScorer';
+import { createSessionStore, createMemorySessionStore } from '@core/sessionStore';
 import { Chat } from '@ui/chat/Chat';
 import { VisualizerScreen } from '@ui/visualizer/VisualizerScreen';
 import SplashScreen, { type ModelStatus } from '@ui/shell/Splash';
@@ -58,13 +59,17 @@ export type Screen =
 export function App() {
   const mockMode = useMockMode();
 
-  const { bus, orch, audio, ai } = useMemo(() => {
+  const { bus, orch, audio, ai, store, sessionId } = useMemo(() => {
     const bus = createEventBus();
     const audio = mockMode ? createMockAudioEngine() : createDspAudioEngine();
     const ai: AIPipeline = mockMode ? createMockAIPipeline() : createAIPipeline();
     const scorer = mockMode ? createMockScorer() : createPronunciationScorer();
     const orch = createOrchestrator({ audio, ai, bus, scorer });
-    return { bus, orch, audio, ai };
+    // En modo demostracion el historial va en memoria: no tiene sentido dejar
+    // sesiones de ejemplo en el disco de quien solo esta viendo la aplicacion.
+    const store = mockMode ? createMemorySessionStore() : createSessionStore();
+    const sessionId = `sesion-${Date.now()}`;
+    return { bus, orch, audio, ai, store, sessionId };
   }, [mockMode]);
 
   // ── Carga de modelos (Splash) ──────────────────────────────────
@@ -126,6 +131,21 @@ export function App() {
       offErr();
     };
   }, [bus]);
+
+  // ── Persistencia de la sesion (S5-T6) ───────────────────────────
+  // Se guarda en cada cambio del historial, no al cerrar: el navegador no avisa
+  // de forma fiable antes de cerrarse, y el puntaje de pronunciacion llega
+  // despues del turno, asi que "el final" no es un instante definido. La
+  // operacion es un alta-o-actualizacion por `id`, de modo que repetirla es
+  // inofensiva.
+  useEffect(() => {
+    if (messages.length === 0) return;
+    // Un fallo al guardar pierde el historial, no la sesion en curso: se informa
+    // por consola y la conversacion sigue.
+    void store
+      .save(sessionId, messages)
+      .catch((err: unknown) => console.error('[sesion] no se pudo guardar', err));
+  }, [messages, store, sessionId]);
 
   async function onMicClick() {
     setMicError(null);
