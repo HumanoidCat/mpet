@@ -57,4 +57,4 @@ El orden ya no lo fija la semana del calendario sino la dependencia (D-08).
 - [ ] Subir S4-T4, S5-T1 y S5-T2 como PR a `dev`, con evidencia en `docs/evidencias/s5/`
 - [ ] S6-T1 · DTW sobre secuencias de MFCC — **arranca cuando Isaac entregue el TTS (S5-T5)**
 - [ ] S6-T2 · Puntaje global y por palabra (con Isaac)
-- [ ] S5-T7 · Marco teórico de MFCC, YIN y STFT — no depende de nadie, hacelo ahora que está fresco
+- [x] S5-T7 · Marco teórico de MFCC, YIN y STFT → §4 STFT, §5 MFCC, §6 YIN y §7 DTW en `docs/09-marco-teorico.md`, con índice de evidencias
