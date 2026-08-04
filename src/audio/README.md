@@ -45,6 +45,13 @@ Costo del pipeline en vivo: **2.14 % de un núcleo**. Analizar una frase de 3 s
 cuesta ~67 ms contra un presupuesto de 2000 ms por turno. El DSP no es el cuello
 de botella; lo son los modelos de IA.
 
+- **S8-T2 y S8-T3 ✅** casos límite: `features/voiceDetection.ts` (habla robusta a
+  ruido, energía + periodicidad). Evidencia: `docs/evidencias/s8/s8-t2-t3-casos-limite.md`.
+
+⚠️ **Para detectar habla con ruido ambiental usar `detectVoicedSpeech`**, no
+`detectSpeech`: el detector por energía sola clasifica cualquier ruido
+estacionario como habla, a cualquier nivel. Medido en S8-T2.
+
 ⚠️ **No aplicar CMN a sonidos sostenidos**: en una señal estacionaria la media
 es la señal, y restarla borra la información. Ver la evidencia de S6.
 

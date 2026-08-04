@@ -36,8 +36,8 @@
 - [ ] Mi sección del documento Avance 2
 
 ## Semana 8
-- [ ] S8-T2 · Edge cases: ruido ambiental, frases largas, silencios
-- [ ] S8-T3 · Pruebas unitarias DSP con señales sintéticas conocidas
+- [x] S8-T2 · Edge cases: ruido ambiental, frases largas, silencios → el VAD por energía confundía ruido con habla a cualquier nivel; resuelto con periodicidad (ver `docs/evidencias/s8/s8-t2-t3-casos-limite.md`)
+- [x] S8-T3 · Pruebas unitarias DSP con señales sintéticas conocidas → 284 pruebas del módulo, todas con señales generadas por código
 
 ## Semana 9
 - [ ] S9-T3 · Afinado final del comparador con datos de pruebas

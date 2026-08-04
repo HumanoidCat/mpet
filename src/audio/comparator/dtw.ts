@@ -77,6 +77,22 @@ const INFINITO = Number.POSITIVE_INFINITY;
  * La matriz se guarda plana en un `Float64Array` de (n+1)·(m+1): con frases de
  * 3 segundos son ~190 tramas por lado, o sea unas 36 000 celdas. Cabe de sobra
  * y evita el costo de crear un arreglo de arreglos por cada comparación.
+ *
+ * **Costo con frases largas** (medido en S8-T2): el tiempo crece con el
+ * cuadrado de la duración, pero la memoria también, y esa es la que limita
+ * antes.
+ *
+ * | Duración | Tramas | Tiempo | Memoria de la matriz |
+ * |---:|---:|---:|---:|
+ * | 3 s | 186 × 186 | 4.7 ms | 0.3 MB |
+ * | 10 s | 624 × 624 | 18.4 ms | 3.1 MB |
+ * | 30 s | 1874 × 1874 | 95.4 ms | 28 MB |
+ *
+ * Con banda se calcula solo la franja cercana a la diagonal, pero **se sigue
+ * reservando la matriz completa**. Para el uso conversacional del proyecto
+ * —frases de segundos— no es un problema. Si alguna vez hiciera falta comparar
+ * grabaciones de un minuto, lo que corresponde es reservar solo la banda, no
+ * optimizar el cálculo.
  */
 export function dtw(
   user: (Float32Array | number[])[],
