@@ -36,6 +36,36 @@ export interface ProgressAggregator {
 }
 
 /**
+ * Agregador que reporta dentro de un tramo del 0–1 en vez de sobre el total.
+ *
+ * PROBLEMA QUE RESUELVE (encontrado en el spike S4-T5):
+ * un agregador cubre bien UNA carga, porque ve todos los archivos a la vez. Pero el
+ * worker de TTS carga primero el tokenizador (10 KB) y después el modelo (109 MB),
+ * en dos llamadas seguidas. Con un solo agregador, el tokenizador termina, el
+ * cálculo da 100%, y como la barra es monótona se queda clavada en 100% durante los
+ * 109 MB que faltan. Se vio literalmente en el registro del spike: un único
+ * `carga: 100%` y después medio minuto de silencio.
+ *
+ * La solución es repartir el rango: el tokenizador ocupa 0–3% y el modelo 3–100%.
+ * Cada fase usa su propio agregador y la barra sigue avanzando de forma monótona,
+ * siempre que las fases se ejecuten en orden.
+ *
+ * @param from    Inicio del tramo (0–1).
+ * @param to      Fin del tramo (0–1). Debe ser mayor que `from`.
+ * @param report  Callback que recibe el progreso GLOBAL ya escalado.
+ */
+export function createRangedProgressAggregator(
+  from: number,
+  to: number,
+  report: (progress: number) => void
+): ProgressAggregator {
+  if (!(to > from)) {
+    throw new Error(`Tramo de progreso inválido: [${from}, ${to}]`);
+  }
+  return createProgressAggregator((p) => report(from + p * (to - from)));
+}
+
+/**
  * @param report  Callback que recibe el progreso global del modelo, de 0 a 1.
  */
 export function createProgressAggregator(
@@ -67,6 +97,24 @@ export function createProgressAggregator(
         typeof event.total === 'number' &&
         event.total > 0
       ) {
+        // ARCHIVOS QUE LLEGAN DE UNA SOLA VEZ: no cuentan para la barra.
+        //
+        // Medido en el spike S5-T5 con eventos reales: `config.json` (1656 bytes)
+        // aparece en un único evento ya completo —`loaded: 1656, total: 1656`—
+        // ANTES de que empiece `onnx/model.onnx` (114 MB). Contándolo, el cálculo
+        // daba 1656/1656 = 100%, y como la barra es monótona se quedaba clavada en
+        // el 100% durante los 109 MB que faltaban. Ocurría con los tres modelos del
+        // proyecto, no solo con el TTS: se veía un único salto al 100% seguido de
+        // medio minuto de espera muda.
+        //
+        // Un archivo que se descarga de verdad llega troceado, así que su primer
+        // evento siempre trae `loaded < total`. Los que aparecen completos de golpe
+        // (configuraciones, tokenizadores, o cualquier archivo servido desde caché)
+        // no representan espera para el usuario y por eso se ignoran. La regla no
+        // depende de ningún tamaño mágico, solo de cómo llegan.
+        const known = files.get(event.file);
+        if (!known && event.loaded >= event.total) return;
+
         files.set(event.file, { loaded: event.loaded, total: event.total });
       } else {
         return; // eventos sin tamaño (p. ej. 'initiate') no aportan al cálculo

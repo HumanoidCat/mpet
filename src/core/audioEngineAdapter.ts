@@ -9,7 +9,7 @@ import { hann, coherentGain, applyWindow } from '@audio/dsp/window';
 import { detectPitchYin } from '@audio/features/yin';
 import { MfccExtractor } from '@audio/features/mfcc';
 import { SAMPLE_RATE, FRAME_SIZE, HOP_SIZE, FFT_SIZE } from '@shared/constants';
-import type { AudioEngine, AudioFrame } from '@shared/contracts';
+import type { AnalyzeOptions, AudioEngine, AudioFrame } from '@shared/contracts';
 
 /**
  * S3-T5 · Adaptador entre el modulo DSP y el contrato `AudioEngine`.
@@ -193,14 +193,21 @@ export function createDspAudioEngine(): DspAudioEngine {
       return () => subs.delete(cb);
     },
 
-    /** Analisis offline de un buffer (por ejemplo, el audio de referencia del TTS). */
-    async analyze(pcm: Float32Array) {
+    /**
+     * Analisis offline de un buffer (por ejemplo, el audio de referencia del TTS).
+     *
+     * Acondiciona la senal salvo que el llamador declare que ya lo esta. Ver
+     * `AnalyzeOptions` en los contratos: el comparador exige que las dos senales
+     * hayan recorrido la misma cadena, y el acondicionamiento no es idempotente.
+     */
+    async analyze(pcm: Float32Array, opts?: AnalyzeOptions) {
+      const senal = opts?.conditioned ? pcm : preprocess(pcm, SAMPLE_RATE);
       const fftLocal = new Fft(FFT_SIZE);
       const mfccLocal = new MfccExtractor({ sampleRate: SAMPLE_RATE, fftSize: FFT_SIZE });
       const acumulador = new FrameAccumulator();
 
       return acumulador
-        .push(pcm)
+        .push(senal)
         .map(({ samples, t }) => analizarTrama(samples, t, fftLocal, mfccLocal));
     },
 

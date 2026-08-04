@@ -14,6 +14,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   Fft,
+  getFft,
   isPowerOfTwo,
   nextPowerOfTwo,
   spectrumLength,
@@ -411,5 +412,46 @@ describe('Ventanas y fuga espectral (S3-T1)', () => {
 
     // La ventana rectangular deja lóbulos enormes; Hann los hunde.
     expect(fuga(conHann)).toBeLessThan(fuga(conRect) / 20);
+  });
+});
+
+describe('Caché de planes de FFT (S7-T4)', () => {
+  it('devuelve el mismo plan para el mismo tamaño', () => {
+    // La tabla de factores de giro y los índices de inversión de bits solo
+    // dependen del tamaño, así que reconstruirlos por trama era desperdicio.
+    expect(getFft(512)).toBe(getFft(512));
+    expect(getFft(512)).not.toBe(getFft(1024));
+  });
+
+  it('el plan cacheado da el mismo resultado que uno recién creado', () => {
+    // Compartir el plan es seguro porque `forward` no guarda estado: trabaja
+    // sobre los arreglos que recibe y solo lee las tablas.
+    const n = 256;
+    const x = senalAleatoria(n);
+
+    const conCache = { re: Float64Array.from(x), im: new Float64Array(n) };
+    getFft(n).forward(conCache.re, conCache.im);
+
+    const conNuevo = { re: Float64Array.from(x), im: new Float64Array(n) };
+    new Fft(n).forward(conNuevo.re, conNuevo.im);
+
+    for (let k = 0; k < n; k++) {
+      expect(conCache.re[k]).toBe(conNuevo.re[k]);
+      expect(conCache.im[k]).toBe(conNuevo.im[k]);
+    }
+  });
+
+  it('usarlo dos veces seguidas no arrastra estado', () => {
+    const n = 128;
+    const plan = getFft(n);
+    const transformar = (x: Float64Array) => {
+      const re = Float64Array.from(x);
+      const im = new Float64Array(n);
+      plan.forward(re, im);
+      return re;
+    };
+
+    const x = senalAleatoria(n);
+    expect(Array.from(transformar(x))).toEqual(Array.from(transformar(x)));
   });
 });

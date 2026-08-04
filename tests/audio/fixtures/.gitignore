@@ -1,0 +1,3 @@
+# Las grabaciones no se versionan hasta acordarlo con el PM (ver README.md).
+# Grabar y probar en local no las sube por accidente.
+*.wav

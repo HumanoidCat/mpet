@@ -8,7 +8,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { designLowpassFir, groupDelay, filterOffline } from '../../src/audio/dsp/fir';
+import { designLowpassFir, groupDelay, filterOffline, FirFilter } from '../../src/audio/dsp/fir';
 import { resample, StreamingResampler, designAntiAliasFilter } from '../../src/audio/dsp/resampler';
 
 /** Seno de amplitud 1 muestreado a `rate` durante `seconds`. */
@@ -174,6 +174,36 @@ describe('StreamingResampler: captura en vivo (S2-T1)', () => {
   it('el retardo del filtro es despreciable frente a la latencia objetivo', () => {
     // 63 muestras de retardo de grupo a 48 kHz ≈ 1.3 ms.
     expect(new StreamingResampler(48000, 16000).latencyMs).toBeCloseTo(1.31, 1);
+  });
+
+  it('la decimación polifásica da lo mismo que filtrar y luego tirar (S7-T4)', () => {
+    // La optimización de S7-T4 calcula el FIR solo en las posiciones que se
+    // conservan, en vez de filtrar todo el bloque y descartar dos de cada tres
+    // salidas. Tiene que ser la misma convolución evaluada en menos puntos, así
+    // que se compara contra la definición.
+    const coeffs = designAntiAliasFilter(48000, 16000)!;
+    // Bloques de 1024 muestras a 48 kHz, que es lo que da el worklet.
+    const MS = 1024 / 48000;
+    const bloques = [sine(1000, 48000, MS), sine(3000, 48000, MS), sine(500, 48000, MS)];
+
+
+    // Se compara el primer bloque de cada señal, con estado limpio: ahí la
+    // fase arranca en cero y el camino directo se puede escribir sin replicar
+    // el arrastre entre bloques. La equivalencia con varios bloques ya la
+    // cubre la prueba de independencia del tamaño de bloque.
+    for (const bloque of bloques) {
+      const rapido = new StreamingResampler(48000, 16000).process(bloque);
+
+      // Camino directo: filtrar el bloque entero y quedarse con 1 de cada 3.
+      const filtrado = new FirFilter(coeffs).process(bloque);
+      const directo: number[] = [];
+      for (let i = 0; i <= filtrado.length - 2; i += 3) directo.push(filtrado[i]);
+
+      expect(rapido.length).toBe(directo.length);
+      for (let k = 0; k < rapido.length; k++) {
+        expect(rapido[k]).toBeCloseTo(directo[k], 6);
+      }
+    }
   });
 
   it('reset deja el filtro sin historia previa', () => {

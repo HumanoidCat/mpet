@@ -24,10 +24,17 @@
 
 ## Semana 4 — 🎯 AVANCE 1 (mar 28 jul)
 - [ ] Presentar mi parte en la demo
-- [ ] S4-T5 · Spike: TTS SpeechT5, medir calidad/latencia
+- [x] S4-T5 · Spike: TTS SpeechT5, medir calidad/latencia
+      → SpeechT5 **descartado por medición**: solo es inteligible sin cuantizar y así pesa
+        613 MB. Se evaluó la alternativa MMS-TTS (VITS): 109 MB, 16 kHz, carga cacheada
+        0.86 s. Cinco configuraciones comparadas. Evidencia: `docs/evidencias/s4/s4-t5-tts-spike.md`
 
 ## Semana 5
-- [ ] S5-T5 · Worker TTS: reproducir + exponer PCM de referencia para el comparador
+- [x] S5-T5 · Worker TTS: reproducir + exponer PCM de referencia para el comparador
+      → `src/ai/tts/` (worker + cliente + caché de PCM). `speak()` ya devuelve audio real
+        a 16 kHz. La reproducción ya estaba hecha por Alejandro en `App.tsx`.
+        Verificado **en ejecución**, no solo compilando: destapó dos fallos (audio no
+        reproducible entre llamadas y barra de progreso rota en los tres modelos).
 
 ## Semana 6
 - [ ] S6-T4 · Worker sugerencias: LLM ligero con prompts fijos (naturalidad, vocabulario)
@@ -60,10 +67,10 @@ Tu contrato: `AIPipeline` en `src/shared/contracts.ts`. No necesitas la captura 
 
 El orden ya no lo fija la semana del calendario sino la dependencia (D-08).
 
-- [ ] **S5-T5 · Worker de TTS (SpeechT5): reproducir y exponer el PCM de referencia**
-      → Es hoy **la única tarea de la ruta crítica del proyecto**. No depende de
-        nadie y desbloquea a Fabrizio (comparador DTW) y a José Pablo
-        (retroalimentación por palabra). Prioridad sobre todo lo demás.
+- [x] **S5-T5 · Worker de TTS: reproducir y exponer el PCM de referencia**
+      → Hecho con **MMS-TTS**, no con SpeechT5 (descartado por medición en el spike).
+        Ruta crítica liberada: Fabrizio ya puede empezar el DTW y José Pablo el color
+        por palabra. Falta abrir el PR a `dev`.
 - [ ] S6-T2 · Puntaje por palabra con las marcas temporales de Whisper (con Fabrizio)
 - [ ] S6-T4 · Worker de sugerencias del tutor
 - [ ] S7-T4 · Bajar el peso de la descarga inicial (~300 MB). La cuantización a 4 bits

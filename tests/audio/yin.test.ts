@@ -156,6 +156,20 @@ describe('Exactitud en tonos puros (S5-T1)', () => {
     });
   }
 
+  it('mantiene la exactitud con el tamaño de trama que usa la integración', () => {
+    // El adaptador de `src/core/` llama a YIN con tramas de FRAME_SIZE = 512,
+    // no de 2048 como el resto de estas pruebas. Con 512 la ventana útil queda
+    // en 512 − 267 = 245 muestras, que es menos de un periodo del tono más
+    // grave del rango. Conviene fijar que aun así cumple, porque es el tamaño
+    // que corre en producción.
+    for (const f0 of [70, 100, 150, 200, 300, 390]) {
+      const r = detectPitchYin(seno(f0, 512), { sampleRate: RATE });
+
+      expect(r).not.toBeNull();
+      expect(Math.abs(r!.hz - f0)).toBeLessThan(3);
+    }
+  });
+
   it('no depende de la fase ni del volumen', () => {
     const base = detectPitchYin(seno(200, 2048), { sampleRate: RATE })!;
     const desfasada = detectPitchYin(seno(200, 2048, 1, Math.PI / 3), { sampleRate: RATE })!;

@@ -145,6 +145,30 @@ export class Fft {
   }
 }
 
+/**
+ * Planes de FFT reutilizables, indexados por tamaño.
+ *
+ * Construir un `Fft` calcula la tabla de factores de giro y los índices de
+ * inversión de bits, que solo dependen del tamaño. Las funciones que crean uno
+ * por llamada —la autocorrelación y la función de diferencia de YIN— lo estaban
+ * recalculando en cada trama, 62 veces por segundo, para tirarlo enseguida.
+ *
+ * El plan no guarda estado entre transformadas: `forward` e `inverse` trabajan
+ * sobre los arreglos que reciben y solo leen las tablas. Por eso compartirlo
+ * entre llamadas es seguro.
+ */
+const planes = new Map<number, Fft>();
+
+/** Devuelve el plan de FFT de ese tamaño, creándolo la primera vez. */
+export function getFft(size: number): Fft {
+  let plan = planes.get(size);
+  if (!plan) {
+    plan = new Fft(size);
+    planes.set(size, plan);
+  }
+  return plan;
+}
+
 /** Nº de bins únicos de una señal real: la otra mitad es su espejo conjugado. */
 export function spectrumLength(fftSize: number): number {
   return fftSize / 2 + 1;

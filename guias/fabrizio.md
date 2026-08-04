@@ -28,16 +28,16 @@
 - [x] S5-T2 · MFCC propio (mel filterbank 26 + DCT, 13 coef) → invariancia al volumen exacta (3.8e-6 en un rango de 1000x); fixture de librosa preparado, pendiente de correr (ver `docs/evidencias/s5/s5-t2-mfcc.md`)
 
 ## Semana 6
-- [ ] S6-T1 · DTW sobre secuencias MFCC (usuario vs referencia TTS)
-- [ ] S6-T2 · Puntaje global + por palabra con timestamps de Whisper (con Isaac)
+- [x] S6-T1 · DTW sobre secuencias MFCC (usuario vs referencia TTS) → invariante a velocidad y volumen (ver `docs/evidencias/s6/s6-t1-t2-comparador.md`)
+- [x] S6-T2 · Puntaje global + por palabra con timestamps de Whisper → RF-10 cumplido: separa bien/mal por **31 puntos** (exigía 20)
 
 ## Semana 7 — 🎯 AVANCE 2 (mar 18 ago)
-- [ ] S7-T4 · Optimización de latencia del análisis (con Isaac)
-- [ ] Mi sección del documento Avance 2
+- [x] S7-T4 · Optimización de latencia del análisis → parte DSP: caché de planes FFT (YIN −29.7 %) y decimación polifásica (3.00×). Total 2.14 % de un núcleo (ver `docs/evidencias/s7/s7-t4-latencia-dsp.md`). Falta la parte de modelos, de Isaac.
+- [x] Mi sección del documento Avance 2 → redactada en `docs/entregas/avance-2-seccion-dsp.md`, lista para que Alejandro la integre cuando exista `avance-2.md`
 
 ## Semana 8
-- [ ] S8-T2 · Edge cases: ruido ambiental, frases largas, silencios
-- [ ] S8-T3 · Pruebas unitarias DSP con señales sintéticas conocidas
+- [x] S8-T2 · Edge cases: ruido ambiental, frases largas, silencios → el VAD por energía confundía ruido con habla a cualquier nivel; resuelto con periodicidad (ver `docs/evidencias/s8/s8-t2-t3-casos-limite.md`)
+- [x] S8-T3 · Pruebas unitarias DSP con señales sintéticas conocidas → 284 pruebas del módulo, todas con señales generadas por código
 
 ## Semana 9
 - [ ] S9-T3 · Afinado final del comparador con datos de pruebas
@@ -57,4 +57,4 @@ El orden ya no lo fija la semana del calendario sino la dependencia (D-08).
 - [ ] Subir S4-T4, S5-T1 y S5-T2 como PR a `dev`, con evidencia en `docs/evidencias/s5/`
 - [ ] S6-T1 · DTW sobre secuencias de MFCC — **arranca cuando Isaac entregue el TTS (S5-T5)**
 - [ ] S6-T2 · Puntaje global y por palabra (con Isaac)
-- [ ] S5-T7 · Marco teórico de MFCC, YIN y STFT — no depende de nadie, hacelo ahora que está fresco
+- [x] S5-T7 · Marco teórico de MFCC, YIN y STFT → §4 STFT, §5 MFCC, §6 YIN y §7 DTW en `docs/09-marco-teorico.md`, con índice de evidencias
