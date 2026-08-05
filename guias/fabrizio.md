@@ -43,7 +43,7 @@
 - [ ] S9-T3 · Afinado final del comparador con datos de pruebas
 
 ## Semana 10 — 🎯 ENTREGA FINAL (mar 8 sep)
-- [ ] S10-T6 · Preparar respuestas: Nyquist, por qué MFCC, cómo funciona YIN/DTW
+- [x] S10-T6 · Preparar respuestas → 
 
 ## Cómo trabajas sin depender de nadie
 Tu contrato: `AudioEngine` y `PronunciationScorer` en `src/shared/contracts.ts`. Valida con `npm test` y señales generadas por código (seno, chirp) — no necesitas UI ni IA reales. El TTS de referencia lo simulas con `mocks/mockAIPipeline.ts`.
@@ -75,4 +75,4 @@ las que deciden si el puntaje sirve.
 - [ ] **RF-09 · Verificación cruzada de MFCC contra librosa.** Son las 3 pruebas omitidas
       de la suite; el fixture está preparado en `tests/audio/fixtures/` y nunca se corrió.
       Métrica exigida: error menor al 5 %
-- [ ] S10-T6 · Preparar respuestas: Nyquist, por qué MFCC, cómo funcionan YIN y DTW
+- [x] S10-T6 · Preparar respuestas: Nyquist, por qué MFCC, cómo funcionan YIN y DTW → , con respuesta corta y respaldo para cada una, más las preguntas incómodas
