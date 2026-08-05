@@ -172,8 +172,17 @@ export function createOrchestrator({ audio, ai, bus, scorer }: Deps): Orchestrat
   async function processTurn(pcm: Float32Array): Promise<void> {
     state = 'processing';
     try {
+      // Grabacion vacia: el usuario pulso y solto sin hablar, o la captura no
+      // entrego muestras. Pasarla por el reconocedor cuesta segundos y puede
+      // devolver texto inventado, que es peor que no responder nada.
+      if (pcm.length === 0) return;
+
       const transcription = await ai.transcribe(pcm);
       bus.emit({ type: 'transcription', result: transcription });
+
+      // Nada reconocible: silencio o ruido de fondo. Se sale sin agregar un
+      // mensaje vacio al chat ni pedirle al tutor que responda a nada.
+      if (transcription.text.trim().length === 0) return;
 
       const correction = await ai.correctGrammar(transcription.text);
 
@@ -232,7 +241,23 @@ export function createOrchestrator({ audio, ai, bus, scorer }: Deps): Orchestrat
       }
 
       // state === 'recording'
-      const pcm = await audio.stop();
+      let pcm: Float32Array;
+      try {
+        pcm = await audio.stop();
+      } catch (err) {
+        // Si detener la captura falla y el estado se queda en `recording`, el
+        // boton del microfono queda atrapado: la interfaz cree que sigue
+        // grabando y el usuario no tiene forma de salir sin recargar. Volver a
+        // `idle` deja la aplicacion utilizable aunque se pierda esa grabacion.
+        state = 'idle';
+        bus.emit({
+          type: 'error',
+          stage: 'capture',
+          error: err instanceof Error ? err.message : String(err),
+        });
+        return;
+      }
+
       bus.emit({ type: 'recording-stopped', pcm });
       await processTurn(pcm);
     },

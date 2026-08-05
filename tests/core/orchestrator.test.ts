@@ -6,6 +6,7 @@ import { createMockAIPipeline } from '../../mocks/mockAIPipeline';
 import { createMockScorer } from '../../mocks/mockScorer';
 import type {
   AIPipeline,
+  AudioEngine,
   ChatMessage,
   PronunciationScorer,
 } from '../../src/shared/contracts';
@@ -262,6 +263,76 @@ describe('Orchestrator v0 (S2-T7)', () => {
     expect(final.suggestions!.length).toBeGreaterThan(0);
     // Y lo que ya traia el turno sigue ahi.
     expect(final.correction?.corrected).toContain('went');
+  });
+
+  it('si falla al detener la captura, el boton no queda atrapado en grabando', async () => {
+    // Sin esto el estado se quedaba en `recording`: la interfaz creia que seguia
+    // grabando y no habia forma de salir sin recargar la pagina.
+    const micRoto: AudioEngine = {
+      ...createMockAudioEngine(),
+      async stop() {
+        throw new Error('el microfono se desconecto');
+      },
+    };
+    const bus = createEventBus();
+    const orch = createOrchestrator({ audio: micRoto, ai: createMockAIPipeline(), bus });
+    const errores: string[] = [];
+    bus.on('error', (e) => errores.push(e.stage));
+
+    await orch.toggleMic();
+    await orch.toggleMic();
+
+    expect(orch.getState()).toBe('idle');
+    expect(errores).toContain('capture');
+  });
+
+  it('una grabacion vacia no llega al reconocedor', async () => {
+    // Pulsar y soltar sin hablar. Transcribir silencio cuesta segundos y el
+    // reconocedor puede devolver texto inventado.
+    const sinAudio: AudioEngine = {
+      ...createMockAudioEngine(),
+      async stop() {
+        return new Float32Array(0);
+      },
+    };
+    let transcribio = false;
+    const ai: AIPipeline = {
+      ...createMockAIPipeline(),
+      async transcribe(pcm) {
+        transcribio = true;
+        return createMockAIPipeline().transcribe(pcm);
+      },
+    };
+    const bus = createEventBus();
+    const orch = createOrchestrator({ audio: sinAudio, ai, bus });
+    const eventos: ChatMessage[] = [];
+    bus.on('message', (e) => eventos.push(e.message));
+
+    await orch.toggleMic();
+    await orch.toggleMic();
+
+    expect(transcribio).toBe(false);
+    expect(eventos).toHaveLength(0);
+    expect(orch.getState()).toBe('idle');
+  });
+
+  it('si no se reconoce nada, no se agrega un mensaje vacio al chat', async () => {
+    const soloRuido: AIPipeline = {
+      ...createMockAIPipeline(),
+      async transcribe() {
+        return { text: '   ', words: [] };
+      },
+    };
+    const { bus, orch } = setup({ ai: soloRuido });
+    const eventos: ChatMessage[] = [];
+    bus.on('message', (e) => eventos.push(e.message));
+
+    await orch.toggleMic();
+    await orch.toggleMic();
+    await dejarCorrerElPuntaje();
+
+    expect(eventos).toHaveLength(0);
+    expect(orch.getState()).toBe('idle');
   });
 
   it('init reporta progreso de carga de modelos', async () => {
