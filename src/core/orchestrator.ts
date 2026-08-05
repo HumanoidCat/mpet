@@ -13,19 +13,21 @@ import type {
  * Cablea el flujo de un turno de conversacion:
  *   boton mic -> captura (AudioEngine) -> ASR -> gramatica -> mensajes al chat
  *                                             -> puntaje de pronunciacion (async)
+ *                                             -> sugerencias (async)
  *
  * Los modulos llegan por inyeccion de dependencias: se sustituyen por mocks o
  * por los reales sin tocar este archivo.
  *
- * POR QUE EL PUNTAJE SE CALCULA APARTE DEL TURNO
+ * POR QUE EL PUNTAJE Y LAS SUGERENCIAS SE CALCULAN APARTE DEL TURNO
  * Puntuar exige sintetizar la frase de referencia, y una frase nueva tarda unos
- * diez segundos la primera vez (despues sale de la cache del TTS). El proyecto
- * se comprometio a devolver retroalimentacion en menos de dos segundos, que es
- * el limite por debajo del cual la correccion sigue siendo util al hablar.
- * Por eso el turno responde con transcripcion, correccion y respuesta del tutor,
- * y el puntaje llega cuando esta listo.
+ * diez segundos la primera vez (despues sale de la cache del TTS). Sugerir exige
+ * generar texto con un modelo. El proyecto se comprometio a devolver
+ * retroalimentacion en menos de dos segundos, que es el limite por debajo del
+ * cual la correccion sigue siendo util al hablar. Por eso el turno responde con
+ * transcripcion, correccion y respuesta del tutor, y lo demas llega cuando esta
+ * listo.
  *
- * COMO LLEGA EL PUNTAJE A LA INTERFAZ
+ * COMO LLEGAN A LA INTERFAZ
  * Se vuelve a emitir el MISMO mensaje, con el mismo `id`, ya con `pronunciation`
  * lleno. La interfaz actualiza el mensaje existente en vez de agregar uno nuevo.
  *
@@ -74,6 +76,53 @@ export function createOrchestrator({ audio, ai, bus, scorer }: Deps): Orchestrat
   const history: ChatMessage[] = [];
 
   /**
+   * Aplica un cambio a un mensaje ya publicado y lo vuelve a emitir.
+   *
+   * POR QUE SE LEE DEL HISTORIAL Y NO DE UNA COPIA CAPTURADA
+   * Dos calculos corren fuera del turno sobre el mismo mensaje: el puntaje de
+   * pronunciacion y las sugerencias. Si cada uno reconstruyera el mensaje a
+   * partir de la copia que recibio al arrancar, el que terminara segundo
+   * borraria el campo del primero, porque su copia no lo tiene. Leyendo del
+   * historial en el momento de aplicar, los dos cambios se acumulan.
+   *
+   * Se construye un objeto nuevo en vez de mutar el existente: la interfaz
+   * necesita una referencia distinta para redibujar.
+   */
+  function actualizarMensaje(id: string, cambio: Partial<ChatMessage>): void {
+    const i = history.findIndex((m) => m.id === id);
+    if (i === -1) return;
+
+    const actualizado: ChatMessage = { ...history[i], ...cambio };
+    history[i] = actualizado;
+    // Mismo `id`: la interfaz actualiza el mensaje en vez de agregar otro.
+    bus.emit({ type: 'message', message: actualizado });
+  }
+
+  /**
+   * Pide sugerencias para lo que dijo el estudiante y las adjunta al mensaje.
+   *
+   * Fuera del turno, por lo mismo que el puntaje: generar texto con un modelo
+   * tarda mas de lo que el proyecto se comprometio a esperar. Si el pipeline
+   * todavia no las implementa devuelve lista vacia y no se emite nada, que es
+   * mejor que mostrar una seccion de sugerencias en blanco.
+   */
+  async function suggest(message: ChatMessage, texto: string): Promise<void> {
+    if (texto.trim().length === 0) return;
+
+    try {
+      const suggestions = await ai.suggest(texto);
+      if (suggestions.length === 0) return;
+      actualizarMensaje(message.id, { suggestions });
+    } catch (err) {
+      bus.emit({
+        type: 'error',
+        stage: 'suggestions',
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  /**
    * Puntua la pronunciacion y actualiza el mensaje ya publicado.
    *
    * Se ejecuta fuera del turno a proposito (ver cabecera). Los fallos no
@@ -110,15 +159,7 @@ export function createOrchestrator({ audio, ai, bus, scorer }: Deps): Orchestrat
         transcription.words
       );
 
-      // Se construye un mensaje nuevo en vez de mutar el publicado: el historial
-      // se reemplaza en su sitio y la interfaz recibe un objeto distinto, que es
-      // lo que necesita React para redibujar.
-      const puntuado: ChatMessage = { ...message, pronunciation };
-      const i = history.findIndex((m) => m.id === message.id);
-      if (i !== -1) history[i] = puntuado;
-
-      // Mismo `id`: la interfaz actualiza el mensaje en vez de agregar otro.
-      bus.emit({ type: 'message', message: puntuado });
+      actualizarMensaje(message.id, { pronunciation });
     } catch (err) {
       bus.emit({
         type: 'error',
@@ -146,8 +187,10 @@ export function createOrchestrator({ audio, ai, bus, scorer }: Deps): Orchestrat
       history.push(userMsg);
       bus.emit({ type: 'message', message: userMsg });
 
-      // Sin `await`: el turno no espera al puntaje (ver cabecera).
+      // Sin `await`: el turno no espera ni al puntaje ni a las sugerencias, y
+      // los dos actualizan el mismo mensaje cuando terminan (ver cabecera).
       void scorePronunciation(userMsg, pcm, transcription);
+      void suggest(userMsg, transcription.text);
 
       const replyText = await ai.reply(history);
       const tutorMsg: ChatMessage = {

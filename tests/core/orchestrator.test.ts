@@ -21,8 +21,23 @@ function setup(extra: { scorer?: PronunciationScorer; ai?: AIPipeline } = {}) {
   return { bus, orch };
 }
 
-/** Espera a que se vacie la cola de microtareas del puntaje asincrono. */
+/** Espera a que terminen los calculos que corren fuera del turno. */
 const dejarCorrerElPuntaje = () => new Promise((r) => setTimeout(r, 50));
+
+/**
+ * Reduce los eventos `message` a la conversacion resultante, colapsando por `id`
+ * igual que hace la interfaz.
+ *
+ * El mismo mensaje se emite varias veces —al publicarse, al llegar el puntaje y
+ * al llegar las sugerencias—, asi que contar emisiones mide el numero de
+ * calculos asincronos y no el contenido del chat. Casi todas las pruebas quieren
+ * lo segundo.
+ */
+function conversacion(eventos: ChatMessage[]): ChatMessage[] {
+  const porId = new Map<string, ChatMessage>();
+  for (const m of eventos) porId.set(m.id, m);
+  return [...porId.values()];
+}
 
 describe('Orchestrator v0 (S2-T7)', () => {
   it('arranca en idle', () => {
@@ -51,13 +66,14 @@ describe('Orchestrator v0 (S2-T7)', () => {
     await orch.toggleMic(); // empieza a grabar
     await orch.toggleMic(); // detiene y procesa
 
+    const chat = conversacion(messages);
     expect(orch.getState()).toBe('idle');
     expect(transcribed.length).toBeGreaterThan(0);
-    expect(messages).toHaveLength(2);
-    expect(messages[0].role).toBe('user');
-    expect(messages[0].correction?.corrected).toContain('went');
-    expect(messages[1].role).toBe('tutor');
-    expect(messages[1].text.length).toBeGreaterThan(0);
+    expect(chat).toHaveLength(2);
+    expect(chat[0].role).toBe('user');
+    expect(chat[0].correction?.corrected).toContain('went');
+    expect(chat[1].role).toBe('tutor');
+    expect(chat[1].text.length).toBeGreaterThan(0);
   });
 
   it('sin comparador inyectado el turno funciona igual y no puntua', async () => {
@@ -69,8 +85,9 @@ describe('Orchestrator v0 (S2-T7)', () => {
     await orch.toggleMic();
     await dejarCorrerElPuntaje();
 
-    expect(messages).toHaveLength(2);
-    expect(messages[0].pronunciation).toBeUndefined();
+    const chat = conversacion(messages);
+    expect(chat).toHaveLength(2);
+    expect(chat[0].pronunciation).toBeUndefined();
   });
 
   it('el turno responde sin esperar al puntaje, que llega despues (S6)', async () => {
@@ -97,14 +114,15 @@ describe('Orchestrator v0 (S2-T7)', () => {
     // El turno termino y la conversacion ya esta completa, con el sintetizador
     // todavia trabajando: esa es la razon de ser del calculo asincrono.
     expect(orch.getState()).toBe('idle');
-    expect(eventos).toHaveLength(2);
+    expect(conversacion(eventos)).toHaveLength(2);
     expect(eventos[0].pronunciation).toBeUndefined();
 
     await new Promise((r) => setTimeout(r, RETARDO_TTS + 200));
 
-    // El puntaje reemite el MISMO mensaje, con el mismo id.
-    expect(eventos).toHaveLength(3);
-    const puntuado = eventos[2];
+    // El puntaje reemite el MISMO mensaje, con el mismo id: la conversacion
+    // sigue teniendo dos mensajes aunque se hayan emitido mas eventos.
+    expect(conversacion(eventos)).toHaveLength(2);
+    const puntuado = eventos.filter((m) => m.pronunciation !== undefined).at(-1)!;
     expect(puntuado.id).toBe(eventos[0].id);
     expect(puntuado.role).toBe('user');
     expect(puntuado.pronunciation).toBeDefined();
@@ -130,7 +148,9 @@ describe('Orchestrator v0 (S2-T7)', () => {
     await orch.toggleMic();
     await dejarCorrerElPuntaje();
 
-    expect(eventos).toHaveLength(2);
+    const chat = conversacion(eventos);
+    expect(chat).toHaveLength(2);
+    expect(chat.every((m) => m.pronunciation === undefined)).toBe(true);
     expect(errores).toHaveLength(0);
   });
 
@@ -151,9 +171,97 @@ describe('Orchestrator v0 (S2-T7)', () => {
     await dejarCorrerElPuntaje();
 
     // Los dos mensajes del turno siguen ahi, sin puntaje inventado.
-    expect(eventos).toHaveLength(2);
-    expect(eventos[0].pronunciation).toBeUndefined();
+    const chat = conversacion(eventos);
+    expect(chat).toHaveLength(2);
+    expect(chat.every((m) => m.pronunciation === undefined)).toBe(true);
     expect(errores).toContain('pronunciation');
+  });
+
+  it('las sugerencias llegan despues del turno y se adjuntan al mensaje', async () => {
+    const { bus, orch } = setup();
+    const eventos: ChatMessage[] = [];
+    bus.on('message', (e) => eventos.push(e.message));
+
+    await orch.toggleMic();
+    await orch.toggleMic();
+    await dejarCorrerElPuntaje();
+
+    const conSugerencias = eventos.filter((m) => m.suggestions !== undefined);
+    expect(conSugerencias.length).toBeGreaterThan(0);
+    expect(conSugerencias[0].role).toBe('user');
+    expect(conSugerencias[0].id).toBe(eventos[0].id);
+    expect(conSugerencias[0].suggestions!.length).toBeGreaterThan(0);
+  });
+
+  it('si el pipeline no sugiere nada, no se emite un mensaje vacio', async () => {
+    // Es el estado real mientras S6-T4 esta pendiente: `suggest()` devuelve [].
+    // Emitir igual mostraria una seccion de sugerencias en blanco.
+    const sinSugerencias: AIPipeline = {
+      ...createMockAIPipeline(),
+      async suggest() {
+        return [];
+      },
+    };
+    const { bus, orch } = setup({ ai: sinSugerencias });
+    const eventos: ChatMessage[] = [];
+    bus.on('message', (e) => eventos.push(e.message));
+
+    await orch.toggleMic();
+    await orch.toggleMic();
+    await dejarCorrerElPuntaje();
+
+    expect(eventos.every((m) => m.suggestions === undefined)).toBe(true);
+  });
+
+  it('un fallo al sugerir se informa y no interrumpe la conversacion', async () => {
+    const roto: AIPipeline = {
+      ...createMockAIPipeline(),
+      async suggest() {
+        throw new Error('modelo de sugerencias caido');
+      },
+    };
+    const { bus, orch } = setup({ ai: roto });
+    const eventos: ChatMessage[] = [];
+    const errores: string[] = [];
+    bus.on('message', (e) => eventos.push(e.message));
+    bus.on('error', (e) => errores.push(e.stage));
+
+    await orch.toggleMic();
+    await orch.toggleMic();
+    await dejarCorrerElPuntaje();
+
+    expect(errores).toContain('suggestions');
+    expect(eventos[0].role).toBe('user');
+    expect(eventos[1].role).toBe('tutor');
+  });
+
+  it('el puntaje y las sugerencias no se pisan entre si', async () => {
+    // Los dos corren fuera del turno y actualizan el MISMO mensaje. Si cada uno
+    // lo reconstruyera desde la copia que capturo al arrancar, el que terminara
+    // segundo borraria el campo del primero. Se fuerza que las sugerencias
+    // terminen despues del puntaje para que el orden sea siempre el mismo.
+    const base = createMockAIPipeline();
+    const sugerenciasLentas: AIPipeline = {
+      ...base,
+      async suggest(text: string) {
+        await new Promise((r) => setTimeout(r, 200));
+        return base.suggest(text);
+      },
+    };
+
+    const { bus, orch } = setup({ scorer: createMockScorer(), ai: sugerenciasLentas });
+    const eventos: ChatMessage[] = [];
+    bus.on('message', (e) => eventos.push(e.message));
+
+    await orch.toggleMic();
+    await orch.toggleMic();
+    await new Promise((r) => setTimeout(r, 500));
+
+    const final = eventos.filter((m) => m.role === 'user').at(-1)!;
+    expect(final.pronunciation).toBeDefined();
+    expect(final.suggestions!.length).toBeGreaterThan(0);
+    // Y lo que ya traia el turno sigue ahi.
+    expect(final.correction?.corrected).toContain('went');
   });
 
   it('init reporta progreso de carga de modelos', async () => {
