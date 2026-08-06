@@ -27,7 +27,7 @@
 
 import { FFT_SIZE, N_MEL_FILTERS, N_MFCC, SAMPLE_RATE } from '@shared/constants';
 import { Fft, spectrumLength } from '../dsp/fft';
-import { applyWindow, coherentGain, createWindow, type WindowKind } from '../dsp/window';
+import { applyWindow, createWindow, type WindowKind } from '../dsp/window';
 import { applyMelFilterbank, melFilterbank, type MelFilterbank } from './mel';
 
 /** Piso de energía antes del logaritmo, para no evaluar log(0). */
@@ -59,7 +59,7 @@ export interface MfccOptions {
  * Se calcula por definición: con N = 26 son 338 multiplicaciones por trama, tres
  * órdenes por debajo de la FFT que ya se hizo. No compensa optimizarla.
  */
-export function dct2(input: Float32Array, nCoeffs: number): Float32Array {
+export function dct2(input: Float32Array | Float64Array, nCoeffs: number): Float32Array {
   const N = input.length;
   const out = new Float32Array(nCoeffs);
 
@@ -82,8 +82,8 @@ export function dct2(input: Float32Array, nCoeffs: number): Float32Array {
  * Se usa dB (factor 10, no 20) porque la entrada ya es **potencia**. Coincide
  * con `librosa.power_to_db(..., ref=1.0, top_db=None)`.
  */
-export function logMelEnergies(melEnergies: Float32Array): Float32Array {
-  const out = new Float32Array(melEnergies.length);
+export function logMelEnergies(melEnergies: Float32Array | Float64Array): Float64Array {
+  const out = new Float64Array(melEnergies.length);
   for (let m = 0; m < melEnergies.length; m++) {
     out[m] = 10 * Math.log10(Math.max(MEL_FLOOR, melEnergies[m]));
   }
@@ -102,11 +102,10 @@ export class MfccExtractor {
   readonly bank: MelFilterbank;
 
   private readonly window: Float32Array;
-  private readonly windowGain: number;
   private readonly fft: Fft;
   private readonly re: Float64Array;
   private readonly im: Float64Array;
-  private readonly power: Float32Array;
+  private readonly power: Float64Array;
 
   constructor(options: MfccOptions = {}) {
     this.sampleRate = options.sampleRate ?? SAMPLE_RATE;
@@ -119,15 +118,34 @@ export class MfccExtractor {
 
     this.bank = melFilterbank(nFilters, this.fftSize, this.sampleRate, fMin, fMax);
     this.window = createWindow(options.windowKind ?? 'hann', this.fftSize);
-    this.windowGain = coherentGain(this.window);
     this.fft = new Fft(this.fftSize);
     this.re = new Float64Array(this.fftSize);
     this.im = new Float64Array(this.fftSize);
-    this.power = new Float32Array(spectrumLength(this.fftSize));
+    this.power = new Float64Array(spectrumLength(this.fftSize));
   }
 
-  /** Espectro de potencia |X[k]|² de una trama, ya enventanada y corregida. */
-  powerSpectrum(frame: Float32Array): Float32Array {
+  /**
+   * Espectro de potencia |X[k]|² de una trama enventanada, **sin normalizar**.
+   *
+   * Deliberadamente no se aplica la corrección de amplitud que sí usa
+   * `spectrumOf` en `dsp/fft.ts`. Esa corrección sirve para leer del espectro la
+   * amplitud física de un tono, pero en la cadena de MFCC hace daño.
+   *
+   * El motivo lo destapó la verificación cruzada contra librosa (RF-09). La
+   * corrección divide la potencia por unas 16 000 veces, y eso hunde las bandas
+   * mel por debajo del piso que evita `log(0)`: con un tono puro, **24 de las 26
+   * bandas quedaban fijadas en el piso**. Una banda fijada deja de responder a la
+   * señal, así que la información se perdía antes de llegar a la DCT.
+   *
+   * Sin la corrección los valores quedan en un rango sano y ninguna banda toca el
+   * piso. Es además la convención de HTK y de librosa, de modo que los
+   * coeficientes resultan intercambiables con los de la literatura.
+   *
+   * No afecta a lo que el escalado aportaba: un factor constante sobre la
+   * potencia solo desplaza el coeficiente cero, que es el que lleva el volumen y
+   * que el comparador descarta.
+   */
+  powerSpectrum(frame: Float32Array): Float64Array {
     const enventanado = applyWindow(
       frame.length === this.fftSize ? frame : ajustar(frame, this.fftSize),
       this.window
@@ -138,18 +156,14 @@ export class MfccExtractor {
     this.re.set(enventanado);
     this.fft.forward(this.re, this.im);
 
-    const n = this.fftSize;
-    const escala = 2 / (n * this.windowGain);
     for (let k = 0; k < this.power.length; k++) {
-      const esExtremo = k === 0 || k === n / 2;
-      const amplitud = Math.hypot(this.re[k], this.im[k]) * (esExtremo ? escala / 2 : escala);
-      this.power[k] = amplitud * amplitud;
+      this.power[k] = this.re[k] * this.re[k] + this.im[k] * this.im[k];
     }
     return this.power;
   }
 
   /** Energías del banco mel de una trama, antes del logaritmo. */
-  melSpectrum(frame: Float32Array): Float32Array {
+  melSpectrum(frame: Float32Array): Float64Array {
     return applyMelFilterbank(this.powerSpectrum(frame), this.bank);
   }
 

@@ -106,12 +106,17 @@ export function melFilterbank(
 /**
  * Aplica el banco a un espectro de **potencia** (|X[k]|², no amplitud) y
  * devuelve la energía dentro de cada banda.
+ *
+ * Trabaja en doble precisión. La potencia sin normalizar alcanza valores del
+ * orden de 10⁴, y en simple precisión el redondeo a esa escala llega a alterar
+ * el cuarto decimal del puntaje final: suficiente para romper la invariancia al
+ * volumen, que debería ser exacta.
  */
 export function applyMelFilterbank(
-  powerSpectrum: Float32Array,
+  powerSpectrum: Float32Array | Float64Array,
   bank: MelFilterbank
-): Float32Array {
-  const out = new Float32Array(bank.filters.length);
+): Float64Array {
+  const out = new Float64Array(bank.filters.length);
 
   for (let m = 0; m < bank.filters.length; m++) {
     const pesos = bank.filters[m];

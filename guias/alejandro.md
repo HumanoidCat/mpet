@@ -87,18 +87,26 @@ Lunes noche: `dev` estable + ensayo · Martes 1 pm: clase + retro · Jueves: che
 
 ## Lo que falta — actualizado 4 ago
 
+**Cerrado el 5 de agosto**
+
+- [x] S5-T6 · Persistencia de sesiones en IndexedDB → `src/core/sessionStore.ts`, sin dependencias nuevas (**D-10**). 14 pruebas
+- [x] Cablear las sugerencias al turno, con la carrera entre los dos cálculos asíncronos corregida
+- [x] Endurecer el turno contra tres fallos que solo aparecen con micrófono real
+- [x] Prueba de arranque que monta `App.tsx` → `tests/ui/appArranca.test.tsx`
+- [x] Retirar de la interfaz las notas internas visibles en producción (**I-06**)
+- [x] Actualizar matriz, riesgos, bitácora y los cuatro checklists
+- [x] Registrar **I-04**, **I-05**, **I-06**, **D-09** y **D-10** en la bitácora
+
 **Producto**
 
-- [ ] **Correr la aplicación completa con micrófono y modelos reales** (riesgo **R15**). Nunca se ha hecho. Es la única tarea del proyecto sin estimar
+- [ ] **Correr la aplicación con los cambios de esta semana juntos**, con micrófono y modelos reales. No es que nunca se haya corrido —se demuestra en cada entrega— sino que el comparador conectado, la persistencia, el endurecimiento del turno y la corrección de los MFCC entraron sin usarse a la vez (**R15** reformulado)
 - [ ] S6-T5 y S6-T6 · PWA completa y arranque verificado en modo avión (RF-14, RF-15)
-- [ ] S5-T6 · Persistencia de sesiones en IndexedDB
-- [ ] S7-T1 · Cerrar el orquestador cuando existan sugerencias y respuesta del tutor
+- [ ] S7-T1 · Cerrar el orquestador cuando Isaac entregue sugerencias y respuesta del tutor
 - [ ] S8-T5 · Prueba offline integral en máquina limpia
 
 **Coordinación**
 
-- [ ] Actualizar la matriz de trazabilidad: 365 pruebas en 28 archivos, RF-10 y RF-11 al día
-- [ ] Registrar la incidencia **I-04** (barra de progreso) en la bitácora
+- [ ] **Decidir cómo se presenta RF-10 el martes** si el comparador no llega a separar con voz real
 - [ ] Repoblar el tablero: no hay issues de Semana 6 ni 7
 - [ ] S7-T5 y S9-T4 · Coordinar los documentos del Avance 2 y final
 - [ ] S9-T6 · Congelamiento de código antes de cada entrega

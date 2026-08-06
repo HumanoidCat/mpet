@@ -65,7 +65,11 @@ export default defineConfig({
     })
   ],
   test: {
+    // Por defecto Node: el DSP, el nucleo y el canal de IA se prueban sin
+    // navegador, que es mas rapido y evita depender de un DOM simulado. Las
+    // pruebas que si necesitan DOM lo declaran por archivo con la marca
+    // `@vitest-environment jsdom` en su cabecera.
     environment: 'node',
-    include: ['tests/**/*.test.ts']
+    include: ['tests/**/*.test.{ts,tsx}']
   }
 });

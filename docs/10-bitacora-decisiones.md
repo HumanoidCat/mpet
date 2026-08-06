@@ -199,12 +199,17 @@ previo obligatorio a toda solicitud de integración.
 
 ## Riesgo abierto · Volumen de la descarga inicial
 
-El conjunto necesario para operar sin conexión asciende a unos 300 MB (41 MB del
-reconocedor, 238 MB del corrector, 21.6 MB del runtime). Se descartó la reducción
-de cuantización como solución (D-05). Medidas adoptadas: carga bajo demanda del
-corrector, de modo que la primera interacción dependa únicamente del reconocedor, y
-evaluación de un modelo de corrección de menor tamaño durante la fase de
-optimización.
+El conjunto necesario para operar sin conexión ascendía a unos 300 MB (41 MB del
+reconocedor, 238 MB del corrector, 21.6 MB del runtime). **Con la incorporación
+del sintetizador de voz en la Semana 5 la cifra sube a unos 388 MB**, pendiente
+de confirmar el desglose exacto medido.
+
+Se descartó la reducción de cuantización como solución (D-05). Medidas adoptadas:
+carga bajo demanda del corrector, de modo que la primera interacción dependa
+únicamente del reconocedor, y evaluación de un modelo de corrección de menor
+tamaño durante la fase de optimización. **Queda pendiente la carga bajo demanda
+del sintetizador (S7-T4)**, que no se necesita hasta después del primer turno de
+conversación y es la vía de mayor efecto sobre la descarga inicial.
 
 ---
 
@@ -246,3 +251,164 @@ del número de tramas respecto al tamaño de bloque de entrada, conservación de
 sobrante entre llamadas, tiempo de trama por salto, y equivalencia del espectro
 con `StreamingStft` muestra a muestra, de modo que las dos rutas de análisis del
 proyecto no puedan divergir.
+
+---
+
+## D-09 · Declarar el estado de acondicionamiento al analizar audio (Semana 6)
+
+**Contexto.** Al conectar el comparador de pronunciación al orquestador, las dos
+señales que entran a la métrica de distancia no recorrían la misma cadena. El PCM
+del estudiante sale de `AudioEngine.stop()` y ya viene acondicionado con el
+pasa-altas de 80 Hz y la normalización RMS de S2-T2. El de referencia sale de
+`AIPipeline.speak()` y viene crudo. La distancia medía, además de la
+pronunciación, la diferencia entre las dos rutas.
+
+**Medición.** Sobre una vocal sintética comparada contra sí misma, donde el
+resultado correcto es 100:
+
+| Referencia | Antes | Después |
+|---|---:|---:|
+| Limpia | 99.28 | 100.00 |
+| Con offset de continua | 96.56 | 99.99 |
+| Con retumbe de 40 Hz | 89.30 | 96.98 |
+
+El peor caso se comía 10.7 de los 31 puntos de margen que RF-10 exigía. Los dos
+últimos casos son escenarios construidos para acotar el efecto, no mediciones de
+lo que entrega el sintetizador real.
+
+**Decisión.** `AudioEngine.analyze` recibe un segundo parámetro opcional,
+`AnalyzeOptions`, con el que el llamador declara si el PCM ya está acondicionado.
+Por defecto `analyze` acondiciona. Se descartó acondicionar siempre porque **el
+acondicionamiento no es idempotente**: aplicar el pasa-altas dos veces cuesta 0.72
+puntos sobre la misma señal, de modo que habría cambiado un sesgo por otro.
+
+Al ser opcional, ningún implementador del contrato tuvo que cambiar.
+
+**Aprendizaje.** Cuando dos señales alimentan una métrica de distancia, la etapa
+en la que se encuentran es parte del contrato y no puede quedar implícita.
+
+---
+
+## D-10 · Persistencia de sesiones sobre IndexedDB, sin dependencias (Semana 6)
+
+**Contexto.** La pantalla de progreso (RF-23, S9-T1) necesita el historial de
+sesiones y hasta ahora mostraba un arreglo escrito a mano.
+
+**Alternativas.** `localStorage` es síncrono, bloquea el hilo principal mientras
+corre el análisis de audio, guarda solo cadenas y tiene una cuota de unos 5 MB;
+una sesión con puntaje por palabra crece rápido. La biblioteca `idb` es cómoda
+pero aquí solo hacen falta un almacén de objetos y un índice, lo que no justifica
+sumar un paquete ni el `shared-change` que arrastraría (D-03).
+
+**Decisión.** IndexedDB directo en `src/core/sessionStore.ts`. El resumen de cada
+sesión se calcula al guardar y se almacena junto a los mensajes: es
+denormalización deliberada, porque la pantalla de progreso lista muchas sesiones
+y no necesita cargar la conversación de cada una. Cuando no hubo puntajes el
+promedio se guarda como `null` y no como cero, porque cero significaría mala
+pronunciación y lo cierto es que no se midió.
+
+Si IndexedDB no está disponible —navegación privada— se cae a un almacén en
+memoria: se pierde el historial, no la sesión en curso.
+
+**Verificación.** La lógica pura se prueba entera en Node; la parte de base de
+datos se verifica en el navegador, con el mismo criterio que la captura de
+micrófono.
+
+---
+
+## I-04 · Barra de progreso de carga detenida en el 100 % (Semana 5)
+
+**Detección.** Isaac, verificando el worker de TTS con descargas reales. No se
+veía leyendo el código: solo aparece con una descarga de verdad.
+
+**Causa.** Los archivos pequeños, como `config.json` de 1656 bytes, llegan
+completos en un único evento y antes de que empiece el archivo grande de pesos.
+El agregador los contaba, calculaba 1656/1656 = 100 % y, como la barra es
+monótona por diseño, se quedaba en el 100 % durante toda la descarga real. Con
+MMS-TTS eran 109 MB de espera con la barra llena. Afectaba a los tres modelos, no
+solo al TTS.
+
+**Acción.** Los archivos que llegan completos en un solo evento dejan de contar
+para el agregado, en `src/ai/model-cache/progress.ts`.
+
+**Resultado.** De **1 reporte de progreso a 1690 graduales**, verificado con
+descarga real.
+
+**Aprendizaje.** Un indicador de progreso no se puede validar con datos
+simulados: el patrón de llegada de los eventos es el problema, no el cálculo.
+
+---
+
+## I-05 · Escala del espectro en la cadena de MFCC (Semana 6)
+
+**Detección.** Fabrizio, al correr por primera vez la verificación cruzada contra
+librosa que estaba preparada desde S5-T2 y nunca se había ejecutado. Primera
+corrida: **5.02 % de error, con 49 % de diferencia en el coeficiente cero**.
+
+**Causa.** El extractor aplicaba al espectro de potencia la misma corrección de
+amplitud que usa `spectrumOf` para leer la amplitud física de un tono. Esa
+corrección divide la potencia por 65 536, y eso hundía las bandas mel por debajo
+del piso que evita `log(0)`: con un tono puro, **24 de las 26 bandas quedaban
+fijadas en el piso**. Una banda fijada deja de responder a la señal, así que la
+información se perdía antes de llegar a la DCT.
+
+Es exactamente la limitación que la evidencia de S5-T2 declaraba como caso
+límite —«la invariancia se rompe si alguna banda toca el piso»— ocurriendo en una
+señal perfectamente normal.
+
+**Acción.** Quitar la corrección en la cadena de MFCC. Los valores quedan en
+rango sano, ninguna banda toca el piso, y es además la convención de HTK y
+librosa, de modo que los coeficientes resultan comparables con la literatura.
+
+**Resultado.** Error contra librosa de **5.02 % a 0.009 %**, frente al 5 % que
+exige la métrica de RF-09.
+
+**Hallazgo secundario.** Tras el arreglo, el caso de ruido seguía en 4.79 %. La
+causa no estaba en los MFCC sino en las señales: el generador congruencial usaba
+el multiplicador 1103515245 y el producto supera 2⁵³, así que Python, con enteros
+de precisión arbitraria, y JavaScript, con dobles, divergen desde la segunda
+muestra. La comparación enfrentaba señales distintas. Ambos generadores pasan a
+Park–Miller (16807), exacto en los dos lenguajes, y el caso queda en 0.000 %.
+
+**Aprendizaje registrado.** La validación por etapas no lo detectó porque **cada
+etapa era correcta por separado; el fallo estaba en la escala con que se
+encadenaban**. Es el argumento de por qué verificar cada bloque contra su
+definición es necesario pero no suficiente, y por qué una verificación cruzada
+contra una implementación de referencia, aunque no se adopte como dependencia
+(D-07), sigue teniendo valor.
+
+---
+
+## I-06 · Notas internas del equipo visibles en la aplicación (Semana 6)
+
+**Detección.** Alejandro, mirando la pantalla del visualizador en la aplicación
+desplegada.
+
+**Causa.** Tres frases escritas dentro del JSX en vez de en un comentario, por lo
+que se renderizaban al usuario final: «FFT real (S3-T1, Fabrizio) ✅ — esta señal
+ya viene del micrófono de verdad», «pitchHz siempre es null hasta el detector real
+de pitch de Fabrizio (S5-T1)» y una nota sobre métricas que se agregarían «cuando
+el FFT esté listo». Las tres habían quedado además desactualizadas: anunciaban
+como pendiente lo que se entregó semanas antes.
+
+**Por qué no se detectó.** Ninguna de las pruebas del proyecto miraba el texto que
+llega a pantalla. La suite garantizaba que la aplicación compila, no lo que
+muestra.
+
+**Acción.** Los textos se sustituyen por la descripción de la técnica de señales
+correspondiente y las notas pasan a comentarios. Se añade
+`tests/ui/sinNotasDeEquipo.test.ts`, que lee cada `.tsx`, descarta los
+comentarios y falla si el código renderizable contiene un código de tarea, el
+nombre de un integrante, un `TODO` o vocabulario del proceso interno.
+
+**Aprendizaje.** Una nota para el equipo dentro de código que se renderiza es
+indistinguible de contenido del producto. El lugar de esa información es el
+comentario, y hace falta una prueba que lo obligue.
+
+---
+
+## Riesgo cerrado · Pruebas omitidas en la suite
+
+Las tres pruebas que la suite omitía correspondían al fixture de librosa de
+RF-09. Se generaron y se ejecutaron en la Semana 6, y destaparon I-05. **La suite
+ya no omite ninguna prueba.**
