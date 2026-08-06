@@ -72,9 +72,19 @@ export function encodeWav(
     // Se acota antes de convertir: una muestra fuera de [-1, 1] daria la vuelta
     // al entero y se oiria como un chasquido, no como saturacion.
     const s = Math.max(-1, Math.min(1, samples[i]));
-    // Asimetrico a proposito: el rango de un entero de 16 bits con signo es
-    // [-32768, 32767], asi que cada lado usa su propio factor.
-    view.setInt16(CABECERA_BYTES + i * 2, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+
+    // El factor es 32768 para los dos signos, el mismo divisor que usa el lector
+    // del proyecto (`getInt16(p) / 32768`). Escalar los positivos por 32767, que
+    // es el maximo del entero, parece mas correcto pero deja de ser la operacion
+    // inversa de la lectura y encoge la mitad positiva de la senal.
+    //
+    // Se redondea en vez de truncar. `setInt16` trunca hacia cero por su cuenta,
+    // lo que da hasta un paso entero de error y un sesgo sistematico hacia el
+    // silencio; redondeando el error maximo es medio paso y no tiene sesgo.
+    //
+    // El acotado del entero es necesario porque 1.0 * 32768 se sale del rango.
+    const entero = Math.max(-32768, Math.min(32767, Math.round(s * 32768)));
+    view.setInt16(CABECERA_BYTES + i * 2, entero, true);
   }
 
   return bytes;

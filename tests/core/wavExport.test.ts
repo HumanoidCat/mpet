@@ -49,13 +49,15 @@ describe('Exportacion a WAV de las tomas de calibracion', () => {
     const original = seno(440, 4000);
     const leido = idaYVuelta(original);
 
-    // Un entero de 16 bits tiene un paso de 1/32768, asi que el error maximo
-    // por muestra es medio paso. Se comprueba con margen holgado.
+    // Un entero de 16 bits tiene un paso de 1/32768, y como se redondea, el
+    // error maximo por muestra es MEDIO paso. El limite no es cosmetico: la
+    // primera version escalaba los positivos por 32767 y dejaba que `setInt16`
+    // truncara, y esta prueba lo detecto con 4.56e-5 de error.
     let peor = 0;
     for (let i = 0; i < original.length; i++) {
       peor = Math.max(peor, Math.abs(original[i] - leido.samples[i]));
     }
-    expect(peor).toBeLessThan(1 / 32768);
+    expect(peor).toBeLessThanOrEqual(1 / 65536);
   });
 
   it('acota las muestras fuera de rango en vez de dar la vuelta', () => {
