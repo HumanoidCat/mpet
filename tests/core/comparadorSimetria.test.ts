@@ -103,9 +103,21 @@ describe('Simetria de la cadena del comparador', () => {
     // Lo cubren la normalizacion RMS, el descarte de c0 y la normalizacion
     // cepstral. Se prueba para que quede claro que el sesgo corregido venia del
     // filtro y no del nivel.
-    // Tolerancia de 1e-3 puntos y no exacta: al escalar por 0.05 y volver a
-    // normalizar queda un residuo de redondeo de float32, del orden de 1e-5.
+    // Tolerancia de 0.05 puntos y no exacta: al escalar por 0.05 y volver a
+    // normalizar queda un residuo de redondeo de float32 en la señal de
+    // entrada. Medido: las dos señales ya normalizadas difieren en 1.6e-7
+    // relativo, y el logaritmo del banco mel amplifica esa diferencia hasta
+    // unos 5e-5 relativos en el puntaje, o sea 0.006 puntos sobre 100.
+    //
+    // La tolerancia era de 1e-3 y se relajó al corregir RF-09. Antes, el
+    // escalado de amplitud del espectro hundía 24 de las 26 bandas mel contra
+    // el piso que evita log(0), y una banda fijada no responde a diferencias
+    // mínimas de entrada: el recorte enmascaraba este residuo. Al dejar de
+    // perder esa información, el residuo pasó a propagarse.
+    //
+    // La invariancia en sí no se degradó: con entrada exacta, escalar el
+    // volumen cambia los coeficientes c1..c12 en 1.4e-6.
     const flojo = Float32Array.from(base, (v) => v * 0.05);
-    expect(await puntuar(usuario, flojo)).toBeCloseTo(await puntuar(usuario, base), 3);
+    expect(await puntuar(usuario, flojo)).toBeCloseTo(await puntuar(usuario, base), 1);
   });
 });

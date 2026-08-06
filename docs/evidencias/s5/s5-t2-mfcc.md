@@ -129,10 +129,91 @@ En voz real no es un problema: el habla tiene energía repartida por toda la ban
 y la normalización RMS de S2-T2 la sitúa muy por encima del piso. Anotado para
 S8-T2 (casos límite) por si aparece con voz muy floja.
 
-## 8. Validación cruzada contra librosa
+## 8. Validación cruzada contra librosa ✅
 
-Pendiente de ejecutar, con el procedimiento ya preparado en
-`tests/audio/fixtures/generar_referencia_librosa.py`.
+**Ejecutada.** Resultado: **0.009 % de error máximo**, contra el 5 % que exige la
+métrica de RF-09.
+
+| Caso | Error medio | Error máximo |
+|---|---:|---:|
+| Tono de 1000 Hz | 0.000 % | 0.000 % |
+| Tono de 440 Hz | 0.005 % | 0.009 % |
+| Vocal /a/ | 0.000 % | 0.000 % |
+| Vocal /i/ | 0.000 % | 0.000 % |
+| Vocal /u/ | 0.000 % | 0.000 % |
+| Ruido | 0.000 % | 0.000 % |
+
+### El defecto que destapó
+
+La primera corrida dio **5.02 % de error y una diferencia del 49 % en c₀**. La
+causa resultó ser un defecto real de esta implementación, no una diferencia de
+convenio.
+
+El extractor aplicaba al espectro de potencia la misma corrección de amplitud que
+usa `spectrumOf` para leer amplitudes físicas de un tono. Esa corrección divide la
+potencia por unas 16 000 veces, y eso hundía las bandas mel por debajo del piso
+que evita `log(0)`. Medido sobre un tono puro: **24 de las 26 bandas quedaban
+fijadas en el piso**. Una banda fijada deja de responder a la señal, así que la
+información se perdía antes de llegar a la DCT.
+
+Es la limitación que la sección 7 de este mismo documento declaraba como caso
+límite —"la invariancia se rompe si alguna banda toca el piso"—, ocurriendo en
+una señal perfectamente normal.
+
+Al quitar la corrección, los valores quedan en un rango sano, ninguna banda toca
+el piso y el error contra librosa cae de 5.02 % a 0.009 %. Es además la convención
+de HTK y de librosa, de modo que los coeficientes resultan intercambiables con los
+de la literatura.
+
+**Efecto secundario, medido y aceptado.** El recorte contra el piso enmascaraba
+el ruido de punto flotante de la entrada: una banda fijada no responde a
+diferencias mínimas. Al dejar de perder información, un residuo de 1.6 × 10⁻⁷ en
+la señal de entrada —redondeo de `float32` en la normalización RMS— se propaga
+hasta unos 0.006 puntos sobre 100 en el puntaje final. La invariancia al volumen
+en sí no se degradó: con entrada exacta, escalar el volumen cambia los
+coeficientes c₁…c₁₂ en 1.4 × 10⁻⁶. Se ajustó la tolerancia de la prueba de
+simetría del comparador, con la explicación en el propio archivo.
+
+### Un segundo hallazgo: los generadores de ruido no coincidían
+
+Tras el arreglo, todos los casos daban 0.000 % salvo el de ruido, que quedaba en
+4.79 %. La causa no estaba en los MFCC sino en las señales: el generador
+congruencial usaba el multiplicador 1103515245, y el producto supera 2⁵³. Python
+trabaja con enteros de precisión arbitraria y JavaScript con dobles, así que las
+dos secuencias divergen **desde la segunda muestra**:
+
+```
+Python: 1163074432, 465823161,  679304702, ...
+JS    : 1163074432, 465823232, 1719475776, ...
+```
+
+La comparación enfrentaba señales distintas. Se cambiaron ambos generadores al de
+Park–Miller (multiplicador 16807), cuyo producto máximo es del orden de 3.6 × 10¹³
+y por tanto exacto en los dos lenguajes. El error del caso de ruido pasó a 0.000 %.
+
+### Procedimiento
+
+Sigue la resolución sobre dependencias (D-07): **librosa no se agregó al
+proyecto**. Se ejecutó una vez fuera del repositorio con
+`fixtures/generar_referencia_librosa.py` (librosa 0.11.0), se exportaron los
+coeficientes a `mfcc-librosa.json` y ese archivo se versiona. La prueba
+`tests/audio/mfccLibrosa.test.ts` compara contra él y verifica además que el
+fixture se haya generado con los parámetros correctos, de modo que uno regenerado
+con otros valores no pase inadvertido.
+
+Los cuatro parámetros que no son obvios: `htk=True` (la variante por defecto de
+librosa es la de Slaney), `norm=None`, `top_db=None` y `center=False`.
+
+**Qué demuestra y qué no.** Verifica **interoperabilidad** —que los coeficientes
+sean intercambiables con los de la literatura—, no corrección. La corrección la
+cubre la validación de cada etapa contra su definición, que no depende de que la
+biblioteca esté bien. Dicho eso, esta verificación encontró un defecto que la
+validación por etapas no había detectado, porque cada etapa era correcta por
+separado y el problema estaba en la escala con que se encadenaban.
+
+### Procedimiento original (referencia)
+
+El generador está en `tests/audio/fixtures/generar_referencia_librosa.py`.
 
 Sigue la resolución del PM sobre dependencias: **no se agrega librosa al
 proyecto**. El script se corre una vez fuera del repositorio, exporta los

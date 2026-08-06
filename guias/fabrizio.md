@@ -25,7 +25,7 @@
 
 ## Semana 5 ← tus 2 tareas más difíciles del proyecto
 - [x] S5-T1 · YIN completo (umbral, interpolación parabólica), error < 3 Hz en tonos sintéticos → **0.115 Hz** de peor error; resuelve el error de octava del spike (ver `docs/evidencias/s5/s5-t1-yin.md`)
-- [x] S5-T2 · MFCC propio (mel filterbank 26 + DCT, 13 coef) → invariancia al volumen exacta (3.8e-6 en un rango de 1000x); fixture de librosa preparado, pendiente de correr (ver `docs/evidencias/s5/s5-t2-mfcc.md`)
+- [x] S5-T2 · MFCC propio (mel filterbank 26 + DCT, 13 coef) → invariancia al volumen exacta; **verificado contra librosa con 0.009 % de error** (ver `docs/evidencias/s5/s5-t2-mfcc.md`)
 
 ## Semana 6
 - [x] S6-T1 · DTW sobre secuencias MFCC (usuario vs referencia TTS) → invariante a velocidad y volumen (ver `docs/evidencias/s6/s6-t1-t2-comparador.md`)
@@ -43,7 +43,7 @@
 - [ ] S9-T3 · Afinado final del comparador con datos de pruebas
 
 ## Semana 10 — 🎯 ENTREGA FINAL (mar 8 sep)
-- [ ] S10-T6 · Preparar respuestas: Nyquist, por qué MFCC, cómo funciona YIN/DTW
+- [x] S10-T6 · Preparar respuestas: Nyquist, por qué MFCC, cómo funcionan YIN y DTW → `docs/entregas/preguntas-defensa-dsp.md`
 
 ## Cómo trabajas sin depender de nadie
 Tu contrato: `AudioEngine` y `PronunciationScorer` en `src/shared/contracts.ts`. Valida con `npm test` y señales generadas por código (seno, chirp) — no necesitas UI ni IA reales. El TTS de referencia lo simulas con `mocks/mockAIPipeline.ts`.
@@ -72,7 +72,7 @@ las que deciden si el puntaje sirve.
       el código esté bien. Las herramientas de calibración ya las subiste
 - [ ] **S6-T7 · Pares mínimos**: ship/sheep, bad/bed. Es la evidencia más directa de que
       el puntaje mide pronunciación y no timbre ni volumen (con el equipo)
-- [ ] **RF-09 · Verificación cruzada de MFCC contra librosa.** Son las 3 pruebas omitidas
-      de la suite; el fixture está preparado en `tests/audio/fixtures/` y nunca se corrió.
-      Métrica exigida: error menor al 5 %
-- [ ] S10-T6 · Preparar respuestas: Nyquist, por qué MFCC, cómo funcionan YIN y DTW
+- [x] **RF-09 · Verificación cruzada de MFCC contra librosa** → **0.009 % de error**, contra
+      el 5 % exigido. Destapó un defecto real: la corrección de amplitud hundía 24 de las
+      26 bandas mel contra el piso de `log(0)`. Ver `docs/evidencias/s5/s5-t2-mfcc.md` §8
+- [x] S10-T6 · Preparar respuestas: Nyquist, por qué MFCC, cómo funcionan YIN y DTW → `docs/entregas/preguntas-defensa-dsp.md`, con respuesta corta y respaldo para cada una, más las preguntas incómodas

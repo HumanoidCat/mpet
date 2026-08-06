@@ -53,7 +53,46 @@ export interface VoicedSpeechOptions extends VadOptions {
   yin?: YinOptions;
 }
 
-const DEFAULT_MIN_VOICED_RATIO = 0.2;
+/**
+ * Fracción mínima de tramas sonoras. **Calibrada con voz real** (S9-T3): las
+ * grabaciones del equipo dan entre 14 % y 85 % por segmento, y el silencio 0 %.
+ * El valor deja margen amplio a ambos lados.
+ *
+ * El 0.20 inicial venía de voz sintética, que daba 49 % por ser armónica pura.
+ * El habla real alterna sonidos sonoros y sordos en una proporción bastante
+ * menos favorable.
+ */
+const DEFAULT_MIN_VOICED_RATIO = 0.1;
+
+/**
+ * Umbral de YIN **para la decisión de sonoridad**, distinto del que se usa para
+ * estimar el tono. La diferencia es deliberada y está medida (S9-T3).
+ *
+ * Las dos decisiones tienen requisitos opuestos:
+ *
+ * | | Qué necesita | Umbral |
+ * |---|---|---|
+ * | ¿Hay periodicidad? | No perder voz real | flojo |
+ * | ¿Qué frecuencia es? | No equivocarse de octava | estricto |
+ *
+ * Con el umbral estricto de `YIN_THRESHOLD` (0.02), pensado para que el *valor*
+ * del tono sea correcto, la voz real de las grabaciones solo alcanzaba un 27 %
+ * de tramas sonoras en un tramo hablado, y varios segmentos caían por debajo de
+ * la puerta. Aflojándolo sube al 51 %.
+ *
+ * Aflojarlo aquí **no tiene costo**, y eso es lo que lo justifica:
+ *
+ * - El ruido de banda ancha da **0 % a cualquier umbral**, hasta amplitud 0.5.
+ *   Medido de 0.02 a 0.3: siempre cero. La prueba de periodicidad no se ablanda.
+ * - El silencio da **0 %** igualmente.
+ * - El error de octava sí reaparece por encima de 0.1, pero aquí **solo se
+ *   cuentan tramas, no se usan sus frecuencias**. Que una trama sonora reporte
+ *   200 Hz en vez de 100 no cambia que sea sonora.
+ *
+ * El estimador de tono conserva su umbral estricto, así que los valores que
+ * llegan al análisis siguen siendo correctos.
+ */
+const VOICING_YIN_THRESHOLD = 0.15;
 
 /**
  * Fracción de tramas de un tramo que tienen tono detectable.
@@ -69,7 +108,11 @@ export function voicedRatio(
 ): number {
   const frameSize = options.frameSize ?? FRAME_SIZE;
   const hopSize = options.hopSize ?? HOP_SIZE;
-  const yinOptions: YinOptions = { sampleRate: options.sampleRate, ...options.yin };
+  const yinOptions: YinOptions = {
+    sampleRate: options.sampleRate,
+    threshold: VOICING_YIN_THRESHOLD,
+    ...options.yin,
+  };
 
   let conTono = 0;
   let total = 0;
