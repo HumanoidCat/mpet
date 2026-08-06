@@ -9,12 +9,18 @@
 
 ## Lo primero, porque es lo que más te va a interesar
 
-**El conteo automático dio 8 fallos de 14, que cruza tu umbral de 5. No estoy
-invocando ese umbral.** El control de la medición falló, así que el número no es
-atribuible al sintetizador todavía.
+**Con las dos vías cruzadas: 7 fallos de 14. Supera tu umbral de 5.** Pero el
+resultado que de verdad decide no está en esas 14, y va abajo del todo en el punto 2.
 
-Lo digo en la primera línea a propósito: el resultado bruto favorece mi propuesta
-original, y precisamente por eso no quiero que se use hasta que esté limpio.
+Aclaración de método, porque el número cambió por el camino: la vía automática dio 8 y
+la escucha dio 12 en bruto. **Ninguno de los dos es utilizable tal cual** —el primero
+porque el control falló, el segundo porque mi comparación castigaba la ortografía del
+oyente y no la pronunciación del modelo—. Los 7 salen de reconciliar ambas con un
+criterio aplicado por igual a todas las palabras. Está detallado en
+`docs/evidencias/s7/s7-t4-pronunciacion-tts.md`, §6.
+
+**Falta el segundo oyente** que pide tu protocolo, así que formalmente esto no está
+cerrado. Te lo mando igual porque el hallazgo del punto 2 no depende de eso.
 
 ---
 
@@ -50,21 +56,39 @@ justificarlo.
 Cambié tu protocolo sin consultarte porque el original no producía ningún dato. Queda
 escrito con su evidencia en `docs/evidencias/s7/s7-t4-pronunciacion-tts.md`, §4.
 
-## 2. Por qué el resultado no decide todavía
+## 2. El resultado que decide no está en las 14 palabras trampa
 
-Con frase portadora, el control mejoró pero **no quedó limpio: fallan 2 de 5**.
-*water* salió "witter" / "what her" y *book* salió "but" / "both", de forma
-consistente en las tres repeticiones.
+**Fallan también `water` y `book`, y fallan en las dos vías a la vez:**
 
-Con esa tasa de ruido no se puede separar cuánto de los 8 fallos es pronunciación
-defectuosa y cuánto es sordera de Whisper-tiny, que es el modelo más pequeño de su
-familia.
+| Palabra | Reconocedor | Oyente |
+|---|---|---|
+| water | "witter" · "what her" · "witter" | "wither" |
+| book | "but" · "both" · "both" | "buf" |
 
-**Resultado bruto, para que conste:** fallan `vegetables`, `Wednesday`, `ginger`,
-`engine`, `knife`, `island`, `salmon` y `$25`. Salen limpias `temperature`,
-`favorite`, `nature`, `pleasure`, `chef` y `through`. Que *vegetables* falle 0 de 3
-("utubels", "g-tubles", "vigitubus") coincide con lo que se oyó a mano, así que ese
-al menos es real.
+Son **palabras de control**: las metí porque son triviales, comunes y sin trampas de
+escritura, para detectar si los fallos venían del reconocedor. Que fallen en las dos
+vías significa que no son ruido de la medida: **el sintetizador pronuncia mal palabras
+corrientes.**
+
+Y eso es lo que desarma tu mitigación barata. Curar el conjunto de frases funciona si
+los fallos se concentran en ortografía exótica: quitás *vegetables* y seguís
+adelante. **No se puede curar un curso de inglés que no sabe decir *water* ni *book*.**
+
+Lo digo con la incomodidad de que este resultado favorece mi propuesta original. Por
+eso te doy los datos crudos de las dos vías en la evidencia, para que lo verifiques en
+vez de creerme.
+
+### Las 14, para que conste
+
+Fallan `$25`, `vegetables`, `ginger`, `engine`, `island`, `salmon` y `chef`. Salen
+limpias `temperature`, `nature`, `Wednesday`, `knife`, `pleasure`, `favorite` y
+`through`.
+
+En *chef* el oyente y el reconocedor discrepan: el ASR la entendió 3 de 3, la persona
+solo distinguió la *f* final. La cuento como fallo porque **quien tiene que reconocer
+el audio es un estudiante**, no el reconocedor; el ASR era un proxy objetivo, no el
+destinatario. Queda anotado por si querés contarlo al revés: sin *chef* serían 6, que
+sigue por encima del umbral.
 
 ## 3. Dos ajustes al protocolo que propongo
 
@@ -175,10 +199,28 @@ estable, ese supuesto se rompe.
 
 ---
 
+## 7. Qué pido, entonces
+
+Con 7 de 14 y con *water* y *book* cayendo, **sí pido abrir el `shared-change` de
+Kokoro** — con tu condición intacta: **solo junto con la carga bajo demanda del TTS**,
+nunca antes. Adoptarlo sin eso subiría la primera descarga a unos 604 MiB, que
+contradice de frente el objetivo de S7-T4.
+
+Dos matices honestos sobre esa petición:
+
+1. **Falta el segundo oyente.** Si querés esperar a tenerlo antes de aprobar, me
+   parece correcto y no bloquea nada: S5-T5 ya está entregado y funcionando.
+2. **Kokoro no está medido, está leído.** De MMS-TTS tengo mediciones; de Kokoro tengo
+   la ficha del modelo. Antes de fijarlo habría que pasarle exactamente este mismo
+   banco de 14 + 5 palabras y comparar los conteos. Si no mejora, no vale los 216 MB
+   por bonito que suene el nombre.
+
 ## Resumen
 
-- No pido el `shared-change`. El 8 de 14 no es utilizable hasta que la escucha lo
-  confirme.
+- Pido el `shared-change`, con tu condición de carga bajo demanda por delante.
+- El 7 de 14 supera el umbral, pero lo decisivo es que fallan *water* y *book*: la
+  salida de curar las frases ya no alcanza.
+- Falta el segundo oyente para cerrarlo formalmente.
 - Tu punto 1 del protocolo quedó invalidado con datos; lo sustituí por frase
   portadora y dejé el sesgo declarado.
 - Propongo ampliar el control a 15-20 palabras y que la escucha sea a ciegas por
