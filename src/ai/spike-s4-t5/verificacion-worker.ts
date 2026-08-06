@@ -20,6 +20,7 @@
  */
 
 import { SAMPLE_RATE } from '@shared/constants';
+import { createAIPipeline } from '../createAIPipeline';
 import { createTtsClient } from '../tts/ttsClient';
 import { DEFAULT_TTS_CONFIG } from '../tts/ttsProtocol';
 
@@ -143,6 +144,31 @@ $('btnDispose').addEventListener('click', () => {
   ($('btnSpeak') as HTMLButtonElement).disabled = true;
   ($('btnSpeakTwice') as HTMLButtonElement).disabled = true;
   ($('btnDispose') as HTMLButtonElement).disabled = true;
+});
+
+// ── Carga bajo demanda (S7-T4) ───────────────────────────────────────────────
+
+$('btnLazy').addEventListener('click', async () => {
+  const btn = $('btnLazy') as HTMLButtonElement;
+  btn.disabled = true;
+  try {
+    log('Creando AIPipeline completo y llamando a speak() SIN init()…');
+    const t0 = performance.now();
+    // A propósito no se llama a `init()`: si `speak()` funciona igual, es que la
+    // carga perezosa hizo su trabajo. Antes de S7-T4 esto habría lanzado
+    // "El modelo de TTS no está cargado: llama a init() primero".
+    const pipeline = createAIPipeline();
+    const pcm = await pipeline.speak('Lazy loading works.');
+    const ms = performance.now() - t0;
+
+    log(`✔ Funcionó sin init(): ${pcm.length} muestras en ${(ms / 1000).toFixed(2)} s`);
+    log('  La primera descarga de la app ya no incluye el sintetizador.');
+    play(pcm);
+  } catch (err) {
+    log('⚠ La carga perezosa falló: ' + (err instanceof Error ? err.message : String(err)));
+  } finally {
+    btn.disabled = false;
+  }
 });
 
 log('Listo. Pulsa "Iniciar worker" para cargar el modelo real.');
