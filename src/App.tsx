@@ -8,6 +8,7 @@ import { createDspAudioEngine } from '@core/audioEngineAdapter';
 import { createPronunciationScorer } from '@audio/comparator/scorer';
 import { createMockScorer } from '@mocks/mockScorer';
 import { createSessionStore, createMemorySessionStore } from '@core/sessionStore';
+import { descargarWav } from '@core/wavExport';
 import { Chat } from '@ui/chat/Chat';
 import { VisualizerScreen } from '@ui/visualizer/VisualizerScreen';
 import SplashScreen, { type ModelStatus } from '@ui/shell/Splash';
@@ -46,6 +47,21 @@ function useMockMode(): boolean {
   return new URLSearchParams(window.location.search).get('mock') === '1';
 }
 
+/**
+ * Modo de captura de tomas para la calibracion del comparador (S9-T3).
+ *
+ * Con `?grabar=1`, cada vez que se detiene el microfono se descarga el PCM del
+ * turno como WAV. Evita el camino manual por Audacity, que exige fijar
+ * frecuencia de proyecto, mono y 16 bits, y garantiza **una sola emision por
+ * archivo**: se pulsa, se dice la frase, se vuelve a pulsar.
+ *
+ * El audio es exactamente el que consume el comparador, ya acondicionado, y el
+ * nombre del archivo lo declara para que nadie lo preprocese dos veces (D-09).
+ */
+function useModoGrabacion(): boolean {
+  return new URLSearchParams(window.location.search).get('grabar') === '1';
+}
+
 export type Screen =
   | 'splash'
   | 'chat'
@@ -58,6 +74,7 @@ export type Screen =
 
 export function App() {
   const mockMode = useMockMode();
+  const modoGrabacion = useModoGrabacion();
 
   const { bus, orch, audio, ai, store, sessionId } = useMemo(() => {
     const bus = createEventBus();
@@ -146,6 +163,18 @@ export function App() {
       .save(sessionId, messages)
       .catch((err: unknown) => console.error('[sesion] no se pudo guardar', err));
   }, [messages, store, sessionId]);
+
+  // ── Captura de tomas para la calibracion (S9-T3) ────────────────
+  useEffect(() => {
+    if (!modoGrabacion) return;
+    let n = 0;
+    return bus.on('recording-stopped', (e) => {
+      if (e.pcm.length === 0) return;
+      n++;
+      const marca = new Date().toISOString().slice(11, 19).replace(/:/g, '');
+      descargarWav(e.pcm, SAMPLE_RATE, `toma-${marca}-${n}-acond.wav`);
+    });
+  }, [bus, modoGrabacion]);
 
   async function onMicClick() {
     setMicError(null);
