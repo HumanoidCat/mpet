@@ -55,12 +55,22 @@ def vocal(f0, formantes, n, amp=1.0):
 
 
 def ruido(n, amp=1.0, semilla=3):
-    """Mismo generador congruencial lineal que las pruebas, para que coincida."""
+    """
+    Generador congruencial de Park-Miller (MINSTD), identico al de las pruebas.
+
+    Se usa el multiplicador 16807 y no el clasico 1103515245 por una razon de
+    compatibilidad entre lenguajes: JavaScript representa los enteros como
+    numeros de doble precision, asi que un producto que supere 2^53 pierde
+    precision. Con 1103515245 eso ocurre desde la segunda muestra y las dos
+    secuencias divergen, de modo que la comparacion enfrentaria senales
+    distintas. Con 16807 el producto maximo es del orden de 3.6e13, muy por
+    debajo de 2^53, y ambos lenguajes producen exactamente la misma secuencia.
+    """
     out = np.zeros(n)
     s = semilla
     for i in range(n):
-        s = (s * 1103515245 + 12345) & 0x7FFFFFFF
-        out[i] = ((s / 0x7FFFFFFF) * 2 - 1) * amp
+        s = (s * 16807) % 2147483647
+        out[i] = ((s / 2147483647) * 2 - 1) * amp
     return out
 
 

@@ -28,10 +28,32 @@ Estructura sugerida: capture/ · dsp/ · features/ · comparator/
   bandas, DCT-II ortonormal, 13 coeficientes). Invariancia al volumen exacta.
   Evidencia: `docs/evidencias/s5/s5-t2-mfcc.md`.
 
-**Semana 5 completa.** Cadena: captura → remuestreo → preprocesamiento → VAD →
-STFT → pitch (YIN) → MFCC. Con esto quedan cubiertos los dos campos que
-`audioEngineAdapter.ts` declaraba vacíos (`pitchHz` y `mfcc`).
-Siguiente: comparador DTW (S6-T1) sobre las secuencias de MFCC.
+- **S6-T1 y S6-T2 ✅** comparador: `comparator/dtw.ts` + `comparator/scorer.ts`
+  (alineamiento temporal, normalización cepstral, puntaje global y por palabra).
+  Implementa el contrato `PronunciationScorer`. Evidencia:
+  `docs/evidencias/s6/s6-t1-t2-comparador.md`.
+
+**Semanas 2 a 6 completas.** Cadena: captura → remuestreo → preprocesamiento →
+VAD → STFT → pitch (YIN) → MFCC → DTW → puntaje.
+Los dos contratos del módulo (`AudioEngine` y `PronunciationScorer`) tienen ya
+implementación real.
+
+- **S7-T4 ✅** (parte DSP) optimización de latencia: caché de planes de FFT y
+  decimación polifásica. Evidencia: `docs/evidencias/s7/s7-t4-latencia-dsp.md`.
+
+Costo del pipeline en vivo: **2.14 % de un núcleo**. Analizar una frase de 3 s
+cuesta ~67 ms contra un presupuesto de 2000 ms por turno. El DSP no es el cuello
+de botella; lo son los modelos de IA.
+
+- **S8-T2 y S8-T3 ✅** casos límite: `features/voiceDetection.ts` (habla robusta a
+  ruido, energía + periodicidad). Evidencia: `docs/evidencias/s8/s8-t2-t3-casos-limite.md`.
+
+⚠️ **Para detectar habla con ruido ambiental usar `detectVoicedSpeech`**, no
+`detectSpeech`: el detector por energía sola clasifica cualquier ruido
+estacionario como habla, a cualquier nivel. Medido en S8-T2.
+
+⚠️ **No aplicar CMN a sonidos sostenidos**: en una señal estacionaria la media
+es la señal, y restarla borra la información. Ver la evidencia de S6.
 
 ### Conclusiones del spike de pitch, para S5-T1 (YIN)
 La maquinaria base ya está validada y es reutilizable. El objetivo de exactitud
