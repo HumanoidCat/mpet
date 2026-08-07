@@ -37,11 +37,15 @@
         reproducible entre llamadas y barra de progreso rota en los tres modelos).
 
 ## Semana 6
-- [ ] S6-T4 · Worker sugerencias: LLM ligero con prompts fijos (naturalidad, vocabulario)
+- [x] S6-T4 · Worker sugerencias: LLM ligero con prompts fijos (naturalidad, vocabulario)
+      → `src/ai/suggestions/`. LaMini-Flan-T5-248M elegido por medición: el de 77M no
+        ejecuta la instrucción, la parafrasea. Evidencia: `docs/evidencias/s6/s6-t4-modelo-tutor.md`
 - [ ] S6-T2 · Timestamps por palabra de Whisper para el puntaje (con Fabrizio)
 
 ## Semana 7 — 🎯 AVANCE 2 (mar 18 ago)
-- [ ] S7-T2 · Respuesta conversacional (prompt de tutor)
+- [x] S7-T2 · Respuesta conversacional (prompt de tutor)
+      → Mismo worker que S6-T4: un solo modelo con dos instrucciones. Verificado en
+        ejecución (suggest y reply a la vez, sin cruzarse).
 - [ ] S7-T4 · Optimizar latencia: pipeline en paralelo, medir por etapa (con Fabrizio)
 - [ ] Mi sección del documento Avance 2
 
@@ -72,7 +76,8 @@ El orden ya no lo fija la semana del calendario sino la dependencia (D-08).
         Ruta crítica liberada: Fabrizio ya puede empezar el DTW y José Pablo el color
         por palabra. Falta abrir el PR a `dev`.
 - [ ] S6-T2 · Puntaje por palabra con las marcas temporales de Whisper (con Fabrizio)
-- [ ] S6-T4 · Worker de sugerencias del tutor
-- [ ] S7-T4 · Bajar el peso de la descarga inicial (~300 MB). La cuantización a 4 bits
-      ya quedó descartada por medición (D-05): las vías son carga bajo demanda y
-      evaluar un modelo de corrección más liviano.
+- [x] S6-T4 · Worker de sugerencias del tutor
+- [~] S7-T4 · Bajar el peso de la descarga inicial. Hecha la carga bajo demanda:
+      arranque de 411.5 → 302.6 MiB. Pero el modelo del tutor añade 264.8 MiB en el
+      primer turno, así que una sesión completa son 676.4 MiB. Queda pendiente evaluar
+      un corrector de gramática más liviano (241 MiB, el mayor de los que quedan).

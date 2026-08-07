@@ -120,3 +120,34 @@ estos 676.
 - **El detector de "termina en pregunta" del spike marcó 2 de 4** cuando en realidad
   eran 4 de 4: las comillas literales de la salida hacían que la cadena no terminara en
   `?`. El instrumento se corrige junto con el punto 5.1.
+
+## 7. El worker, verificado en ejecución
+
+Construido tras la decisión: `src/ai/suggestions/` (protocolo + worker + cliente +
+limpieza), conectado a `suggest()` y `reply()` del contrato, **bajo demanda**.
+
+Un solo worker sirve las dos tareas porque son el mismo modelo con instrucciones
+distintas. Eso obliga a algo que los otros tres workers no necesitaban: el registro de
+peticiones pendientes guarda **de qué tipo** era cada una. Sin eso, una respuesta de
+sugerencias podría resolver la promesa de una respuesta del tutor y el chat mostraría
+una lista donde espera una frase.
+
+Verificado con `src/ai/spike-s6-t4/verificacion-worker.html`, que usa el `AIPipeline`
+real y **no llama a `init()`**, para probar de paso la carga bajo demanda:
+
+| Prueba | Resultado |
+|---|---|
+| `suggest()` sin `init()` previo | ✅ 17.0 s (incluye cargar el modelo) → `["Yesterday, I went to the beach with my family."]` |
+| El filtro de sugerencias inútiles | ✅ de las dos generaciones sobrevivió una: la otra repetía la frase y se descartó |
+| `reply()` | ✅ 1.35 s → `What did you do yesterday?` · sin comillas · termina en pregunta |
+| Las dos a la vez, por el mismo canal | ✅ no se cruzaron: la lista llegó como lista y la frase como frase |
+
+Los dos defectos que había detectado el spike quedan corregidos y comprobados con
+salidas reales: las comillas envolventes se quitan y las sugerencias que repiten la
+frase original no llegan a la interfaz.
+
+**Limitación honesta:** la carga bajo demanda deja la primera petición del tutor sin
+barra de progreso. El contrato entrega el callback en `init()`, así que si el modelo
+se carga después hay que haberlo guardado —eso está hecho— pero si nunca se llamó a
+`init()`, como en esta página de verificación, no hay a quién avisar. En la aplicación
+real `init()` siempre se llama antes, así que el progreso sí llega.
