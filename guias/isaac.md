@@ -20,10 +20,10 @@
 - [x] S3-T3 · Worker gramática: T5 cuantizado + extracción de edits palabra a palabra
       → `src/ai/grammar/` (worker + cliente + diff por LCS). 12 tests verdes.
         ⚠️ Falta validar el modelo en runtime (spike corto antes del Avance).
-- [ ] Mi sección del documento Avance 1 (pipeline de IA)
+- [x] Mi sección del documento Avance 1 (pipeline de IA)
 
 ## Semana 4 — 🎯 AVANCE 1 (mar 28 jul)
-- [ ] Presentar mi parte en la demo
+- [x] Presentar mi parte en la demo
 - [x] S4-T5 · Spike: TTS SpeechT5, medir calidad/latencia
       → SpeechT5 **descartado por medición**: solo es inteligible sin cuantizar y así pesa
         613 MB. Se evaluó la alternativa MMS-TTS (VITS): 109 MB, 16 kHz, carga cacheada
@@ -40,9 +40,10 @@
 - [x] S6-T4 · Worker sugerencias: LLM ligero con prompts fijos (naturalidad, vocabulario)
       → `src/ai/suggestions/`. LaMini-Flan-T5-248M elegido por medición: el de 77M no
         ejecuta la instrucción, la parafrasea. Evidencia: `docs/evidencias/s6/s6-t4-modelo-tutor.md`
-- [ ] S6-T2 · Timestamps por palabra de Whisper para el puntaje (con Fabrizio)
+- [x] S6-T2 · Timestamps por palabra de Whisper para el puntaje (con Fabrizio)
+      → Lo cerró Fabrizio en el PR #58 usando los timestamps que expone mi ASR.
 
-## Semana 7 — 🎯 AVANCE 2 (mar 18 ago)
+## Semana 7 — 🎯 AVANCE 2 (mar 11 ago)
 - [x] S7-T2 · Respuesta conversacional (prompt de tutor)
       → Mismo worker que S6-T4: un solo modelo con dos instrucciones. Verificado en
         ejecución (suggest y reply a la vez, sin cruzarse).
@@ -75,9 +76,26 @@ El orden ya no lo fija la semana del calendario sino la dependencia (D-08).
       → Hecho con **MMS-TTS**, no con SpeechT5 (descartado por medición en el spike).
         Ruta crítica liberada: Fabrizio ya puede empezar el DTW y José Pablo el color
         por palabra. Falta abrir el PR a `dev`.
-- [ ] S6-T2 · Puntaje por palabra con las marcas temporales de Whisper (con Fabrizio)
+- [x] S6-T2 · Puntaje por palabra con las marcas temporales de Whisper (con Fabrizio)
 - [x] S6-T4 · Worker de sugerencias del tutor
-- [~] S7-T4 · Bajar el peso de la descarga inicial. Hecha la carga bajo demanda:
-      arranque de 411.5 → 302.6 MiB. Pero el modelo del tutor añade 264.8 MiB en el
-      primer turno, así que una sesión completa son 676.4 MiB. Queda pendiente evaluar
-      un corrector de gramática más liviano (241 MiB, el mayor de los que quedan).
+- [x] S7-T2 · Respuesta del tutor
+
+---
+
+## Lo que falta — actualizado 7 ago
+
+- [~] **S7-T4 · Bajar el peso de la descarga inicial.** Hecha la carga bajo demanda:
+      el arranque baja de 411.5 a **302.6 MiB**. Pero el modelo del tutor añade
+      264.8 MiB en el primer turno, así que una sesión completa son **676.4 MiB**.
+      Siguiente vía: el corrector de gramática (241 MiB) es el único de los cuatro
+      modelos que nunca se comparó contra alternativas más livianas.
+- [ ] **Segundo oyente para el conteo de pronunciación.** El primero dio 7 fallos de
+      14, por encima del umbral de 5, y fallan `water` y `book` que eran palabras de
+      control. Falta la segunda persona para cerrarlo formalmente.
+- [ ] **Mandarle a Alejandro** `src/ai/RESPUESTA-a-alejandro-s7-t4.md`: lleva los
+      datos de I-04 y el peso real (411 MiB, no 388, con el lío de unidades explicado).
+- [ ] **Revisar el PR #58 de Fabrizio** con lo que sé y él no: la referencia del TTS
+      no es reproducible entre sesiones, y el sintetizador pronuncia mal hasta
+      palabras comunes. Puede explicar por qué R03 se materializó.
+- [ ] S8-T1 · Medir WER: 50 frases, 4 hablantes
+- [ ] S10-T6 · Preparar respuestas: cuantización, ONNX/WASM, WER, por qué whisper-tiny
