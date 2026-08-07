@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>R03 · ¿Discrimina el comparador con contenido controlado?</title>
+  <style>
+    :root { color-scheme: light dark; }
+    body { font-family: system-ui, sans-serif; max-width: 1000px; margin: 2rem auto; padding: 0 1rem; line-height: 1.5; }
+    h1 { font-size: 1.3rem; } h2 { font-size: 1.05rem; margin-top: 1.6rem; }
+    button { padding: .5rem .9rem; margin: .2rem .3rem .2rem 0; cursor: pointer; border-radius: 6px; border: 1px solid #8888; background: #8881; }
+    button:disabled { opacity: .45; cursor: not-allowed; }
+    table { border-collapse: collapse; width: 100%; margin-top: .6rem; font-size: .85rem; }
+    th, td { border: 1px solid #8886; padding: .45rem .55rem; text-align: left; }
+    #log { white-space: pre-wrap; font-family: ui-monospace, monospace; font-size: .8rem; background: #8881; padding: .7rem; border-radius: 8px; max-height: 300px; overflow: auto; }
+    #markdown { width: 100%; min-height: 200px; font-family: ui-monospace, monospace; font-size: .75rem; }
+    .muted { opacity: .7; font-size: .85rem; }
+    .ok { color: #2e7d32; font-weight: 600; }
+    .bad { color: #c62828; font-weight: 600; }
+    .warn { border-left: 3px solid #ed6c02; padding-left: .7rem; }
+  </style>
+</head>
+<body>
+  <h1>🔬 R03 — ¿Discrimina el comparador cuando el contenido está garantizado?</h1>
+
+  <p class="muted">
+    La calibración con voz real (S9-T3, Fabrizio) midió una separación de <strong>1.05</strong>
+    donde RF-10 exige 20, y dejó una hipótesis sin verificar: que los tramos comparados
+    <em>no contienen el mismo contenido</em>, porque el detector de habla parte los
+    archivos por pausas y cada uno tiene varias tomas.
+  </p>
+  <p class="muted warn">
+    Este experimento quita esa variable del medio. En vez de grabaciones humanas
+    troceadas por el detector, usa audio <strong>sintetizado</strong>: emisiones
+    completas, sin pausas intermedias, con el contenido exacto conocido de antemano.
+    Si el comparador tampoco discrimina así, el problema no es la segmentación.
+  </p>
+
+  <h2>Qué mide</h2>
+  <table>
+    <thead><tr><th>Par</th><th>Qué representa</th><th>Qué debería pasar</th></tr></thead>
+    <tbody>
+      <tr><td>Una toma contra sí misma</td><td>Control de cordura</td><td>Distancia 0</td></tr>
+      <tr><td>Mismo texto, dos síntesis</td><td><strong>El suelo</strong>: cuánto cuesta la variación del propio sintetizador</td><td>Distancia baja</td></tr>
+      <tr><td><code>ship</code> contra <code>sheep</code></td><td><strong>Lo que el comparador tiene que detectar</strong>: un fonema</td><td>Claramente mayor que el suelo</td></tr>
+      <tr><td>Frase completamente distinta</td><td>El techo</td><td>La mayor de todas</td></tr>
+    </tbody>
+  </table>
+
+  <div class="row" style="margin-top:1rem">
+    <button id="btnRun">Ejecutar experimento</button>
+  </div>
+
+  <h2>Resultados</h2>
+  <div id="results"></div>
+
+  <h2>Veredicto</h2>
+  <div id="verdict"></div>
+
+  <h2>Evidencia lista para pegar</h2>
+  <textarea id="markdown" readonly placeholder="Se rellena al terminar."></textarea>
+
+  <h2>Registro</h2>
+  <div id="log"></div>
+
+  <script type="module" src="./spike.ts"></script>
+</body>
+</html>
