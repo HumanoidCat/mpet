@@ -12,7 +12,7 @@ de inferencia, no hay llamadas a APIs externas y el audio nunca sale del disposi
 > micrófono ni descarga de modelos.
 
 **Curso:** Señales y Sistemas · **Clase:** martes 1:00 pm
-**Hitos:** Avance 1 → mar 28 jul · Avance 2 → mar 18 ago · Final → mar 8 sep
+**Hitos:** Avance 1 → mar 28 jul · Avance 2 → mar 11 ago · Final → mar 8 sep
 
 ---
 
@@ -27,9 +27,9 @@ propiedades del producto:
 | **Funciona sin conexión** | Tras la descarga inicial de los modelos, la aplicación opera sin red. Es lo que la vuelve utilizable donde la conectividad es intermitente o costosa. |
 | **Privacidad por arquitectura** | La voz es un dato biométrico. Aquí no se transmite, no se almacena en terceros y no se usa para entrenar modelos ajenos. No depende de una política: depende de cómo está construida. |
 
-El costo asumido es el peso de la descarga inicial (unos 388 MB entre modelos y
-runtime), mitigado con carga bajo demanda del corrector gramatical y caché
-persistente.
+El costo asumido es el peso de la descarga inicial (unos 411 MiB entre modelos y
+runtime), del que solo **303 MiB** se pagan al arrancar: el sintetizador se carga
+la primera vez que hace falta audio. La caché persistente evita repetirlo.
 
 ---
 
@@ -62,7 +62,7 @@ microfono 48 kHz
   -> ventana de Hann + FFT radix-2                        -> visualizador
   -> ASR Whisper-tiny.en                                  -> transcripcion
   -> correccion gramatical T5                             -> ediciones
-  -> sintesis de voz SpeechT5                             -> audio de referencia
+  -> sintesis de voz MMS-TTS (VITS)                       -> audio de referencia
   -> comparacion MFCC por DTW                             -> puntaje por palabra
 ```
 
@@ -84,7 +84,7 @@ verifica contra señales sintéticas de parámetros conocidos.
 | STFT | Espectrograma en tiempo real | Implementado |
 | Detección de periodicidad (YIN) | Frecuencia fundamental para entonación | Implementado |
 | MFCC (banco mel + DCT) | Características robustas a la variabilidad entre hablantes | Implementado |
-| Alineamiento temporal dinámico (DTW) | Comparación contra la pronunciación de referencia | Semana 6 |
+| Alineamiento temporal dinámico (DTW) | Comparación contra la pronunciación de referencia | Implementado |
 
 ---
 
@@ -105,7 +105,8 @@ con `npm test`. El detalle está en [`docs/evidencias/`](docs/evidencias/).
 | Reconocimiento de voz | Factor de tiempo real | 0.28 – 0.31 |
 | Corrección gramatical | Latencia media | 320 ms |
 | Frecuencia fundamental | Peor error en tonos puros (YIN) | 0.115 Hz, con criterio de 3 Hz |
-| MFCC | Invariancia al volumen en un rango de ganancia de 1000x | 3.8 × 10⁻⁶, la precisión de un float32 |
+| MFCC | Invariancia al volumen en un rango de ganancia de 1000x | 1.4 × 10⁻⁶ en los coeficientes c₁…c₁₂ |
+| MFCC | Exactitud frente a librosa 0.11.0 | Error máximo de 0.009 %, con criterio de 5 % |
 
 **Hallazgo documentado:** bajar la cuantización del corrector de 8 a 4 bits resultó
 3.8 veces más lento **y** más pesado en caché. ONNX Runtime sobre WebAssembly no
@@ -133,8 +134,9 @@ su evidencia están en [`docs/10-bitacora-decisiones.md`](docs/10-bitacora-decis
 - La interfaz aún no muestra el puntaje por palabra, aunque el motor ya lo entrega.
 - La respuesta del tutor y las sugerencias están cableadas pero devuelven valores
   neutros: falta el modelo que las genere.
-- Falta verificar el arranque sin conexión y reducir la descarga inicial, hoy de
-  unos 388 MB.
+- Falta verificar el arranque sin conexión. La descarga inicial baja de 411 a
+  **303 MiB** con la carga bajo demanda del sintetizador, que se paga solo cuando
+  se necesita audio.
 
 El estado por requerimiento está en la
 [matriz de trazabilidad](docs/07-matriz-trazabilidad.md), las decisiones y sus
