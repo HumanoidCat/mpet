@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>S7-T4 · Panel de escucha a ciegas</title>
+  <style>
+    :root { color-scheme: light dark; }
+    body { font-family: system-ui, sans-serif; max-width: 900px; margin: 2rem auto; padding: 0 1rem; line-height: 1.5; }
+    h1 { font-size: 1.3rem; } h2 { font-size: 1.05rem; margin-top: 1.6rem; }
+    button { padding: .5rem .9rem; margin: .2rem .3rem .2rem 0; cursor: pointer; border-radius: 6px; border: 1px solid #8888; background: #8881; }
+    button:disabled { opacity: .45; cursor: not-allowed; }
+    input[type=text] { padding: .45rem .5rem; border-radius: 6px; border: 1px solid #8886; background: transparent; color: inherit; font-size: .95rem; }
+    #nombre { width: 16rem; }
+    table { border-collapse: collapse; width: 100%; margin-top: .6rem; font-size: .85rem; }
+    th, td { border: 1px solid #8886; padding: .45rem .55rem; text-align: left; vertical-align: middle; }
+    #log { white-space: pre-wrap; font-family: ui-monospace, monospace; font-size: .8rem; background: #8881; padding: .7rem; border-radius: 8px; max-height: 160px; overflow: auto; }
+    #markdown { width: 100%; min-height: 200px; font-family: ui-monospace, monospace; font-size: .75rem; padding: .6rem; border-radius: 6px; border: 1px solid #8886; background: transparent; color: inherit; }
+    .muted { opacity: .7; font-size: .85rem; }
+    .ok { color: #2e7d32; font-weight: 600; }
+    .bad { color: #c62828; font-weight: 600; }
+    .warn { border-left: 3px solid #ed6c02; padding-left: .7rem; }
+    audio { height: 32px; vertical-align: middle; }
+    progress { width: 100%; height: 14px; }
+  </style>
+</head>
+<body>
+  <h1>👂 S7-T4 — Escucha a ciegas del sintetizador</h1>
+  <p class="muted">
+    La vía automática (TTS → ASR) quedó <strong>no concluyente</strong>: fallaron 2 de 5
+    palabras de control, así que no se puede saber cuánto de los 8 fallos es del
+    sintetizador y cuánto del reconocedor. Esta escucha es la que decide.
+  </p>
+
+  <p class="muted warn">
+    <strong>Por qué a ciegas y por qué escribiendo:</strong> si te enseño la palabra
+    antes de escuchar, la sugestión te la hace oír aunque esté mal pronunciada. Aquí
+    escuchás primero y escribís lo que oíste; la comparación con la palabra objetivo la
+    hace la página después. Tampoco sabés cuáles son palabras trampa y cuáles de
+    control: van mezcladas en orden aleatorio.
+  </p>
+
+  <h2>1) Quién escucha</h2>
+  <div class="row">
+    <input type="text" id="nombre" placeholder="Tu nombre (va en la evidencia)" />
+    <button id="btnPrep">Cargar el modelo y preparar los audios</button>
+    <progress id="bar" value="0" max="1"></progress>
+  </div>
+
+  <h2>2) Escuchá y escribí</h2>
+  <p class="muted">
+    Reproducí cada uno y escribí <strong>solo la palabra que va en el hueco</strong> de
+    <code>Say ___ again, please</code>. Si no entendés nada, dejalo vacío: eso también
+    es un dato. No vuelvas atrás a corregir después de ver los resultados.
+  </p>
+  <div id="items"></div>
+
+  <div class="row">
+    <button id="btnReveal" disabled>Revelar y calcular veredicto</button>
+    <button id="btnWavs" disabled>Descargar los audios (para el segundo oyente)</button>
+  </div>
+
+  <h2>Resultado</h2>
+  <div id="verdict"></div>
+  <div id="results"></div>
+
+  <h2>Evidencia lista para pegar</h2>
+  <textarea id="markdown" readonly placeholder="Se rellena al revelar."></textarea>
+
+  <h2>Registro</h2>
+  <div id="log"></div>
+
+  <script type="module" src="./escucha.ts"></script>
+</body>
+</html>

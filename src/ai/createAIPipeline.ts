@@ -19,6 +19,7 @@
 import type { AIPipeline, Edit, Transcription } from '@shared/contracts';
 import { createAsrClient, type AsrClientOptions } from './asr/asrClient';
 import { createGrammarClient, type GrammarClientOptions } from './grammar/grammarClient';
+import { createLazyLoader } from './lazy';
 import { createTtsClient, type TtsClientOptions } from './tts/ttsClient';
 
 export interface AIPipelineOptions {
@@ -32,6 +33,15 @@ export function createAIPipeline(options: AIPipelineOptions = {}): AIPipeline {
   const grammar = createGrammarClient(options.grammar);
   const tts = createTtsClient(options.tts);
 
+  // Se guarda el callback de progreso que llega en `init()` porque el sintetizador se
+  // carga más tarde, cuando ya nadie nos lo va a volver a pasar: sin esto, esa
+  // descarga de 109 MB ocurriría sin que la interfaz pudiera avisar de nada.
+  let reportProgress: ((model: string, progress: number) => void) | undefined;
+
+  const ttsLoader = createLazyLoader(() =>
+    tts.init((model, progress) => reportProgress?.(model, progress))
+  );
+
   return {
     async init(onProgress) {
       // Carga SECUENCIAL, no en paralelo, a propósito: cada modelo ocupa cientos de
@@ -42,16 +52,16 @@ export function createAIPipeline(options: AIPipelineOptions = {}): AIPipeline {
       // El orquestador reenvía cada reporte como evento `model-progress`, y como el
       // callback incluye el nombre del modelo, la UI puede mostrar cuál va cargando.
       //
-      // El TTS va al final porque es el que se necesita más tarde en el turno: el
-      // estudiante primero habla y solo después escucha la referencia. Se carga aquí
-      // y no bajo demanda para que toda la espera ocurra en la pantalla de carga,
-      // que ya existe, en vez de dejar un silencio de varios segundos la primera vez
-      // que se pulsa el botón de escuchar. Revisar en S7-T4, que es la tarea de
-      // reducir el peso de la descarga inicial: son 109 MB más.
-      const report = (model: string, progress: number) => onProgress?.(model, progress);
+      // EL TTS YA NO SE CARGA AQUÍ (S7-T4). Un turno empieza con el estudiante
+      // hablando, así que el reconocedor y el corrector sí hacen falta desde el
+      // principio; el sintetizador solo cuando se pulsa "escuchar", y hay usuarios
+      // que no lo pulsan nunca. Sacarlo de aquí baja la primera descarga de ~411 a
+      // ~303 MiB. El precio es una espera la primera vez que se pide audio, y por eso
+      // el progreso de esa carga se sigue reportando por este mismo callback.
+      reportProgress = onProgress;
+      const report = (model: string, progress: number) => reportProgress?.(model, progress);
       await asr.init(report);
       await grammar.init(report);
-      await tts.init(report);
     },
 
     transcribe(pcm: Float32Array): Promise<Transcription> {
@@ -70,7 +80,11 @@ export function createAIPipeline(options: AIPipelineOptions = {}): AIPipeline {
      * alinearlos contra la voz del estudiante. Por eso el contrato devuelve las
      * muestras y no reproduce por su cuenta.
      */
-    speak(text: string): Promise<Float32Array> {
+    async speak(text: string): Promise<Float32Array> {
+      // Carga perezosa: la primera llamada descarga el modelo, las siguientes no
+      // pagan nada. Si dos frases se piden a la vez antes de terminar la carga, las
+      // dos esperan a la MISMA descarga (ver `lazy.ts`).
+      await ttsLoader.ensure();
       return tts.speak(text);
     },
 
