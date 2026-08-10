@@ -356,7 +356,7 @@ export function App() {
             />
           )}
           {screen === 'visualizer' && <VisualizerScreen audio={audio} />}
-          {screen === 'pronunciation' && <PronunciationScreen />}
+          {screen === 'pronunciation' && <PronunciationScreen messages={messages} onPlay={onPlay} />}
           {screen === 'grammar' && <GrammarScreen messages={messages} />}
           {screen === 'suggestions' && <SuggestionsScreen />}
           {screen === 'summary' && <SummaryScreen />}

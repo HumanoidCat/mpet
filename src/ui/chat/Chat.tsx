@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { Mic, Square, Clock, AlertCircle, Play, Gauge, ChevronDown } from 'lucide-react';
 import type { AudioEngine, ChatMessage } from '@shared/contracts';
 import type { OrchestratorState } from '@core/orchestrator';
-import { buildSegments } from './highlight';
+import { buildSegments, buildPronunciationSegments } from './highlight';
+import { scoreColor } from '@ui/feedback/pronunciationColor';
 import { Waveform } from '@ui/visualizer/Waveform';
 
 /**
@@ -57,6 +58,13 @@ export function Chat({ messages, state, onMicClick, audio, onPlay }: Props) {
         {messages.map((m) => {
           const isUser = m.role === 'user';
           const hasCorrection = isUser && !!m.correction && m.correction.edits.length > 0;
+          // El puntaje colorea palabra por palabra, pero solo cuando no hay
+          // correccion de gramatica que mostrar: los segmentos de correccion
+          // pueden reemplazar palabras (largo distinto al original), y mezclar
+          // los dos esquemas de color en la misma burbuja confundiria mas de lo
+          // que informa.
+          const hasPronunciation =
+            isUser && !hasCorrection && !!m.pronunciation && m.pronunciation.words.length > 0;
           const explanationOpen = openExplanation === m.id;
 
           return (
@@ -90,8 +98,35 @@ export function Chat({ messages, state, onMicClick, audio, onPlay }: Props) {
                           );
                         return <span key={i}>{s.text} </span>;
                       })
-                    : m.text}
+                    : hasPronunciation
+                      ? /* Puntaje de pronunciacion (S6-T3): subrayado por palabra,
+                           verde/amarillo/rojo segun WordScore.score. */
+                        buildPronunciationSegments(m.text, m.pronunciation!.words).map((s, i) => (
+                          <span
+                            key={i}
+                            className="underline decoration-2 underline-offset-2"
+                            style={{
+                              textDecorationColor: s.score != null ? scoreColor(s.score) : 'transparent',
+                            }}
+                          >
+                            {s.text}{' '}
+                          </span>
+                        ))
+                      : m.text}
                 </div>
+
+                {hasPronunciation && (
+                  <div
+                    className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg border"
+                    style={{
+                      color: scoreColor(m.pronunciation!.overall),
+                      background: scoreColor(m.pronunciation!.overall) + '15',
+                      borderColor: scoreColor(m.pronunciation!.overall) + '40',
+                    }}
+                  >
+                    Pronunciation score: {m.pronunciation!.overall}
+                  </div>
+                )}
 
                 {/* Play / Slow: llaman a AIPipeline.speak() real via onPlay. Si no hay
                     onPlay (TTS aun no integrado a la UI), quedan deshabilitados en vez

@@ -25,7 +25,7 @@
 - [x] S5-T4 · Overlay de contorno de pitch sobre espectrograma
 
 ## Semana 6
-- [ ] S6-T3 · Feedback de pronunciación: colores por palabra + panel de detalle
+- [x] S6-T3 · Feedback de pronunciación: colores por palabra + panel de detalle
 
 ## Semana 7 — 🎯 AVANCE 2 (mar 11 ago)
 - [ ] S7-T3 · Pulir UX: estados de carga, errores de micrófono, reintentos
@@ -44,23 +44,24 @@
 
 ---
 
-## Lo que falta — actualizado 4 ago
+## Lo que falta — actualizado 10 ago
 
-Quedan **6 tareas**, y ahora mismo la interfaz es la mayor carencia visible del
-producto: el motor calcula el puntaje y nadie lo ve.
+Quedan **5 tareas**.
 
-- [ ] **S6-T3 · Mostrar el puntaje** (RF-17). Ya está desbloqueada:
-      `ChatMessage.pronunciation` llega con datos reales. Color por palabra en el chat
-      y cablear la pantalla Pronunciation.
-      ⚠️ **No implementes `ipa_expected` ni `ipa_user` del andamio de Figma**: el
-      comparador mide distancia acústica con DTW, no reconoce fonemas, así que ese
-      dato no existe y no lo podemos inventar
+- [x] **S6-T3 · Mostrar el puntaje** (RF-17). Color por palabra en el chat
+      (`Chat.tsx`, solo cuando no hay corrección de gramática que mostrar) y la
+      pantalla Pronunciation cableada a `ChatMessage.pronunciation` real. Umbrales y
+      colores centralizados en `src/ui/feedback/pronunciationColor.ts` para que
+      Chat y Pronunciation no diverjan. No se implementó `ipa_expected`/`ipa_user`
+      del andamio de Figma, según la advertencia de abajo.
 - [ ] **Limpiar las pantallas que muestran datos falsos.** Suggestions, Progress y
       Models se renderizan sin props, con contenido escrito a mano. `Models` lista un
       "Phoneme Analyzer, 124 MB" que no existe. Cablear o retirar de la navegación
 - [ ] S7-T3 · Pulir UX: estados de carga, errores de micrófono, reintentos
 - [ ] S8-T4 · Compatibilidad Chrome/Edge y límites de Firefox/Safari documentados
-- [ ] S9-T1 · Pantalla de progreso con datos reales (necesita el IndexedDB de Alejandro)
+- [ ] S9-T1 · Pantalla de progreso con datos reales — **revisar si ya está
+      desbloqueada**: `src/core/sessionStore.ts` (Alejandro, S5-T6) se mergeó a
+      `dev`; confirmar el estado real antes de asumir que sigue bloqueada
 - [ ] S9-T7 · Grabar el video de respaldo de la demo
 
 ### Cambio en el evento `message`
