@@ -8,6 +8,7 @@ import { createDspAudioEngine } from '@core/audioEngineAdapter';
 import { createPronunciationScorer } from '@audio/comparator/scorer';
 import { createMockScorer } from '@mocks/mockScorer';
 import { createSessionStore, createMemorySessionStore } from '@core/sessionStore';
+import { descargarWav } from '@core/wavExport';
 import { Chat } from '@ui/chat/Chat';
 import { VisualizerScreen } from '@ui/visualizer/VisualizerScreen';
 import SplashScreen, { type ModelStatus } from '@ui/shell/Splash';
@@ -46,6 +47,21 @@ function useMockMode(): boolean {
   return new URLSearchParams(window.location.search).get('mock') === '1';
 }
 
+/**
+ * Modo de captura de tomas para la calibracion del comparador (S9-T3).
+ *
+ * Con `?grabar=1`, cada vez que se detiene el microfono se descarga el PCM del
+ * turno como WAV. Evita el camino manual por Audacity, que exige fijar
+ * frecuencia de proyecto, mono y 16 bits, y garantiza **una sola emision por
+ * archivo**: se pulsa, se dice la frase, se vuelve a pulsar.
+ *
+ * El audio es exactamente el que consume el comparador, ya acondicionado, y el
+ * nombre del archivo lo declara para que nadie lo preprocese dos veces (D-09).
+ */
+function useModoGrabacion(): boolean {
+  return new URLSearchParams(window.location.search).get('grabar') === '1';
+}
+
 export type Screen =
   | 'splash'
   | 'chat'
@@ -58,6 +74,7 @@ export type Screen =
 
 export function App() {
   const mockMode = useMockMode();
+  const modoGrabacion = useModoGrabacion();
 
   const { bus, orch, audio, ai, store, sessionId } = useMemo(() => {
     const bus = createEventBus();
@@ -95,6 +112,28 @@ export function App() {
       );
     return off;
   }, [bus, orch]);
+
+  /**
+   * Progreso de las descargas que ocurren DESPUES del arranque (S7-T4).
+   *
+   * Desde que el sintetizador se carga bajo demanda, sus 109 MiB bajan cuando ya
+   * no existe la pantalla de carga. Y bajan siempre: el orquestador llama a
+   * `speak()` en cada turno para sintetizar la referencia del puntaje, aunque el
+   * estudiante no pulse "escuchar" nunca. Sin este aviso, el usuario habla y la
+   * aplicacion se queda callada varios minutos sin explicar por que.
+   */
+  const [cargaEnCurso, setCargaEnCurso] = useState<{
+    model: string;
+    progress: number;
+  } | null>(null);
+
+  useEffect(() => {
+    return bus.on('model-progress', (e) => {
+      // Mientras la pantalla de carga esta visible ya muestra el progreso ella.
+      if (!modelsReady) return;
+      setCargaEnCurso(e.progress >= 1 ? null : { model: e.model, progress: e.progress });
+    });
+  }, [bus, modelsReady]);
 
   const modelList: ModelStatus[] = Object.entries(models).map(([name, progress]) => ({
     name,
@@ -146,6 +185,18 @@ export function App() {
       .save(sessionId, messages)
       .catch((err: unknown) => console.error('[sesion] no se pudo guardar', err));
   }, [messages, store, sessionId]);
+
+  // ── Captura de tomas para la calibracion (S9-T3) ────────────────
+  useEffect(() => {
+    if (!modoGrabacion) return;
+    let n = 0;
+    return bus.on('recording-stopped', (e) => {
+      if (e.pcm.length === 0) return;
+      n++;
+      const marca = new Date().toISOString().slice(11, 19).replace(/:/g, '');
+      descargarWav(e.pcm, SAMPLE_RATE, `toma-${marca}-${n}-acond.wav`);
+    });
+  }, [bus, modoGrabacion]);
 
   async function onMicClick() {
     setMicError(null);
@@ -275,6 +326,24 @@ export function App() {
             <p className="text-[var(--color-danger)] text-xs px-4 py-2 bg-[var(--color-danger-light)]">
               {micError ?? playError}
             </p>
+          )}
+
+          {cargaEnCurso && (
+            <div className="px-4 py-2 bg-blue-50 border-b border-blue-100">
+              <div className="flex items-center justify-between text-xs text-blue-700">
+                <span>
+                  Descargando <span className="font-medium">{cargaEnCurso.model}</span>{' '}
+                  — solo la primera vez
+                </span>
+                <span className="font-mono">{Math.round(cargaEnCurso.progress * 100)}%</span>
+              </div>
+              <div className="mt-1 h-1 bg-blue-100 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-blue-500 rounded-full transition-[width] duration-200"
+                  style={{ width: `${Math.round(cargaEnCurso.progress * 100)}%` }}
+                />
+              </div>
+            </div>
           )}
 
           {screen === 'chat' && (

@@ -39,6 +39,17 @@
     <button id="btnDispose" disabled>4) dispose()</button>
   </div>
 
+  <h2>Carga bajo demanda (S7-T4)</h2>
+  <p class="muted">
+    Crea un <code>AIPipeline</code> completo y llama a <code>speak()</code>
+    <strong>sin llamar antes a <code>init()</code></strong>. Si la carga perezosa está
+    bien puesta funciona igual, y descarga <em>solo</em> el sintetizador: el
+    reconocedor y el corrector no deberían cargarse.
+  </p>
+  <div class="row">
+    <button id="btnLazy">Probar speak() sin init()</button>
+  </div>
+
   <div id="log"></div>
 
   <script type="module" src="./verificacion-worker.ts"></script>

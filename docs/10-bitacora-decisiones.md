@@ -199,10 +199,22 @@ previo obligatorio a toda solicitud de integración.
 
 ## Riesgo abierto · Volumen de la descarga inicial
 
-El conjunto necesario para operar sin conexión ascendía a unos 300 MB (41 MB del
-reconocedor, 238 MB del corrector, 21.6 MB del runtime). **Con la incorporación
-del sintetizador de voz en la Semana 5 la cifra sube a unos 388 MB**, pendiente
-de confirmar el desglose exacto medido.
+**Cifra cerrada el 7 de agosto, con el desglose medido por Isaac.** Circulaban
+tres números distintos, y media confusión venía de las unidades: los «21.6 MB»
+del runtime y los «20.6 MiB» eran el mismo archivo contado de dos formas.
+**Convención adoptada para todo el proyecto: MiB.**
+
+| Pieza | Bytes | MiB |
+|---|---:|---:|
+| ASR `whisper-tiny.en` q8 | 42 985 755 | 41.0 |
+| Gramática `t5-base-grammar-correction` q8 | 252 557 916 | 240.9 |
+| TTS `mms-tts-eng` fp32 | 114 263 006 | 109.0 |
+| Runtime ONNX/WASM | ≈21 600 000 | 20.6 |
+| **Total** | | **≈411** |
+
+El desglose del reconocedor y del sintetizador está verificado leyendo la caché
+del navegador tras una descarga real. El del corrector está calculado con el
+mismo método, que acertó en los otros dos, pero no verificado empíricamente.
 
 Se descartó la reducción de cuantización como solución (D-05). Medidas adoptadas:
 carga bajo demanda del corrector, de modo que la primera interacción dependa
@@ -328,11 +340,28 @@ monótona por diseño, se quedaba en el 100 % durante toda la descarga real. Con
 MMS-TTS eran 109 MB de espera con la barra llena. Afectaba a los tres modelos, no
 solo al TTS.
 
-**Acción.** Los archivos que llegan completos en un solo evento dejan de contar
-para el agregado, en `src/ai/model-cache/progress.ts`.
+**Acción.** En `createProgressAggregator.handle`
+(`src/ai/model-cache/progress.ts`), un archivo cuyo **primer** evento ya viene
+completo se descarta y no se registra, de modo que su cierre posterior tampoco
+cuenta:
 
-**Resultado.** De **1 reporte de progreso a 1690 graduales**, verificado con
-descarga real.
+```ts
+const known = files.get(event.file);
+if (!known && event.loaded >= event.total) return;
+```
+
+La regla no depende de ningún tamaño umbral, solo de cómo llega el archivo: uno
+que se descarga de verdad llega troceado, así que su primer evento siempre trae
+`loaded < total`.
+
+**Resultado**, medido con `Xenova/mms-tts-eng` fp32, caché fría, a través del
+worker y el cliente reales:
+
+- Antes: 1928 eventos recibidos → **1 reporte emitido**.
+- Después: **1690 reportes graduales**.
+
+El número de eventos varía entre corridas porque el troceado de la descarga
+varía; el «1 reporte» no.
 
 **Aprendizaje.** Un indicador de progreso no se puede validar con datos
 simulados: el patrón de llegada de los eventos es el problema, no el cálculo.
@@ -412,3 +441,96 @@ comentario, y hace falta una prueba que lo obligue.
 Las tres pruebas que la suite omitía correspondían al fixture de librosa de
 RF-09. Se generaron y se ejecutaron en la Semana 6, y destaparon I-05. **La suite
 ya no omite ninguna prueba.**
+
+---
+
+## D-11 · Carga bajo demanda del sintetizador (Semana 7)
+
+**Contexto.** S7-T4 buscaba reducir la descarga inicial de unos 411 MiB. La
+cuantización quedó descartada por medición (D-05), así que la vía abierta era
+diferir modelos.
+
+**Decisión.** El sintetizador deja de cargarse en `init()` y se carga la primera
+vez que se pide audio. La primera descarga baja de **411.5 a 302.6 MiB, un 26 %**,
+sin tocar ningún modelo ni ninguna cuantización.
+
+**Justificación.** Un turno empieza con el estudiante hablando: el reconocedor y
+el corrector hacen falta desde el primer instante, el sintetizador no.
+
+**Lo que la implementación resuelve y no se ve leyendo el código.** «Cargar la
+primera vez que se use» tiene tres trampas, y `src/ai/lazy.ts` las cubre con
+pruebas: dos llamadas simultáneas descargarían el modelo dos veces si no
+comparten la misma promesa; una promesa rechazada guardada dejaría la función
+inutilizable durante toda la sesión tras un corte de red momentáneo; y el
+callback de progreso solo llega en `init()`, así que hay que conservarlo o la
+descarga tardía ocurre sin que la interfaz pueda avisar.
+
+**Verificado en ejecución**, no compilando: `speak()` sin `init()` previo devolvió
+27 904 muestras de audio correcto.
+
+**Corrección posterior, del lado del núcleo.** La justificación original decía que
+hay usuarios que nunca pulsan «escuchar». Dejó de ser cierto al conectar el
+comparador: el orquestador llama a `speak()` en cada turno para sintetizar la
+referencia del puntaje. Los 109 MiB se descargan igual en el primer turno, y el
+progreso se reportaba a una pantalla de carga que ya no existe. Se añadió en
+`App.tsx` un indicador de descarga visible fuera del arranque.
+
+La decisión sigue siendo correcta: la espera inicial baja de verdad y la descarga
+se solapa con el estudiante hablando, en vez de bloquear el arranque. Pero el
+beneficio es ese y no el que se enunció.
+
+---
+
+## D-12 · Kokoro aprobado y diferido a la entrega final (Semana 7)
+
+**Contexto.** El umbral se cerró antes de medir: *«1 o 2 fallos, se queda MMS-TTS;
+3 o 4, se curan las frases de práctica; 5 o más, se abre el `shared-change`, y
+siempre junto con la carga bajo demanda del TTS»*.
+
+**Medición.** **7 fallos de 14**, cruzando la vía automática y la escucha a
+ciegas. La carga bajo demanda está entregada (D-11).
+
+**El dato que decidió no está en las 14.** Fallan también `water` y `book`, que
+eran palabras de **control** —triviales, sin trampas de escritura, incluidas para
+detectar si los fallos venían del reconocedor— y fallan en las dos vías. Eso
+desarma la mitigación barata: se puede curar un conjunto de frases que evite
+*vegetables*, no se puede enseñar inglés con un tutor que no sabe decir *water*.
+
+**Decisión.** El umbral se disparó y se honra: **Kokoro queda aprobado**. Pero se
+programa **después del Avance 2**, para la entrega final del 8 de septiembre.
+
+**Justificación de la fecha, que es distinta de la justificación de la decisión.**
+La entrega se adelantó del 18 al 11 de agosto. Incorporar 216 MiB y una
+dependencia nueva a seis días de una entrega es imprudente; hacerlo con un mes es
+razonable. Se deja escrita la distinción para que quede claro que no se movió el
+criterio al ver el resultado, que es exactamente lo que cerrarlo de antemano
+pretendía evitar.
+
+**Condición previa a fijarlo.** Kokoro no está medido, está leído: hay ficha del
+modelo, no mediciones propias. Antes de incorporarlo hay que pasarle **el mismo
+banco de 14 palabras trampa y 5 de control** y comparar los conteos. Si no mejora,
+no se adopta. Lo que se aprueba es evaluar el modelo, no el modelo.
+
+**Pendiente para cerrar formalmente el conteo.** Falta el segundo oyente que exige
+el protocolo; el 7 es de una sola persona.
+
+---
+
+## I-07 · El sintetizador no sabe decir cifras (Semana 7)
+
+**Detección.** Isaac, durante el conteo de pronunciación de S7-T4.
+
+**Síntoma.** Con `$25` el reconocedor no oyó un número equivocado: no oyó **nada**
+donde iba la cifra, en las tres repeticiones («sake is», «sait as», «say this»).
+
+**Causa.** MMS-TTS trabaja carácter a carácter y nunca aprendió a convertir
+dígitos en palabras.
+
+**Por qué importa más de lo que parece.** Precios, horas y fechas son contenido
+básico de una clase de inglés conversacional. Un tutor que enmudece ante un número
+falla en el uso más corriente del idioma.
+
+**Acción.** Normalizar los números a letras antes de sintetizar («$25» → «twenty
+five dollars»). Cabe entero en `src/ai/`, no depende de Kokoro y **se prioriza por
+delante de él**: es una tarde de trabajo con efecto visible, frente a 216 MiB con
+efecto por medir.
