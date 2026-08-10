@@ -358,9 +358,9 @@ export function App() {
           {screen === 'visualizer' && <VisualizerScreen audio={audio} />}
           {screen === 'pronunciation' && <PronunciationScreen messages={messages} onPlay={onPlay} />}
           {screen === 'grammar' && <GrammarScreen messages={messages} />}
-          {screen === 'suggestions' && <SuggestionsScreen />}
-          {screen === 'summary' && <SummaryScreen />}
-          {screen === 'models' && <ModelsScreen />}
+          {screen === 'suggestions' && <SuggestionsScreen messages={messages} />}
+          {screen === 'summary' && <SummaryScreen messages={messages} />}
+          {screen === 'models' && <ModelsScreen models={modelList} modelsReady={modelsReady} />}
         </main>
       </div>
 

@@ -46,7 +46,7 @@
 
 ## Lo que falta — actualizado 10 ago
 
-Quedan **5 tareas**.
+Quedan **4 tareas**.
 
 - [x] **S6-T3 · Mostrar el puntaje** (RF-17). Color por palabra en el chat
       (`Chat.tsx`, solo cuando no hay corrección de gramática que mostrar) y la
@@ -54,14 +54,20 @@ Quedan **5 tareas**.
       colores centralizados en `src/ui/feedback/pronunciationColor.ts` para que
       Chat y Pronunciation no diverjan. No se implementó `ipa_expected`/`ipa_user`
       del andamio de Figma, según la advertencia de abajo.
-- [ ] **Limpiar las pantallas que muestran datos falsos.** Suggestions, Progress y
-      Models se renderizan sin props, con contenido escrito a mano. `Models` lista un
-      "Phoneme Analyzer, 124 MB" que no existe. Cablear o retirar de la navegación
+- [x] **Limpiar las pantallas que muestran datos falsos.** `Suggestions.tsx` ahora
+      lee `ChatMessage.suggestions` real (vacío hasta que Isaac implemente S6-T4,
+      que hoy siempre devuelve `[]`). `Models.tsx` lee el progreso real de
+      `AIPipeline.init()` (mismo estado que `Splash.tsx`) en vez del catálogo con
+      "Phoneme Analyzer, 124 MB" que no existe. `Progress.tsx` (pantalla Summary)
+      muestra el resumen real de la sesión en curso con `resumirSesion()` de
+      Alejandro; el historial entre sesiones sigue pendiente de S9-T1 y queda
+      declarado como tal en la propia pantalla, no simulado.
 - [ ] S7-T3 · Pulir UX: estados de carga, errores de micrófono, reintentos
 - [ ] S8-T4 · Compatibilidad Chrome/Edge y límites de Firefox/Safari documentados
-- [ ] S9-T1 · Pantalla de progreso con datos reales — **revisar si ya está
-      desbloqueada**: `src/core/sessionStore.ts` (Alejandro, S5-T6) se mergeó a
-      `dev`; confirmar el estado real antes de asumir que sigue bloqueada
+- [ ] S9-T1 · Pantalla de progreso con datos reales entre sesiones — ya
+      desbloqueada (`src/core/sessionStore.ts`, Alejandro, S5-T6, en `dev`). Falta
+      exponer `SessionStore.list()`/`get()` desde `App.tsx` a `Progress.tsx`; la
+      sesión actual ya se muestra con datos reales
 - [ ] S9-T7 · Grabar el video de respaldo de la demo
 
 ### Cambio en el evento `message`
