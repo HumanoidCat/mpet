@@ -23,12 +23,12 @@ interface FooterProps {
 
 const MOBILE_NAV: { id: Screen; icon: React.ElementType; label: string }[] = [
   { id: 'chat', icon: MessageSquare, label: 'Chat' },
-  { id: 'visualizer', icon: Activity, label: 'Visualizer' },
+  { id: 'visualizer', icon: Activity, label: 'Visual.' },
   { id: 'pronunciation', icon: Mic2, label: 'Pronun.' },
-  { id: 'grammar', icon: BookOpen, label: 'Grammar' },
-  { id: 'suggestions', icon: Lightbulb, label: 'Tips' },
-  { id: 'summary', icon: BarChart3, label: 'Summary' },
-  { id: 'models', icon: HardDrive, label: 'Models' },
+  { id: 'grammar', icon: BookOpen, label: 'Gramática' },
+  { id: 'suggestions', icon: Lightbulb, label: 'Consejos' },
+  { id: 'summary', icon: BarChart3, label: 'Resumen' },
+  { id: 'models', icon: HardDrive, label: 'Modelos' },
 ]
 
 export default function Footer({ currentScreen, onNavigate, modelsReady = false }: FooterProps) {
@@ -69,22 +69,22 @@ export default function Footer({ currentScreen, onNavigate, modelsReady = false 
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-1.5">
             <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
-            <span className="text-xs text-slate-500">Browser OK</span>
+            <span className="text-xs text-slate-500">Navegador compatible</span>
           </div>
           <div className="flex items-center gap-1.5">
             <WifiOff className="w-3 h-3 text-green-600" />
-            <span className="text-xs text-green-700 font-medium">Offline Mode</span>
+            <span className="text-xs text-green-700 font-medium">Sin conexión</span>
           </div>
           <div className="flex items-center gap-1.5">
             {modelsReady ? (
               <>
                 <Zap className="w-3 h-3 text-blue-500" />
-                <span className="text-xs text-slate-500">AI Engine: Ready</span>
+                <span className="text-xs text-slate-500">IA lista</span>
               </>
             ) : (
               <>
                 <Loader2 className="w-3 h-3 text-amber-500 animate-spin" />
-                <span className="text-xs text-amber-600">AI Engine: Loading</span>
+                <span className="text-xs text-amber-600">Cargando IA...</span>
               </>
             )}
           </div>

@@ -30,7 +30,7 @@ export default function SuggestionsScreen({ messages = [] }: Props) {
     <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-50">
       <div className="max-w-3xl mx-auto flex flex-col gap-4 sm:gap-5">
         <div>
-          <h2 className="font-[var(--font-display)] font-bold text-base sm:text-lg text-slate-900">AI Suggestions</h2>
+          <h2 className="font-[var(--font-display)] font-bold text-base sm:text-lg text-slate-900">Sugerencias</h2>
           <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
             {total} {total === 1 ? 'sugerencia' : 'sugerencias'} en esta sesión
           </p>

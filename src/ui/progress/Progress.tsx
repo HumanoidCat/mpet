@@ -68,7 +68,7 @@ export default function SummaryScreen({ messages = [], history = [], sessionId }
       <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-50">
         <div className="max-w-4xl mx-auto flex flex-col gap-4 sm:gap-5">
           <div>
-            <h2 className="font-[var(--font-display)] font-bold text-base sm:text-lg text-slate-900">Session Summary</h2>
+            <h2 className="font-[var(--font-display)] font-bold text-base sm:text-lg text-slate-900">Resumen de tu sesión</h2>
             <p className="text-xs sm:text-sm text-slate-500 mt-0.5">Resumen de tu sesión actual</p>
           </div>
           <div className="bg-white rounded-2xl border border-dashed border-slate-200 p-8 text-center">
@@ -104,23 +104,23 @@ export default function SummaryScreen({ messages = [], history = [], sessionId }
     <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-50">
       <div className="max-w-4xl mx-auto flex flex-col gap-4 sm:gap-5">
         <div>
-          <h2 className="font-[var(--font-display)] font-bold text-base sm:text-lg text-slate-900">Session Summary</h2>
+          <h2 className="font-[var(--font-display)] font-bold text-base sm:text-lg text-slate-900">Resumen de tu sesión</h2>
           <p className="text-xs sm:text-sm text-slate-500 mt-0.5">Resumen de la sesión en curso</p>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
-          <MetricCard icon={Clock} label="Duration" value={`${durationMin.toFixed(1)} min`} color="#2563EB" />
-          <MetricCard icon={Mic} label="Words Spoken" value={String(resumen.words)} color="#7C3AED" />
-          <MetricCard icon={MessageSquareText} label="Turns" value={String(resumen.userTurns)} color="#0891B2" />
-          <MetricCard icon={TrendingUp} label="Clean Sentences" value={`${cleanPct}%`} color="#EA580C" />
-          <MetricCard icon={Volume2} label="Pronunciation Avg" value={pronunciationLabel} color="#16A34A" trend={delta} />
-          <MetricCard icon={Volume2} label="Best / Worst" value={bestWorstLabel} color="#16A34A" />
+          <MetricCard icon={Clock} label="Duración" value={`${durationMin.toFixed(1)} min`} color="#2563EB" />
+          <MetricCard icon={Mic} label="Palabras dichas" value={String(resumen.words)} color="#7C3AED" />
+          <MetricCard icon={MessageSquareText} label="Turnos" value={String(resumen.userTurns)} color="#0891B2" />
+          <MetricCard icon={TrendingUp} label="Frases sin errores" value={`${cleanPct}%`} color="#EA580C" />
+          <MetricCard icon={Volume2} label="Pronunciación promedio" value={pronunciationLabel} color="#16A34A" trend={delta} />
+          <MetricCard icon={Volume2} label="Mejor / peor" value={bestWorstLabel} color="#16A34A" />
         </div>
 
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 sm:p-5">
           <div className="flex items-center gap-2 mb-4">
             <History className="w-4 h-4 text-slate-500" />
-            <h3 className="font-[var(--font-display)] font-bold text-sm text-slate-700">Previous Sessions</h3>
+            <h3 className="font-[var(--font-display)] font-bold text-sm text-slate-700">Sesiones anteriores</h3>
             <span className="ml-1 bg-slate-200 text-slate-600 text-xs font-semibold px-2 py-0.5 rounded-full">
               {previas.length}
             </span>

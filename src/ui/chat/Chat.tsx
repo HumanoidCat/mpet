@@ -4,6 +4,7 @@ import type { AudioEngine, ChatMessage } from '@shared/contracts';
 import type { OrchestratorState } from '@core/orchestrator';
 import { buildSegments, buildPronunciationSegments } from './highlight';
 import { scoreColor } from '@ui/feedback/pronunciationColor';
+import { TYPE_LABEL } from '@ui/feedback/editTypeLabel';
 import { Waveform } from '@ui/visualizer/Waveform';
 
 /**
@@ -124,7 +125,7 @@ export function Chat({ messages, state, onMicClick, audio, onPlay }: Props) {
                       borderColor: scoreColor(m.pronunciation!.overall) + '40',
                     }}
                   >
-                    Pronunciation score: {Math.round(m.pronunciation!.overall)}
+                    Puntaje de pronunciación: {Math.round(m.pronunciation!.overall)}
                   </div>
                 )}
 
@@ -137,14 +138,14 @@ export function Chat({ messages, state, onMicClick, audio, onPlay }: Props) {
                     disabled={!onPlay}
                     className="flex items-center gap-1 text-xs text-slate-500 hover:text-blue-600 disabled:opacity-40 disabled:hover:text-slate-500"
                   >
-                    <Play className="w-3 h-3" /> Play
+                    <Play className="w-3 h-3" /> Escuchar
                   </button>
                   <button
                     onClick={() => onPlay?.(m.text, true)}
                     disabled={!onPlay}
                     className="flex items-center gap-1 text-xs text-slate-500 hover:text-blue-600 disabled:opacity-40 disabled:hover:text-slate-500"
                   >
-                    <Gauge className="w-3 h-3" /> Slow
+                    <Gauge className="w-3 h-3" /> Despacio
                   </button>
 
                   {hasCorrection && (
@@ -152,7 +153,7 @@ export function Chat({ messages, state, onMicClick, audio, onPlay }: Props) {
                       onClick={() => setOpenExplanation(explanationOpen ? null : m.id)}
                       className="flex items-center gap-1 text-xs text-blue-600 font-medium"
                     >
-                      Explanation
+                      Ver explicación
                       <ChevronDown className={`w-3 h-3 transition-transform ${explanationOpen ? 'rotate-180' : ''}`} />
                     </button>
                   )}
@@ -174,7 +175,7 @@ export function Chat({ messages, state, onMicClick, audio, onPlay }: Props) {
                         <span className="line-through text-red-500">{e.original}</span>
                         {' → '}
                         <span className="font-medium text-emerald-600">{e.corrected}</span>
-                        <span className="text-slate-400"> ({e.type})</span>
+                        <span className="text-slate-400"> ({TYPE_LABEL[e.type]})</span>
                       </p>
                     ))}
                   </div>

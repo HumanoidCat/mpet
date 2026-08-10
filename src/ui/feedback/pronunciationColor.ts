@@ -21,9 +21,21 @@ export const TIER_COLOR: Record<ScoreTier, string> = {
 };
 
 export const TIER_LABEL: Record<ScoreTier, string> = {
-  good: 'Good',
-  ok: 'Needs Work',
-  bad: 'Keep Practicing',
+  good: '¡Muy bien!',
+  ok: 'Vas bien',
+  bad: 'Sigue practicando',
+};
+
+/**
+ * Una linea de animo por nivel, para no dejar un puntaje bajo solo con una
+ * etiqueta roja: es una app de aprendizaje, y un estudiante que recien
+ * empieza necesita saber que un puntaje bajo es parte de practicar, no un
+ * fracaso.
+ */
+export const TIER_ENCOURAGEMENT: Record<ScoreTier, string> = {
+  good: 'Tu pronunciación de esta frase es muy clara.',
+  ok: 'Vas por buen camino. Repetí la frase una vez más para afinar los detalles.',
+  bad: 'Es normal al principio. Escuchá la frase de referencia y repetila las veces que necesites.',
 };
 
 export function scoreColor(score: number): string {

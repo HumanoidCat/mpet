@@ -31,12 +31,12 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { id: 'chat', icon: MessageSquare, label: 'Chat' },
-  { id: 'visualizer', icon: Activity, label: 'Visualizer' },
-  { id: 'pronunciation', icon: Mic2, label: 'Pronunciation' },
-  { id: 'grammar', icon: BookOpen, label: 'Grammar' },
-  { id: 'suggestions', icon: Lightbulb, label: 'Suggestions' },
-  { id: 'summary', icon: BarChart3, label: 'Summary' },
-  { id: 'models', icon: HardDrive, label: 'Offline Models' },
+  { id: 'visualizer', icon: Activity, label: 'Visualizador' },
+  { id: 'pronunciation', icon: Mic2, label: 'Pronunciación' },
+  { id: 'grammar', icon: BookOpen, label: 'Gramática' },
+  { id: 'suggestions', icon: Lightbulb, label: 'Sugerencias' },
+  { id: 'summary', icon: BarChart3, label: 'Resumen' },
+  { id: 'models', icon: HardDrive, label: 'Modelos sin conexión' },
 ]
 
 function formatFecha(ts: number): string {
@@ -66,14 +66,14 @@ export default function Sidebar({ active, onNavigate, suggestionsCount = 0, rece
           className="w-full flex items-center justify-center gap-2 py-2.5 px-3 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-xl text-sm font-semibold transition-colors"
         >
           <Plus className="w-4 h-4" />
-          New Conversation
+          Nueva conversación
         </button>
       </div>
 
       {/* Nav items */}
       <nav className="flex-1 px-3 py-1 overflow-y-auto">
         <p className="text-xs font-semibold text-slate-400 px-2 py-2 uppercase tracking-wider">
-          Screens
+          Pantallas
         </p>
         {NAV_ITEMS.map(({ id, icon: Icon, label }) => {
           const isActive = active === id
@@ -107,7 +107,7 @@ export default function Sidebar({ active, onNavigate, suggestionsCount = 0, rece
         {/* Recent sessions: SessionStore.list() real, ya no la lista de ejemplo
             ("Job Interview Practice"...) del prototipo de Figma Make. */}
         <p className="text-xs font-semibold text-slate-400 px-2 py-2 mt-3 uppercase tracking-wider">
-          Recent Sessions
+          Sesiones recientes
         </p>
         {recentSessions.length === 0 ? (
           <p className="px-3 py-2 text-xs text-slate-400">Todavía no hay sesiones guardadas</p>
@@ -132,7 +132,7 @@ export default function Sidebar({ active, onNavigate, suggestionsCount = 0, rece
       <div className="px-3 py-3 border-t border-slate-100 flex-shrink-0">
         <button className="sidebar-item w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900 active:bg-slate-100 transition-colors">
           <Settings className="w-4 h-4 text-slate-400" />
-          Settings
+          Configuración
         </button>
       </div>
     </aside>
