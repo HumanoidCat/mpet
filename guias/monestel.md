@@ -29,7 +29,7 @@
 
 ## Semana 7 — 🎯 AVANCE 2 (mar 11 ago)
 - [x] S7-T3 · Pulir UX: estados de carga, errores de micrófono, reintentos
-- [ ] Mi sección del documento Avance 2 + deck S7-T6
+- [x] Mi sección del documento Avance 2 + deck S7-T6
 
 ## Semana 8
 - [x] S8-T4 · Pruebas de UI y compatibilidad (Chrome/Edge; documentar límites Firefox/Safari)
@@ -86,6 +86,53 @@ build` en verde y probado a mano en el navegador (modo `?mock=1`).
       criterio de verificación de RF-23 en la matriz de trazabilidad.
 - [ ] S9-T7 · Grabar el video de respaldo de la demo — **requiere grabación
       manual**, no es una tarea de código; queda para quien la vaya a grabar.
+
+### Verificación manual antes de push (10 ago, tarde)
+
+Con todo lo de arriba ya implementado, se probó la aplicación a mano (modo
+real, no solo `?mock=1`) y aparecieron cosas que ninguna prueba automatizada
+cubría. Todas corregidas y verificadas de nuevo con
+`typecheck && test && build` en verde:
+
+- **Puntaje de pronunciación con decimales ilegibles** (`17.283877803865757`):
+  el comparador real no redondea: se corrige en las 4 pantallas donde se
+  mostraba el número. El valor bajo en sí no es un bug — es el riesgo **R03**
+  ya documentado por Fabrizio (el comparador no discrimina bien todavía con
+  voz real).
+- **Sugerencias reales que nunca aparecían en el chat**: el chip comprobaba
+  `!isUser`, pero el orquestador las adjunta al mensaje del estudiante. Dato
+  vivo desde el principio, condición invertida.
+- **Datos falsos que sobrevivieron a la limpieza de S6-T3** en archivos que no
+  son las pantallas principales: `Sidebar.tsx` tenía un badge de Suggestions
+  fijo en "3" y una lista "Recent Sessions" con nombres inventados;
+  `Footer.tsx` mostraba "Latency: 42ms" y "AI Engine: Ready" sin cablear a
+  nada. Mismo patrón que Suggestions/Progress/Models, en componentes de shell
+  en vez de pantallas.
+- **"Nueva conversación" no vaciaba el chat**: solo navegaba a la pantalla,
+  así que si ya estabas ahí no pasaba nada visible. `sessionId` salió del
+  `useMemo` del orquestador hacia su propio estado para poder generarse de
+  nuevo sin reconstruir motores caros.
+- **Interfaz en inglés técnico mezclado con instrucciones en español**: para
+  una plataforma de aprendizaje de inglés, jerga como "Synthesizing
+  Speech..." en cada turno no ayuda a un estudiante principiante. Se tradujo
+  y simplificó todo el texto de navegación/proceso (Header, Footer, Sidebar,
+  Splash, títulos y etiquetas de las 5 pantallas de feedback), dejando en
+  inglés solo el contenido que es material de aprendizaje real (lo que dice
+  el estudiante, la respuesta del tutor, correcciones y sugerencias). Se
+  agregó una línea de ánimo por nivel de puntaje (`TIER_ENCOURAGEMENT`) para
+  que un puntaje bajo no se sienta como un fracaso.
+
+**Fuera de alcance, señalado y no tocado:** el placeholder
+`"Got it! (respuesta del tutor pendiente — S7-T2)"` en
+`src/ai/createAIPipeline.ts` (Isaac) expone un código de tarea interno al
+usuario final, mismo problema que `sinNotasDeEquipo.test.ts` vigila pero esa
+prueba no cubre `src/ai/`. Queda como chip de tarea aparte, no se editó ese
+archivo por estar fuera de `src/ui/`.
+
+**Precisión del reconocimiento de voz** (a veces transcribe mal lo que se
+dijo): es el modelo Whisper-tiny elegido por Isaac por tamaño/velocidad
+(`docs/evidencias/s1/whisper-tiny-spike.md`), no un bug de UI. Fuera de
+alcance.
 
 ### Cambio en el evento `message`
 
