@@ -44,11 +44,30 @@
 
 ---
 
-## Lo que falta — actualizado 10 ago
+## Estado final — listo para push (10 ago)
 
-Queda **1 tarea real** (S9-T2 es opcional). El resto de la interfaz ya corre
-sobre datos reales, verificado con `npm run typecheck && npm test && npm run
-build` en verde y probado a mano en el navegador (modo `?mock=1`).
+Todo lo marcado `[x]` arriba está implementado, probado y verificado en
+navegador. Antes de cada commit: `npm run typecheck && npm test && npm run
+build` en verde (455 pruebas, 49 del módulo UI). Nada se subió a `origin`
+todavía — el push queda a criterio de quien revise esto.
+
+**Fuera de mi alcance, señalado y no tocado** (regla: solo `src/ui/` y
+`tests/ui/`):
+- `src/ai/createAIPipeline.ts` — placeholder del tutor con código de tarea
+  visible al usuario (`"...S7-T2"`). Chip de tarea creado para Isaac.
+- `src/audio/features/yin.ts` — Pitch Tracking vacío con voz real, detalle
+  abajo. Chip de tarea creado para Fabrizio.
+- La precisión del reconocimiento de voz (Whisper-tiny a veces transcribe
+  mal) es una decisión de modelo ya documentada, no un bug — no requiere
+  chip, solo queda anotado.
+
+**Sin hacer, y no es código:** S9-T7 (video de respaldo, grabación manual) y
+S10-T3 (presentación final, recién en septiembre y con todo el equipo).
+
+## Detalle del cierre — actualizado 10 ago
+
+No queda ninguna tarea real pendiente (S9-T7 es grabación manual, no código).
+Detalle de cada punto cerrado, con qué se cableó y qué se verificó:
 
 - [x] **S6-T3 · Mostrar el puntaje** (RF-17). Color por palabra en el chat
       (`Chat.tsx`, solo cuando no hay corrección de gramática que mostrar) y la
@@ -156,6 +175,20 @@ tocar `sessionStore.ts` (Alejandro, fuera de `src/ui/`):
   navegador: racha en 0/"practicá hoy" antes del primer turno, pasa a 1 tras
   guardar la primera sesión del día; frases dominadas en 0 con un puntaje de
   78 (no llega al umbral), como corresponde.
+
+### Hallazgo fuera de alcance: Pitch Tracking vacío con voz real (10 ago)
+
+Probando el Visualizador con voz real (no `?mock=1`), "Pitch Tracking" quedó
+completamente vacío durante una grabación de 6+ segundos, mientras Waveform y
+Espectrograma sí mostraban señal real. **No es un bug de `PitchTrace.tsx`**:
+el componente hace exactamente lo que debe (hueco cuando `pitchHz` es `null`,
+sin inventar un cero). La causa está en `src/audio/features/yin.ts`
+(`YIN_THRESHOLD = 0.02`), fuera de `src/ui/` — Fabrizio ya documentó ese
+mismo umbral como "demasiado estricto" para voz real en
+`docs/evidencias/s9/s9-t3-calibracion-voz-real.md` (solo 27% de las tramas
+habladas obtienen tono con ese valor), pero el arreglo que aplicó fue solo
+para la detección de voz/silencio, no para el estimador de tono en sí.
+Señalado como tarea aparte, **no se tocó `yin.ts`**.
 
 ### Cambio en el evento `message`
 
