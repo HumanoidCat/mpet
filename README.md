@@ -117,7 +117,7 @@ su evidencia están en [`docs/10-bitacora-decisiones.md`](docs/10-bitacora-decis
 
 ## Estado actual
 
-- **408 pruebas automatizadas** en verde, en 32 archivos, ninguna omitida.
+- **435 pruebas automatizadas** en verde, en 35 archivos. Las 4 omitidas necesitan grabaciones de voz que no se versionan en el repositorio.
 - Cadena de audio completa e integrada: captura, remuestreo, preprocesamiento, detección de actividad de voz, STFT, frecuencia fundamental y MFCC.
 - Reconocimiento de voz, corrección gramatical y síntesis de voz implementados sobre sus contratos.
 - Comparador por alineamiento temporal dinámico y puntaje de pronunciación por palabra, conectados al turno de conversación.

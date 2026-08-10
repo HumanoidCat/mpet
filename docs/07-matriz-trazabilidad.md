@@ -24,7 +24,7 @@ Formato exigido por el curso: ID, Descripción, Prioridad, Fuente, Módulo/Funci
 | RF-18 | Documento técnico por entrega con estructura obligatoria | Alta | Curso | `docs/entregas/` | Cada hito | Pendiente | Checklist contra estructura del curso | 8/8 secciones completas |
 | RF-19 | Presentación 10–15 min + demo en vivo por entrega | Alta | Curso | Entregables | Cada hito | Pendiente | Ensayo cronometrado | 10–15 min |
 | RF-20 | Matriz de trazabilidad actualizada por entrega | Alta | Curso | Este documento | Cada hito | En curso | Revisión en cada hito y al fusionar cada solicitud de incorporación | 23 requerimientos mapeados |
-| RF-21 | Verificación con métricas: WER, latencia, edge cases | Alta | Curso | `tests/` (F16) | Final | Parcial | **408 pruebas** automatizadas en **32 archivos**, en integración continua. Ya no hay pruebas omitidas: el fixture de librosa de RF-09 se corrió y destapó un defecto real (I-05) | WER formal pendiente (S8-T1) |
+| RF-21 | Verificación con métricas: WER, latencia, edge cases | Alta | Curso | `tests/` (F16) | Final | Parcial | **435 pruebas** automatizadas en **35 archivos**, en integración continua. El fixture de librosa de RF-09 se corrió y destapó un defecto real (I-05). Las 4 omitidas dependen de grabaciones de voz que no se versionan | WER formal pendiente (S8-T1) |
 | RF-22 | Marco teórico con ecuaciones (DFT, MFCC) en KaTeX | Alta | Curso | `docs/marco-teorico.md` | Cada hito | Pendiente | Revisión del profesor | Ecuaciones clave presentes |
 | RF-23 | Extensión: análisis de progreso de pronunciación (nota alta) | Baja | Equipo | `src/ui/progress` + IndexedDB (F15) | Final | Pendiente | Datos de ≥3 sesiones graficados | Gráfica de evolución |
 
