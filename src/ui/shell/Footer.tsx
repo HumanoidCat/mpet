@@ -7,9 +7,9 @@ import {
   BarChart3,
   HardDrive,
   Radio,
-  Clock,
   WifiOff,
   Zap,
+  Loader2,
 } from 'lucide-react'
 // TODO: cuando se conecte a App.tsx real, importar Screen desde ahi.
 type Screen = 'splash' | 'chat' | 'visualizer' | 'pronunciation' | 'grammar' | 'suggestions' | 'summary' | 'models'
@@ -17,6 +17,8 @@ type Screen = 'splash' | 'chat' | 'visualizer' | 'pronunciation' | 'grammar' | '
 interface FooterProps {
   currentScreen?: Screen
   onNavigate?: (screen: Screen) => void
+  /** Progreso real de AIPipeline.init() (App.tsx). Antes decia "Ready" siempre, sin cablear. */
+  modelsReady?: boolean
 }
 
 const MOBILE_NAV: { id: Screen; icon: React.ElementType; label: string }[] = [
@@ -29,7 +31,7 @@ const MOBILE_NAV: { id: Screen; icon: React.ElementType; label: string }[] = [
   { id: 'models', icon: HardDrive, label: 'Models' },
 ]
 
-export default function Footer({ currentScreen, onNavigate }: FooterProps) {
+export default function Footer({ currentScreen, onNavigate, modelsReady = false }: FooterProps) {
   return (
     <>
       {/* Mobile bottom nav bar */}
@@ -63,10 +65,6 @@ export default function Footer({ currentScreen, onNavigate }: FooterProps) {
             <Radio className="w-3 h-3 text-slate-400" />
             <span className="font-mono text-xs text-slate-500">16,000 Hz</span>
           </div>
-          <div className="flex items-center gap-1.5">
-            <Clock className="w-3 h-3 text-slate-400" />
-            <span className="font-mono text-xs text-slate-500">Latency: 42ms</span>
-          </div>
         </div>
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-1.5">
@@ -78,8 +76,17 @@ export default function Footer({ currentScreen, onNavigate }: FooterProps) {
             <span className="text-xs text-green-700 font-medium">Offline Mode</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <Zap className="w-3 h-3 text-blue-500" />
-            <span className="text-xs text-slate-500">AI Engine: Ready</span>
+            {modelsReady ? (
+              <>
+                <Zap className="w-3 h-3 text-blue-500" />
+                <span className="text-xs text-slate-500">AI Engine: Ready</span>
+              </>
+            ) : (
+              <>
+                <Loader2 className="w-3 h-3 text-amber-500 animate-spin" />
+                <span className="text-xs text-amber-600">AI Engine: Loading</span>
+              </>
+            )}
           </div>
         </div>
       </footer>

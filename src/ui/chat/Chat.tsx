@@ -180,7 +180,11 @@ export function Chat({ messages, state, onMicClick, audio, onPlay }: Props) {
                   </div>
                 )}
 
-                {!isUser && Array.isArray(m.suggestions) && m.suggestions.length > 0 && (
+                {/* Las sugerencias las adjunta el orquestador al mensaje del
+                    ESTUDIANTE (userMsg en orchestrator.ts), no al del tutor:
+                    son sobre lo que el estudiante dijo. Antes este chip
+                    comprobaba !isUser y nunca se mostraba con datos reales. */}
+                {isUser && Array.isArray(m.suggestions) && m.suggestions.length > 0 && (
                   <div className="flex items-center gap-1.5 flex-wrap">
                     {m.suggestions.map((s, i) => (
                       <span key={i} className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded-lg">

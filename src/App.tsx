@@ -417,7 +417,7 @@ export function App() {
         </main>
       </div>
 
-      <Footer currentScreen={screen} onNavigate={handleNavigate} />
+      <Footer currentScreen={screen} onNavigate={handleNavigate} modelsReady={modelsReady} />
     </div>
   );
 }
