@@ -28,14 +28,14 @@
 - [x] S6-T3 · Feedback de pronunciación: colores por palabra + panel de detalle
 
 ## Semana 7 — 🎯 AVANCE 2 (mar 11 ago)
-- [ ] S7-T3 · Pulir UX: estados de carga, errores de micrófono, reintentos
+- [x] S7-T3 · Pulir UX: estados de carga, errores de micrófono, reintentos
 - [ ] Mi sección del documento Avance 2 + deck S7-T6
 
 ## Semana 8
-- [ ] S8-T4 · Pruebas de UI y compatibilidad (Chrome/Edge; documentar límites Firefox/Safari)
+- [x] S8-T4 · Pruebas de UI y compatibilidad (Chrome/Edge; documentar límites Firefox/Safari)
 
 ## Semana 9
-- [ ] S9-T1 · Pantalla de progreso: evolución del puntaje por sesión (con Alejandro)
+- [x] S9-T1 · Pantalla de progreso: evolución del puntaje por sesión (con Alejandro)
 - [ ] S9-T2 · (Opcional) Gamificación ligera: racha, frases dominadas
 - [ ] S9-T7 · Grabar video demo de respaldo completo
 
@@ -46,7 +46,9 @@
 
 ## Lo que falta — actualizado 10 ago
 
-Quedan **4 tareas**.
+Queda **1 tarea real** (S9-T2 es opcional). El resto de la interfaz ya corre
+sobre datos reales, verificado con `npm run typecheck && npm test && npm run
+build` en verde y probado a mano en el navegador (modo `?mock=1`).
 
 - [x] **S6-T3 · Mostrar el puntaje** (RF-17). Color por palabra en el chat
       (`Chat.tsx`, solo cuando no hay corrección de gramática que mostrar) y la
@@ -60,15 +62,30 @@ Quedan **4 tareas**.
       `AIPipeline.init()` (mismo estado que `Splash.tsx`) en vez del catálogo con
       "Phoneme Analyzer, 124 MB" que no existe. `Progress.tsx` (pantalla Summary)
       muestra el resumen real de la sesión en curso con `resumirSesion()` de
-      Alejandro; el historial entre sesiones sigue pendiente de S9-T1 y queda
-      declarado como tal en la propia pantalla, no simulado.
-- [ ] S7-T3 · Pulir UX: estados de carga, errores de micrófono, reintentos
-- [ ] S8-T4 · Compatibilidad Chrome/Edge y límites de Firefox/Safari documentados
-- [ ] S9-T1 · Pantalla de progreso con datos reales entre sesiones — ya
-      desbloqueada (`src/core/sessionStore.ts`, Alejandro, S5-T6, en `dev`). Falta
-      exponer `SessionStore.list()`/`get()` desde `App.tsx` a `Progress.tsx`; la
-      sesión actual ya se muestra con datos reales
-- [ ] S9-T7 · Grabar el video de respaldo de la demo
+      Alejandro.
+- [x] **S7-T3 · Pulir UX.** Los estados de carga (idle/grabando/procesando,
+      progreso de modelos) ya existían de S2-T6/S1-T8. Lo que faltaba: errores de
+      micrófono distinguidos por causa real (`micErrorMessage.ts` — permiso
+      denegado / sin dispositivo / en uso por otra app, no un mensaje genérico) y
+      botones de reintentar/cerrar en el banner, tanto para el mic como para la
+      reproducción de audio.
+- [x] **S8-T4 · Compatibilidad.** Chrome verificado en ejecución; Edge se
+      documenta como equivalente (mismo motor Blink). Firefox/Safari no se
+      pudieron abrir en este entorno — auditoría de código contra el soporte
+      documentado de cada motor en
+      `docs/evidencias/s8/s8-t4-compatibilidad-navegadores.md`. Hallazgo más
+      concreto: los tres workers de IA usan `{ type: 'module' }`, que Firefox
+      soportó recién en la versión 114 (jun 2023) — pendiente confirmar en un
+      Firefox real.
+- [x] **S9-T1 · Progreso entre sesiones** (RF-23). `App.tsx` ahora lee
+      `SessionStore.list()` (Alejandro, S5-T6) después de cada guardado y se lo
+      pasa a `Progress.tsx`: lista de sesiones anteriores con fecha, turnos,
+      palabras y puntaje, más la diferencia real contra la sesión previa. Sin
+      gráfica todavía (la lista cubre el mismo dato); probado con estado vacío
+      (primera sesión) — falta confirmar a mano con 3+ sesiones reales para el
+      criterio de verificación de RF-23 en la matriz de trazabilidad.
+- [ ] S9-T7 · Grabar el video de respaldo de la demo — **requiere grabación
+      manual**, no es una tarea de código; queda para quien la vaya a grabar.
 
 ### Cambio en el evento `message`
 

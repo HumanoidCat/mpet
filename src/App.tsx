@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createOrchestrator, type OrchestratorState } from '@core/orchestrator';
 import { createEventBus } from '@core/eventBus';
 import { createMockAudioEngine } from '@mocks/mockAudioEngine';
@@ -7,7 +7,7 @@ import { createAIPipeline } from '@ai/createAIPipeline';
 import { createDspAudioEngine } from '@core/audioEngineAdapter';
 import { createPronunciationScorer } from '@audio/comparator/scorer';
 import { createMockScorer } from '@mocks/mockScorer';
-import { createSessionStore, createMemorySessionStore } from '@core/sessionStore';
+import { createSessionStore, createMemorySessionStore, type SessionSummary } from '@core/sessionStore';
 import { descargarWav } from '@core/wavExport';
 import { Chat } from '@ui/chat/Chat';
 import { VisualizerScreen } from '@ui/visualizer/VisualizerScreen';
@@ -20,6 +20,7 @@ import GrammarScreen from '@ui/feedback/Grammar';
 import SuggestionsScreen from '@ui/chat/Suggestions';
 import SummaryScreen from '@ui/progress/Progress';
 import ModelsScreen from '@ui/shell/Models';
+import { micErrorMessage } from '@ui/shell/micErrorMessage';
 import { SAMPLE_RATE } from '@shared/constants';
 import type { AIPipeline, ChatMessage } from '@shared/contracts';
 
@@ -150,6 +151,9 @@ export function App() {
   const [micError, setMicError] = useState<string | null>(null);
   const [playError, setPlayError] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  // Para el boton "Reintentar" del banner de error (S7-T3): guarda la ultima
+  // frase pedida, ya que onPlay no la recibe de vuelta si falla.
+  const lastPlayRef = useRef<{ text: string; slow: boolean } | null>(null);
 
   useEffect(() => {
     // El puntaje de pronunciacion llega despues del turno y vuelve a emitir el
@@ -186,6 +190,19 @@ export function App() {
       .catch((err: unknown) => console.error('[sesion] no se pudo guardar', err));
   }, [messages, store, sessionId]);
 
+  // ── Historial de sesiones para la pantalla de progreso (S9-T1) ──
+  // Se relee despues de cada guardado (mismo disparador que el efecto de
+  // arriba) para que la sesion en curso aparezca en la lista apenas se
+  // persiste, sin esperar a que el usuario recargue la pantalla.
+  const [sessionHistory, setSessionHistory] = useState<SessionSummary[]>([]);
+  useEffect(() => {
+    if (messages.length === 0) return;
+    void store
+      .list()
+      .then(setSessionHistory)
+      .catch((err: unknown) => console.error('[sesion] no se pudo leer el historial', err));
+  }, [messages, store]);
+
   // ── Captura de tomas para la calibracion (S9-T3) ────────────────
   useEffect(() => {
     if (!modoGrabacion) return;
@@ -204,8 +221,11 @@ export function App() {
       const turn = orch.toggleMic();
       setState(orch.getState() === 'idle' ? 'processing' : orch.getState());
       await turn;
-    } catch {
-      setMicError('No se pudo acceder al microfono. Revisa los permisos del navegador.');
+    } catch (err) {
+      // Mensaje segun la causa real (permiso, sin dispositivo, en uso por
+      // otra app) en vez de uno generico: el usuario necesita saber que
+      // accion tomar, no solo que algo fallo (S7-T3).
+      setMicError(micErrorMessage(err));
     } finally {
       setState(orch.getState());
     }
@@ -225,6 +245,7 @@ export function App() {
    */
   async function onPlay(text: string, slow: boolean) {
     setPlayError(null);
+    lastPlayRef.current = { text, slow };
     try {
       const pcm = await ai.speak(text);
       if (pcm.length === 0) return;
@@ -323,9 +344,34 @@ export function App() {
 
         <main className="flex-1 flex flex-col overflow-hidden">
           {(micError || playError) && (
-            <p className="text-[var(--color-danger)] text-xs px-4 py-2 bg-[var(--color-danger-light)]">
-              {micError ?? playError}
-            </p>
+            <div className="flex items-center justify-between gap-3 text-[var(--color-danger)] text-xs px-4 py-2 bg-[var(--color-danger-light)]">
+              <span className="flex-1">{micError ?? playError}</span>
+              <div className="flex items-center gap-3 flex-shrink-0">
+                {micError && (
+                  <button onClick={() => void onMicClick()} className="font-semibold underline underline-offset-2">
+                    Reintentar
+                  </button>
+                )}
+                {playError && lastPlayRef.current && (
+                  <button
+                    onClick={() => void onPlay(lastPlayRef.current!.text, lastPlayRef.current!.slow)}
+                    className="font-semibold underline underline-offset-2"
+                  >
+                    Reintentar
+                  </button>
+                )}
+                <button
+                  onClick={() => {
+                    setMicError(null);
+                    setPlayError(null);
+                  }}
+                  aria-label="Cerrar aviso"
+                  className="text-[var(--color-danger)]"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
           )}
 
           {cargaEnCurso && (
@@ -359,7 +405,9 @@ export function App() {
           {screen === 'pronunciation' && <PronunciationScreen messages={messages} onPlay={onPlay} />}
           {screen === 'grammar' && <GrammarScreen messages={messages} />}
           {screen === 'suggestions' && <SuggestionsScreen messages={messages} />}
-          {screen === 'summary' && <SummaryScreen messages={messages} />}
+          {screen === 'summary' && (
+            <SummaryScreen messages={messages} history={sessionHistory} sessionId={sessionId} />
+          )}
           {screen === 'models' && <ModelsScreen models={modelList} modelsReady={modelsReady} />}
         </main>
       </div>
