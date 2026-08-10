@@ -77,7 +77,7 @@ export function App() {
   const mockMode = useMockMode();
   const modoGrabacion = useModoGrabacion();
 
-  const { bus, orch, audio, ai, store, sessionId } = useMemo(() => {
+  const { bus, orch, audio, ai, store } = useMemo(() => {
     const bus = createEventBus();
     const audio = mockMode ? createMockAudioEngine() : createDspAudioEngine();
     const ai: AIPipeline = mockMode ? createMockAIPipeline() : createAIPipeline();
@@ -86,9 +86,12 @@ export function App() {
     // En modo demostracion el historial va en memoria: no tiene sentido dejar
     // sesiones de ejemplo en el disco de quien solo esta viendo la aplicacion.
     const store = mockMode ? createMemorySessionStore() : createSessionStore();
-    const sessionId = `sesion-${Date.now()}`;
-    return { bus, orch, audio, ai, store, sessionId };
+    return { bus, orch, audio, ai, store };
   }, [mockMode]);
+  // Aparte del useMemo de arriba: "Nueva conversacion" necesita poder generar
+  // un id nuevo sin recrear el orquestador ni el motor de audio, que son caros
+  // y no deben reconstruirse en cada turno.
+  const [sessionId, setSessionId] = useState(() => `sesion-${Date.now()}`);
 
   // ── Carga de modelos (Splash) ──────────────────────────────────
   const [models, setModels] = useState<Record<string, number>>({});
@@ -275,6 +278,22 @@ export function App() {
     setSidebarOpen(false);
   }
 
+  /**
+   * "Nueva conversacion": antes solo navegaba a Chat sin vaciar nada, asi que
+   * si ya estabas en Chat el boton no hacia nada visible. Vacia el historial
+   * en memoria (la sesion anterior ya quedo guardada en sessionStore, no se
+   * pierde) y arranca un id de sesion nuevo para que la proxima se guarde
+   * aparte en vez de seguir acumulandose sobre la misma.
+   */
+  function handleNewConversation() {
+    setMessages([]);
+    setSessionId(`sesion-${Date.now()}`);
+    setMicError(null);
+    setPlayError(null);
+    setScreen('chat');
+    setSidebarOpen(false);
+  }
+
   if (screen === 'splash') {
     // Fallo de carga: se informa y se ofrece el modo simulado, que no descarga
     // modelos. Es la salida de emergencia de la demostracion.
@@ -336,6 +355,7 @@ export function App() {
           <Sidebar
             active={screen}
             onNavigate={handleNavigate}
+            onNewConversation={handleNewConversation}
             suggestionsCount={messages.reduce((n, m) => n + (m.suggestions?.length ?? 0), 0)}
             recentSessions={sessionHistory}
           />

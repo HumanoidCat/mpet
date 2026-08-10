@@ -17,6 +17,8 @@ type Screen = 'splash' | 'chat' | 'visualizer' | 'pronunciation' | 'grammar' | '
 interface SidebarProps {
   active: Screen
   onNavigate: (screen: Screen) => void
+  /** Vacia el chat y arranca un id de sesion nuevo. Antes este boton solo navegaba a Chat sin limpiar nada. */
+  onNewConversation?: () => void
   /** Cuantas sugerencias reales hay en la sesion (0 no muestra el badge). */
   suggestionsCount?: number
   /** SessionStore.list(), mas reciente primero. Reemplaza la lista de ejemplo del prototipo. */
@@ -43,7 +45,7 @@ function formatFecha(ts: number): string {
   return new Date(ts).toLocaleDateString(undefined, { day: '2-digit', month: 'short' })
 }
 
-export default function Sidebar({ active, onNavigate, suggestionsCount = 0, recentSessions = [] }: SidebarProps) {
+export default function Sidebar({ active, onNavigate, onNewConversation, suggestionsCount = 0, recentSessions = [] }: SidebarProps) {
   return (
     <aside className="w-[220px] bg-white border-r border-slate-200 flex flex-col h-full shadow-xl lg:shadow-none">
       {/* Logo */}
@@ -62,7 +64,7 @@ export default function Sidebar({ active, onNavigate, suggestionsCount = 0, rece
       {/* New conversation */}
       <div className="px-3 pt-3 pb-2 flex-shrink-0">
         <button
-          onClick={() => onNavigate('chat')}
+          onClick={() => (onNewConversation ? onNewConversation() : onNavigate('chat'))}
           className="w-full flex items-center justify-center gap-2 py-2.5 px-3 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-xl text-sm font-semibold transition-colors"
         >
           <Plus className="w-4 h-4" />
