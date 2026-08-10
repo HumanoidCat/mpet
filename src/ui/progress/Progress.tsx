@@ -1,4 +1,4 @@
-import { Clock, Mic, MessageSquareText, TrendingUp, TrendingDown, Volume2, History } from 'lucide-react';
+import { Clock, Mic, MessageSquareText, TrendingUp, TrendingDown, Volume2, History, Flame, Trophy } from 'lucide-react';
 import type { ChatMessage } from '@shared/contracts';
 import { resumirSesion, type SessionSummary } from '@core/sessionStore';
 
@@ -23,10 +23,57 @@ interface Props {
   /** `SessionStore.list()`, más reciente primero. Incluye la sesión actual. */
   history?: SessionSummary[];
   sessionId?: string;
+  /** Dias consecutivos con sesion (S9-T2), calculado en App.tsx con `computeStreak`. */
+  streak?: number;
+  /** Frases con puntaje >=80 en toda la historia (S9-T2), sesion actual incluida. */
+  masteredTotal?: number;
 }
 
 function formatFecha(ts: number): string {
   return new Date(ts).toLocaleDateString(undefined, { day: '2-digit', month: 'short' });
+}
+
+/**
+ * Gamificacion ligera (S9-T2, opcional): racha de dias practicando y total
+ * de frases dominadas. Se muestra siempre, incluso sin mensajes todavia en
+ * la sesion actual — si el estudiante ya tiene racha de dias anteriores,
+ * abrir la app y verla de entrada es justo el punto de esta funcionalidad.
+ */
+function GamificationRow({ streak, masteredTotal }: { streak: number; masteredTotal: number }) {
+  const rachaActiva = streak > 0;
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+      <div
+        className={`rounded-2xl shadow-sm p-4 sm:p-5 flex items-center gap-4 border ${
+          rachaActiva ? 'bg-gradient-to-br from-orange-50 to-amber-50 border-orange-200' : 'bg-white border-slate-200'
+        }`}
+      >
+        <div className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 ${rachaActiva ? 'bg-orange-100' : 'bg-slate-100'}`}>
+          <Flame className={`w-5 h-5 ${rachaActiva ? 'text-orange-500' : 'text-slate-400'}`} />
+        </div>
+        <div>
+          <p className="font-[var(--font-display)] font-extrabold text-xl sm:text-2xl text-slate-900">
+            {streak} {streak === 1 ? 'día' : 'días'}
+          </p>
+          <p className="text-xs text-slate-500">
+            {rachaActiva ? 'de racha seguida' : 'Practicá hoy para empezar tu racha'}
+          </p>
+        </div>
+      </div>
+
+      <div className="rounded-2xl shadow-sm p-4 sm:p-5 flex items-center gap-4 border bg-gradient-to-br from-violet-50 to-blue-50 border-violet-200">
+        <div className="w-11 h-11 rounded-xl bg-violet-100 flex items-center justify-center flex-shrink-0">
+          <Trophy className="w-5 h-5 text-violet-600" />
+        </div>
+        <div>
+          <p className="font-[var(--font-display)] font-extrabold text-xl sm:text-2xl text-slate-900">{masteredTotal}</p>
+          <p className="text-xs text-slate-500">
+            {masteredTotal === 1 ? 'frase dominada' : 'frases dominadas'} (puntaje ≥80)
+          </p>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function MetricCard({
@@ -60,7 +107,7 @@ function MetricCard({
   );
 }
 
-export default function SummaryScreen({ messages = [], history = [], sessionId }: Props) {
+export default function SummaryScreen({ messages = [], history = [], sessionId, streak = 0, masteredTotal = 0 }: Props) {
   const resumen = resumirSesion(sessionId ?? 'sesion-actual', messages);
 
   if (!resumen) {
@@ -71,6 +118,9 @@ export default function SummaryScreen({ messages = [], history = [], sessionId }
             <h2 className="font-[var(--font-display)] font-bold text-base sm:text-lg text-slate-900">Resumen de tu sesión</h2>
             <p className="text-xs sm:text-sm text-slate-500 mt-0.5">Resumen de tu sesión actual</p>
           </div>
+
+          <GamificationRow streak={streak} masteredTotal={masteredTotal} />
+
           <div className="bg-white rounded-2xl border border-dashed border-slate-200 p-8 text-center">
             <MessageSquareText className="w-6 h-6 text-slate-300 mx-auto mb-2" />
             <p className="text-sm font-medium text-slate-500">Todavía no hay nada que resumir</p>
@@ -107,6 +157,8 @@ export default function SummaryScreen({ messages = [], history = [], sessionId }
           <h2 className="font-[var(--font-display)] font-bold text-base sm:text-lg text-slate-900">Resumen de tu sesión</h2>
           <p className="text-xs sm:text-sm text-slate-500 mt-0.5">Resumen de la sesión en curso</p>
         </div>
+
+        <GamificationRow streak={streak} masteredTotal={masteredTotal} />
 
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
           <MetricCard icon={Clock} label="Duración" value={`${durationMin.toFixed(1)} min`} color="#2563EB" />

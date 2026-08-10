@@ -21,6 +21,7 @@ import SuggestionsScreen from '@ui/chat/Suggestions';
 import SummaryScreen from '@ui/progress/Progress';
 import ModelsScreen from '@ui/shell/Models';
 import { micErrorMessage } from '@ui/shell/micErrorMessage';
+import { computeStreak, countMasteredPhrases } from '@ui/progress/gamification';
 import { SAMPLE_RATE } from '@shared/constants';
 import type { AIPipeline, ChatMessage } from '@shared/contracts';
 
@@ -205,6 +206,38 @@ export function App() {
       .then(setSessionHistory)
       .catch((err: unknown) => console.error('[sesion] no se pudo leer el historial', err));
   }, [messages, store]);
+
+  // ── Gamificacion ligera (S9-T2, opcional) ────────────────────────
+  // La racha sale directo de sessionHistory (ya en memoria). Las frases
+  // dominadas de SESIONES ANTERIORES piden los mensajes completos, que
+  // list() no trae (S9-T1 los omite a proposito por peso); se buscan uno por
+  // uno con store.get() solo cuando la pantalla de progreso esta visible, no
+  // en cada turno del chat, para que siga siendo "ligera". La sesion actual
+  // se cuenta aparte, en vivo, desde `messages` (ver Progress.tsx) para no
+  // depender de que el guardado ya haya terminado.
+  const [masteredPrevias, setMasteredPrevias] = useState(0);
+  useEffect(() => {
+    if (screen !== 'summary') return;
+    const previas = sessionHistory.filter((s) => s.id !== sessionId);
+    if (previas.length === 0) {
+      setMasteredPrevias(0);
+      return;
+    }
+    let cancelado = false;
+    void Promise.all(previas.map((s) => store.get(s.id)))
+      .then((sesiones) => {
+        if (cancelado) return;
+        const total = sesiones.reduce(
+          (acc, s) => acc + (s ? countMasteredPhrases(s.messages) : 0),
+          0
+        );
+        setMasteredPrevias(total);
+      })
+      .catch((err: unknown) => console.error('[gamificacion] no se pudo contar frases dominadas', err));
+    return () => {
+      cancelado = true;
+    };
+  }, [screen, sessionHistory, sessionId, store]);
 
   // ── Captura de tomas para la calibracion (S9-T3) ────────────────
   useEffect(() => {
@@ -431,7 +464,13 @@ export function App() {
           {screen === 'grammar' && <GrammarScreen messages={messages} />}
           {screen === 'suggestions' && <SuggestionsScreen messages={messages} />}
           {screen === 'summary' && (
-            <SummaryScreen messages={messages} history={sessionHistory} sessionId={sessionId} />
+            <SummaryScreen
+              messages={messages}
+              history={sessionHistory}
+              sessionId={sessionId}
+              streak={computeStreak(sessionHistory)}
+              masteredTotal={countMasteredPhrases(messages) + masteredPrevias}
+            />
           )}
           {screen === 'models' && <ModelsScreen models={modelList} modelsReady={modelsReady} />}
         </main>

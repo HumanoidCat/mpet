@@ -36,7 +36,7 @@
 
 ## Semana 9
 - [x] S9-T1 · Pantalla de progreso: evolución del puntaje por sesión (con Alejandro)
-- [ ] S9-T2 · (Opcional) Gamificación ligera: racha, frases dominadas
+- [x] S9-T2 · (Opcional) Gamificación ligera: racha, frases dominadas
 - [ ] S9-T7 · Grabar video demo de respaldo completo
 
 ## Semana 10 — 🎯 ENTREGA FINAL (mar 8 sep)
@@ -133,6 +133,29 @@ archivo por estar fuera de `src/ui/`.
 dijo): es el modelo Whisper-tiny elegido por Isaac por tamaño/velocidad
 (`docs/evidencias/s1/whisper-tiny-spike.md`), no un bug de UI. Fuera de
 alcance.
+
+### S9-T2 · Gamificación ligera (10 ago, a pedido)
+
+Era opcional y quedaba pendiente; se implementó con datos 100% reales, sin
+tocar `sessionStore.ts` (Alejandro, fuera de `src/ui/`):
+
+- **Racha**: días consecutivos con al menos una sesión guardada, calculado
+  en `src/ui/progress/gamification.ts` (`computeStreak`) a partir de
+  `SessionStore.list()`, que ya traía S9-T1. Con período de gracia hasta
+  medianoche: si hoy todavía no se practicó pero ayer sí, la racha sigue
+  viva.
+- **Frases dominadas**: turnos del estudiante con puntaje de pronunciación
+  "good" (≥80, mismo umbral de siempre). La sesión actual se cuenta en vivo
+  desde `messages`; las anteriores se agregan bajo demanda con
+  `SessionStore.get()` (ya existía en el contrato) solo cuando se abre la
+  pantalla Summary, no en cada turno del chat, para que siga siendo
+  "ligera" como pide el plan.
+- Sin racha récord, insignias ni niveles — no había con qué respaldarlos sin
+  inventar datos.
+- 10 pruebas nuevas en `tests/ui/gamification.test.ts`. Verificado en
+  navegador: racha en 0/"practicá hoy" antes del primer turno, pasa a 1 tras
+  guardar la primera sesión del día; frases dominadas en 0 con un puntaje de
+  78 (no llega al umbral), como corresponde.
 
 ### Cambio en el evento `message`
 
