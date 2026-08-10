@@ -4,6 +4,10 @@ on:
     branches: [main, dev]
   push:
     branches: [main, dev]
+  # Permite relanzar el despliegue a mano sin tener que inventar un commit.
+  # Hizo falta el 10 de agosto, cuando la API de Pages devolvio un error de
+  # certificado y no habia forma de reintentar sin ensuciar el historial.
+  workflow_dispatch:
 
 jobs:
   verify:
@@ -22,17 +26,20 @@ jobs:
       - name: Build
         run: npm run build
 
-  # Deploy de la demo a GitHub Pages en cada push a main
-  deploy:
+  # Compila la demo y deja el artefacto listo para publicar.
+  #
+  # POR QUE ESTA SEPARADO DEL DESPLIEGUE
+  # Antes un solo job compilaba, subia el artefacto y desplegaba. Cuando el
+  # despliegue fallaba por causas ajenas —el 10 de agosto la API de Pages
+  # devolvio un error de certificado— relanzar el job volvia a subir un segundo
+  # artefacto con el mismo nombre, y `deploy-pages` se planta al encontrar dos
+  # porque no sabe cual publicar. El reintento era imposible por construccion.
+  #
+  # Separandolos, relanzar el despliegue no vuelve a subir nada.
+  build:
     needs: verify
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
-    permissions:
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -43,5 +50,17 @@ jobs:
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
+
+  # Publica en GitHub Pages el artefacto que dejo `build`.
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
       - id: deployment
         uses: actions/deploy-pages@v4
