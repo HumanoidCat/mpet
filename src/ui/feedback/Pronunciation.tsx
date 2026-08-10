@@ -44,7 +44,7 @@ function ScoreGauge({ score }: { score: number }) {
           />
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="font-[var(--font-display)] font-extrabold text-2xl" style={{ color }}>{score}</span>
+          <span className="font-[var(--font-display)] font-extrabold text-2xl" style={{ color }}>{Math.round(score)}</span>
           <span className="text-xs text-slate-500 font-medium">/ 100</span>
         </div>
       </div>
@@ -86,9 +86,9 @@ function WordDetail({ word, onClose }: { word: WordScore; onClose: () => void })
       <div className="flex items-center gap-3 mb-3">
         <p className="text-xs text-slate-500 flex-shrink-0">Score</p>
         <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-          <div className="h-full rounded-full transition-all" style={{ width: `${word.score}%`, background: color }} />
+          <div className="h-full rounded-full transition-all" style={{ width: `${Math.min(100, Math.max(0, word.score))}%`, background: color }} />
         </div>
-        <span className="font-mono text-xs font-medium flex-shrink-0" style={{ color }}>{word.score}</span>
+        <span className="font-mono text-xs font-medium flex-shrink-0" style={{ color }}>{Math.round(word.score)}</span>
       </div>
 
       <div className="bg-slate-50 rounded-xl p-3 border border-slate-200 text-xs text-slate-500 font-mono">
@@ -220,7 +220,7 @@ export default function PronunciationScreen({ messages = [], onPlay }: Props) {
                 <Target className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-600 flex-shrink-0" />
                 <div>
                   <p className="text-xs text-slate-500">Overall</p>
-                  <p className="font-[var(--font-display)] font-bold text-sm text-slate-900">{active.pronunciation.overall}%</p>
+                  <p className="font-[var(--font-display)] font-bold text-sm text-slate-900">{Math.round(active.pronunciation.overall)}%</p>
                 </div>
               </div>
               <div className="flex items-center gap-1.5 sm:gap-2">

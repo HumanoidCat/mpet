@@ -333,7 +333,12 @@ export function App() {
             sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
           }`}
         >
-          <Sidebar active={screen} onNavigate={handleNavigate} />
+          <Sidebar
+            active={screen}
+            onNavigate={handleNavigate}
+            suggestionsCount={messages.reduce((n, m) => n + (m.suggestions?.length ?? 0), 0)}
+            recentSessions={sessionHistory}
+          />
         </div>
         {sidebarOpen && (
           <div

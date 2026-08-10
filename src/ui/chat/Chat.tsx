@@ -124,7 +124,7 @@ export function Chat({ messages, state, onMicClick, audio, onPlay }: Props) {
                       borderColor: scoreColor(m.pronunciation!.overall) + '40',
                     }}
                   >
-                    Pronunciation score: {m.pronunciation!.overall}
+                    Pronunciation score: {Math.round(m.pronunciation!.overall)}
                   </div>
                 )}
 
