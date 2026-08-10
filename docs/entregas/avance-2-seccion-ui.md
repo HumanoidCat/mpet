@@ -175,7 +175,9 @@ Documentos nuevos de este período, todos con procedimiento reproducible:
    grabación manual, no una tarea de código; el segundo está marcado como
    opcional en el plan semanal.
 
-4. **Deck de la sección UI para S7-T6** no está incluido en este documento —
-   es un archivo `.pptx` aparte, como `MPET-Avance1.pptx`. Queda pendiente de
-   decidir si se genera a partir de este mismo contenido o si se coordina con
-   el deck general del equipo.
+4. **Deck de la sección UI para S7-T6:** `docs/entregas/avance-2-seccion-ui.pptx`,
+   4 diapositivas (16:9, mismo formato que `MPET-Avance1.pptx`), con la paleta
+   y tipografías (Cambria/Calibri) extraídas directamente de ese archivo para
+   que combine al insertarse en el deck general del equipo. Son las
+   diapositivas de esta sección, no la presentación completa de S7-T6 — esa
+   sigue siendo tarea de todo el equipo.
