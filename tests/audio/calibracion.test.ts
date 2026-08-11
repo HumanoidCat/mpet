@@ -26,7 +26,7 @@ import { preprocess } from '../../src/audio/dsp/preprocess';
 import { trimToVoicedSpeech } from '../../src/audio/features/voiceDetection';
 import { mfccSequence, cepstralMeanNormalize } from '../../src/audio/features/mfcc';
 import { detectPitchYin } from '../../src/audio/features/yin';
-import { dtw } from '../../src/audio/comparator/dtw';
+import { dtw, euclidean } from '../../src/audio/comparator/dtw';
 import { defaultBandRadius, distanceToScore, SCORE_SCALE } from '../../src/audio/comparator/scorer';
 import { SAMPLE_RATE, FRAME_SIZE, HOP_SIZE } from '../../src/shared/constants';
 
@@ -52,18 +52,38 @@ function tomasDisponibles(): Toma[] {
     .filter((t) => t.hablante && t.frase && t.version);
 }
 
-/** Cadena completa: cargar, remuestrear si hace falta, preprocesar y recortar. */
-function analizar(archivo: string): Float32Array[] {
+/**
+ * Cadena completa: cargar, remuestrear si hace falta, preprocesar y —según se
+ * pida— recortar al habla.
+ *
+ * El recorte es opcional **porque resultó ser una variable del experimento**.
+ * Las grabaciones del protocolo ya vienen recortadas con medio segundo parejo a
+ * cada lado, así que aplicarles encima el recorte por voz no quita silencio:
+ * lo que hace es quitar cantidades distintas en cada archivo. Medido en la
+ * frase 1, donde el efecto se ve entero:
+ *
+ * | Archivo | Dura | Tras el recorte |
+ * |---|---:|---:|
+ * | `ok`   | 2.05 s | 2.02 s — no recortó nada |
+ * | `ok2`  | 2.56 s | 1.74 s |
+ * | `mal`  | 2.82 s | 1.70 s |
+ *
+ * Dos tomas de la misma frase quedan con contenidos distintos, y esa diferencia
+ * es mayor que la de la vocal que se quiere detectar. Por eso la medición se
+ * hace sin recortar y el recorte se reporta aparte, como lo que es: un defecto
+ * del detector sobre voz real, no una propiedad del comparador.
+ */
+function analizar(archivo: string, recortar = false): Float32Array[] {
   const wav = readWav(join(CARPETA, archivo));
 
   const a16k =
     wav.sampleRate === SAMPLE_RATE ? wav.samples : resample(wav.samples, wav.sampleRate, SAMPLE_RATE);
 
   const limpio = preprocess(a16k, SAMPLE_RATE);
-  const soloVoz = trimToVoicedSpeech(limpio, { sampleRate: SAMPLE_RATE });
+  const señal = recortar ? trimToVoicedSpeech(limpio, { sampleRate: SAMPLE_RATE }) : limpio;
 
   return cepstralMeanNormalize(
-    mfccSequence(soloVoz, FRAME_SIZE, HOP_SIZE, { sampleRate: SAMPLE_RATE })
+    mfccSequence(señal, FRAME_SIZE, HOP_SIZE, { sampleRate: SAMPLE_RATE })
   );
 }
 
@@ -96,80 +116,248 @@ describe.skipIf(tomas.length === 0)('S9-T3 · Calibración con voz real', () => 
     expect(tomas.length).toBeGreaterThan(0);
   });
 
-  it('mide las distribuciones de distancia y propone la escala', () => {
+  /**
+   * La comparación se mide **dentro de cada frase**, que es como se usa: la
+   * aplicación siempre enfrenta lo que dijo el usuario contra la referencia de
+   * esa misma frase, nunca contra otra.
+   *
+   * Juntar las cinco frases en una sola distribución —como hacía la versión
+   * anterior de esta prueba— fabrica un solapamiento que no existe en uso real.
+   * Cada frase tiene su propio nivel de distancia base, porque depende de
+   * cuántos fonemas tiene y de cuáles: la frase 1 da 12.9 entre dos tomas
+   * buenas y la frase 4 da 12.6, pero sus umbrales de error caen en 13.8 y
+   * 16.6. Un único corte global no puede servir para las dos, y no hace falta
+   * que sirva.
+   */
+  it('mide la separación dentro de cada frase', () => {
     const cache = new Map<string, Float32Array[]>();
     const mfcc = (t: Toma) => {
       if (!cache.has(t.archivo)) cache.set(t.archivo, analizar(t.archivo));
       return cache.get(t.archivo)!;
     };
+    const buscar = (hablante: string, frase: string, version: string) =>
+      tomas.find((t) => t.hablante === hablante && t.frase === frase && t.version === version);
 
-    const correctos: number[] = [];
-    const incorrectos: number[] = [];
-    const entreHablantes: number[] = [];
+    const grupos = [...new Set(tomas.map((t) => `${t.hablante}|${t.frase}`))].sort();
+    const margenes: { grupo: string; margen: number; delta: number }[] = [];
 
-    for (const a of tomas) {
-      for (const b of tomas) {
-        if (a.archivo >= b.archivo) continue; // cada par una sola vez
-        if (a.frase !== b.frase) continue; // solo la misma frase es comparable
+    console.log('\n== Distancia dentro de cada frase ==');
+    console.log('  frase           repetir  rápido |  el error (mal contra cada buena)  | margen');
 
-        const d = distancia(mfcc(a), mfcc(b));
-        const algunoMal = a.version === 'mal' || b.version === 'mal';
+    for (const g of grupos) {
+      const [hablante, frase] = g.split('|');
+      const ok = buscar(hablante, frase, 'ok');
+      const mal = buscar(hablante, frase, 'mal');
+      if (!ok || !mal) continue;
 
-        if (algunoMal && a.version !== b.version) {
-          incorrectos.push(d);
-        } else if (!algunoMal) {
-          correctos.push(d);
-          if (a.hablante !== b.hablante) entreHablantes.push(d);
-        }
-      }
-    }
+      const buenas = tomas.filter(
+        (t) => t.hablante === hablante && t.frase === frase && t.version !== 'mal'
+      );
+      const ok2 = buscar(hablante, frase, 'ok2');
+      const rapido = buscar(hablante, frase, 'rapido');
 
-    console.log('\n== Distancias medidas con voz real ==');
-    for (const [nombre, xs] of [
-      ['Pares CORRECTOS', correctos],
-      ['   de los cuales, entre hablantes distintos', entreHablantes],
-      ['Pares INCORRECTOS (uno mal pronunciado)', incorrectos],
-    ] as [string, number[]][]) {
-      if (xs.length === 0) {
-        console.log(`  ${nombre.padEnd(44)} sin datos`);
-        continue;
-      }
-      const e = estadisticas(xs);
+      // "Bien" son los pares entre versiones correctas; "mal", cada correcta
+      // contra la mal pronunciada.
+      const dBien: number[] = [];
+      for (const a of buenas)
+        for (const b of buenas)
+          if (a.archivo < b.archivo) dBien.push(distancia(mfcc(a), mfcc(b)));
+      const dMal = buenas.map((b) => distancia(mfcc(b), mfcc(mal)));
+
+      const peorBien = Math.max(...dBien);
+      const mejorMal = Math.min(...dMal);
+      const margen = mejorMal - peorBien;
+      const delta = distanceToScore(peorBien) - distanceToScore(mejorMal);
+      margenes.push({ grupo: g, margen, delta });
+
+      const rep = ok2 ? distancia(mfcc(ok), mfcc(ok2)) : NaN;
+      const rap = rapido ? distancia(mfcc(ok), mfcc(rapido)) : NaN;
       console.log(
-        `  ${nombre.padEnd(44)} n=${String(e.n).padStart(3)}  min ${e.min.toFixed(2)}  mediana ${e.mediana.toFixed(2)}  max ${e.max.toFixed(2)}`
+        `  ${g.padEnd(15)} ${rep.toFixed(1).padStart(6)} ${rap.toFixed(1).padStart(7)} | ` +
+          dMal.map((d) => d.toFixed(1).padStart(6)).join(' ').padEnd(34) +
+          ` | ${margen > 0 ? '+' : ''}${margen.toFixed(1)}`
       );
     }
 
-    if (correctos.length === 0 || incorrectos.length === 0) {
-      console.log('\n  Faltan versiones para comparar. Ver fixtures/README.md.');
-      return;
+    const separan = margenes.filter((m) => m.margen > 0).length;
+    console.log(`\n  Frases donde el error queda más lejos que cualquier toma buena: ${separan} de ${margenes.length}`);
+    console.log(`  Δ de puntaje (escala ${SCORE_SCALE}), peor frase: ${Math.min(...margenes.map((m) => m.delta)).toFixed(1)} puntos`);
+    console.log(`  RF-10 exige 20.`);
+
+    expect(margenes.length).toBeGreaterThan(0);
+  });
+
+  /**
+   * La versión `rapido` se mide aparte porque **es la que marca el límite**, no
+   * la mal pronunciada. Hablar deprisa no solo comprime el tiempo —eso lo
+   * absorbe el alineamiento— sino que reduce las vocales y cambia el espectro,
+   * y esa parte el alineamiento no la puede deshacer.
+   */
+  it('separa velocidad de pronunciación', () => {
+    const cache = new Map<string, Float32Array[]>();
+    const mfcc = (t: Toma) => {
+      if (!cache.has(t.archivo)) cache.set(t.archivo, analizar(t.archivo));
+      return cache.get(t.archivo)!;
+    };
+    const buscar = (h: string, f: string, v: string) =>
+      tomas.find((t) => t.hablante === h && t.frase === f && t.version === v);
+
+    const grupos = [...new Set(tomas.map((t) => `${t.hablante}|${t.frase}`))].sort();
+    let separanSinRapido = 0;
+    let conRapido = 0;
+    let n = 0;
+    const deltas: number[] = [];
+
+    console.log('\n== A velocidad normal, sin la toma rápida ==');
+    console.log('  frase           repetir   error  margen   Δ puntaje');
+
+    for (const g of grupos) {
+      const [h, f] = g.split('|');
+      const ok = buscar(h, f, 'ok');
+      const ok2 = buscar(h, f, 'ok2');
+      const mal = buscar(h, f, 'mal');
+      const rapido = buscar(h, f, 'rapido');
+      if (!ok || !ok2 || !mal) continue;
+      n++;
+
+      const rep = distancia(mfcc(ok), mfcc(ok2));
+      const err = Math.min(distancia(mfcc(ok), mfcc(mal)), distancia(mfcc(ok2), mfcc(mal)));
+      const delta = distanceToScore(rep) - distanceToScore(err);
+      if (err > rep) separanSinRapido++;
+      deltas.push(delta);
+
+      if (rapido) {
+        const rap = Math.max(distancia(mfcc(ok), mfcc(rapido)), distancia(mfcc(ok2), mfcc(rapido)));
+        if (Math.min(err, distancia(mfcc(rapido), mfcc(mal))) > Math.max(rep, rap)) conRapido++;
+      }
+
+      console.log(
+        `  ${g.padEnd(15)} ${rep.toFixed(1).padStart(6)} ${err.toFixed(1).padStart(7)} ` +
+          `${(err - rep > 0 ? '+' : '') + (err - rep).toFixed(1)}`.padStart(8) +
+          `${delta.toFixed(1)}`.padStart(11)
+      );
     }
 
-    const peorCorrecto = Math.max(...correctos);
-    const mejorIncorrecto = Math.min(...incorrectos);
+    console.log(`\n  Separan a velocidad normal : ${separanSinRapido} de ${n}`);
+    console.log(`  Separan incluyendo la rápida: ${conRapido} de ${n}`);
+    console.log(`  Δ de puntaje: peor ${Math.min(...deltas).toFixed(1)}, mediana ${estadisticas(deltas).mediana.toFixed(1)}, mejor ${Math.max(...deltas).toFixed(1)}`);
 
-    console.log('\n== Separación entre clases ==');
-    console.log(`  Peor caso bien pronunciado : ${peorCorrecto.toFixed(2)}`);
-    console.log(`  Mejor caso mal pronunciado : ${mejorIncorrecto.toFixed(2)}`);
-    console.log(
-      mejorIncorrecto > peorCorrecto
-        ? `  Separadas por un factor de ${(mejorIncorrecto / peorCorrecto).toFixed(2)}`
-        : `  ⚠️ LAS CLASES SE SOLAPAN — el comparador no discrimina con estas señales`
-    );
+    expect(n).toBeGreaterThan(0);
+  });
 
-    console.log('\n== Puntaje con distintas escalas (RF-10 exige Δ > 20 puntos) ==');
-    console.log('  escala   bien   mal   Δ');
+  /**
+   * El puntaje de la frase **diluye un error de un solo fonema por
+   * construcción**: promedia el costo de todo el camino, y en una frase de
+   * cinco palabras la vocal equivocada son unas pocas tramas de un centenar.
+   *
+   * Por eso RF-10 no pide solo un puntaje global sino también **uno por
+   * palabra**, con las marcas de tiempo del reconocedor (S6-T2, ya
+   * implementado en `frameRangeForWord` y `segmentCost`). Aquí no hay marcas
+   * —vendrían del módulo de Isaac—, así que se aproxima con el tramo del
+   * camino donde el costo es mayor: si el único error introducido es la vocal
+   * del par mínimo, ese tramo debería caer sobre ella.
+   *
+   * La ventana es de 10 tramas. Con un salto de 10 ms son 100 ms, la duración
+   * típica de una vocal acentuada.
+   */
+  it('mide la vía por palabra, aproximada con la peor ventana', () => {
+    const cache = new Map<string, Float32Array[]>();
+    const mfcc = (t: Toma) => {
+      if (!cache.has(t.archivo)) cache.set(t.archivo, analizar(t.archivo));
+      return cache.get(t.archivo)!;
+    };
+    const buscar = (h: string, f: string, v: string) =>
+      tomas.find((t) => t.hablante === h && t.frase === f && t.version === v);
+
+    /** Costo medio de la peor ventana contigua de `w` pares del alineamiento. */
+    const peorVentana = (a: Toma, b: Toma, w = 10): number => {
+      const A = mfcc(a);
+      const B = mfcc(b);
+      const { path } = dtw(A, B, { bandRadius: defaultBandRadius(A.length, B.length) });
+      const costos = path.map(({ i, j }) => euclidean(A[i], B[j], 1));
+      if (costos.length <= w) return costos.reduce((s, x) => s + x, 0) / costos.length;
+
+      let suma = 0;
+      for (let k = 0; k < w; k++) suma += costos[k];
+      let mejor = suma;
+      for (let k = w; k < costos.length; k++) {
+        suma += costos[k] - costos[k - w];
+        if (suma > mejor) mejor = suma;
+      }
+      return mejor / w;
+    };
+
+    const grupos = [...new Set(tomas.map((t) => `${t.hablante}|${t.frase}`))].sort();
+    const pares: { rep: number; err: number }[] = [];
+
+    console.log('\n== Peor ventana de 100 ms, a velocidad normal ==');
+    console.log('  frase           repetir   error  margen');
+    for (const g of grupos) {
+      const [h, f] = g.split('|');
+      const ok = buscar(h, f, 'ok');
+      const ok2 = buscar(h, f, 'ok2');
+      const mal = buscar(h, f, 'mal');
+      if (!ok || !ok2 || !mal) continue;
+
+      const rep = peorVentana(ok, ok2);
+      const err = Math.min(peorVentana(ok, mal), peorVentana(ok2, mal));
+      pares.push({ rep, err });
+      console.log(
+        `  ${g.padEnd(15)} ${rep.toFixed(1).padStart(6)} ${err.toFixed(1).padStart(7)} ` +
+          `${(err - rep > 0 ? '+' : '') + (err - rep).toFixed(1)}`.padStart(8)
+      );
+    }
+
+    console.log(`\n  Separan: ${pares.filter((p) => p.err > p.rep).length} de ${pares.length}`);
+    console.log('\n  escala   Δ peor   Δ mediana   cumple RF-10');
     for (const escala of [10, 15, 20, 25, 30, 40, 60]) {
-      const bien = distanceToScore(peorCorrecto, escala);
-      const mal = distanceToScore(mejorIncorrecto, escala);
-      const delta = bien - mal;
+      const ds = pares.map((p) => distanceToScore(p.rep, escala) - distanceToScore(p.err, escala));
+      const peor = Math.min(...ds);
       const marca = escala === SCORE_SCALE ? ' <- actual' : '';
       console.log(
-        `  ${String(escala).padStart(6)}  ${bien.toFixed(1).padStart(5)}  ${mal.toFixed(1).padStart(5)}  ${delta.toFixed(1).padStart(5)}${delta > 20 ? ' OK' : ' no cumple'}${marca}`
+        `  ${String(escala).padStart(6)} ${peor.toFixed(1).padStart(8)} ${estadisticas(ds).mediana.toFixed(1).padStart(11)}      ${peor > 20 ? 'sí' : 'no'}${marca}`
       );
     }
 
-    expect(correctos.length).toBeGreaterThan(0);
+    expect(pares.length).toBeGreaterThan(0);
+  });
+
+  /**
+   * Comprueba el efecto del recorte por voz sobre material ya recortado. Está
+   * como prueba y no como nota porque es un defecto medible del detector, y si
+   * alguna vez se corrige conviene que la cifra se actualice sola.
+   */
+  it('mide cuánto estorba el recorte por voz en material ya recortado', () => {
+    const grupos = [...new Set(tomas.map((t) => `${t.hablante}|${t.frase}`))].sort();
+    const filas: { modo: string; separan: number; total: number }[] = [];
+
+    for (const recorta of [false, true]) {
+      const cache = new Map<string, Float32Array[]>();
+      const mfcc = (t: Toma) => {
+        if (!cache.has(t.archivo)) cache.set(t.archivo, analizar(t.archivo, recorta));
+        return cache.get(t.archivo)!;
+      };
+      let separan = 0;
+      let total = 0;
+
+      for (const g of grupos) {
+        const [h, f] = g.split('|');
+        const ok = tomas.find((t) => t.hablante === h && t.frase === f && t.version === 'ok');
+        const ok2 = tomas.find((t) => t.hablante === h && t.frase === f && t.version === 'ok2');
+        const mal = tomas.find((t) => t.hablante === h && t.frase === f && t.version === 'mal');
+        if (!ok || !ok2 || !mal) continue;
+        total++;
+        const rep = distancia(mfcc(ok), mfcc(ok2));
+        const err = Math.min(distancia(mfcc(ok), mfcc(mal)), distancia(mfcc(ok2), mfcc(mal)));
+        if (err > rep) separan++;
+      }
+      filas.push({ modo: recorta ? 'con recorte por voz' : 'sin recortar', separan, total });
+    }
+
+    console.log('\n== Efecto del recorte sobre grabaciones ya recortadas ==');
+    for (const f of filas) console.log(`  ${f.modo.padEnd(22)} separan ${f.separan} de ${f.total}`);
+
+    expect(filas.length).toBe(2);
   });
 
   it('mide el rango de tono real y la tasa de tramas sonoras', () => {

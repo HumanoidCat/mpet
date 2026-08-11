@@ -1,183 +1,222 @@
-# Evidencia S9-T3 — Primera calibración con voz real
+# Evidencia S9-T3 — Calibración del comparador con voz real
 
 > Fabrizio Espinoza (DSP) · Riesgo **R03**
 > Reproducible con `npx vitest run tests/audio/calibracion.test.ts` (requiere las
-> grabaciones en `tests/audio/fixtures/`).
+> grabaciones en `tests/audio/fixtures/`, que no se versionan).
 
 ## Resumen
 
-Se grabaron las primeras muestras de voz real y se pasaron por la cadena
-completa. **Dos resultados, uno bueno y uno malo:**
+Con veinte grabaciones de voz real que cumplen el protocolo, **el comparador sí
+distingue una pronunciación incorrecta de una correcta: acierta el sentido en las
+cinco frases.** Lo que no alcanza es el margen.
 
-- ✅ **La detección de habla se calibró y ahora funciona con voz real.** Con los
-  umbrales anteriores, dos de las cuatro grabaciones no detectaban nada.
-- ❌ **El comparador no discrimina con estas grabaciones.** La separación entre
-  pronunciación correcta e incorrecta es de **1.9 puntos**, cuando el requisito
-  RF-10 exige 20 y las señales sintéticas daban 31.
+| | Resultado |
+|---|---|
+| Frases donde el error queda más lejos que repetir la frase | **5 de 5** |
+| Δ de puntaje entre bien y mal, por frase | 2.4 a 10.6 puntos (mediana 5.5) |
+| Δ midiendo localizado, como pide RF-10 | 6.3 a 16.1 puntos (mediana **17.3**) |
+| **Exigido por RF-10** | **20 puntos** |
 
-El segundo resultado **no está explicado todavía**. Hay evidencia de que el
-problema puede estar en las grabaciones y no en el comparador, pero no alcanza
-para afirmarlo.
+O sea: la dirección es correcta y consistente, pero la magnitud se queda a
+mitad de camino. **RF-10 no se cumple con voz real.**
+
+Esto corrige la medición anterior, que daba 1.9 puntos y ni siquiera acertaba el
+sentido. Aquella se hizo con grabaciones que traían varias emisiones por archivo;
+el problema era el material, como se sospechaba.
 
 ## 1. Las grabaciones
 
-Cuatro archivos de un solo hablante, frase 1, versiones `ok`, `ok2`, `mal` y
-`rapido`. Grabados a 48 kHz mono, convertidos desde MP3.
-
-| Archivo | Duración | Pico | Segmentos de habla |
-|---|---:|---:|---:|
-| `ok` | 13.25 s | 0.082 | 5 |
-| `ok2` | 9.89 s | 0.071 | 5 |
-| `mal` | 14.45 s | 0.075 | 7 |
-| `rapido` | 6.89 s | 0.085 | 3 |
-
-**Dos observaciones sobre el material:**
-
-- El nivel es bajo: pico de 0.08, unos −42 dBFS. No impide el análisis —la
-  normalización lo compensa— pero deja menos margen.
-- Cada archivo contiene **varios tramos de habla** para una frase de cinco
-  palabras que dura unos 1.5 s. Son varias tomas por archivo, o una frase con
-  pausas que el detector separa.
-
-## 2. Lo que sí quedó calibrado: la detección de habla
-
-Con los umbrales fijados sobre señales sintéticas, **dos de los cuatro archivos
-no detectaban ni un segundo de habla**. El detector de energía sí encontraba
-tramos, pero el filtro de periodicidad los rechazaba todos.
-
-### La causa
-
-El umbral de periodicidad se había puesto en 20 % porque la voz sintética daba
-49 % de tramas sonoras. **La voz real daba entre 2 % y 26 %.**
-
-A su vez, ese porcentaje bajo venía del umbral de YIN, fijado en 0.02 para que el
-*valor* del tono fuera correcto. Sobre voz real ese umbral es demasiado estricto:
-en un tramo hablado solo el 27 % de las tramas obtenía tono.
-
-### La solución: dos umbrales distintos para dos decisiones distintas
-
-| Decisión | Qué necesita | Umbral |
-|---|---|---|
-| ¿Hay periodicidad? | No perder voz real | **0.15** (flojo) |
-| ¿Qué frecuencia es? | No equivocarse de octava | **0.02** (estricto) |
-
-Aflojar el umbral **solo** para la decisión de sonoridad no tiene costo, y eso es
-lo que lo justifica:
-
-| Señal | Tramas sonoras, umbral 0.02 → 0.30 |
-|---|---|
-| Ruido de banda ancha (amplitud 0.05 a 0.5) | **0 % en todos los umbrales** |
-| Silencio | **0 % en todos** |
-| Voz real, tramo hablado | 27 % → 61 % |
-
-El error de octava sí reaparece por encima de 0.1, pero en la decisión de
-sonoridad **solo se cuentan tramas, no se usan sus frecuencias**: que una trama
-reporte 200 Hz en vez de 100 no cambia que sea sonora. El estimador de tono
-conserva su umbral estricto.
-
-También se bajó la fracción mínima de tramas sonoras de 20 % a 10 %, con el mismo
-argumento: la voz real da entre 14 % y 85 % por segmento y el silencio da 0 %.
-
-### Resultado
-
-| Archivo | Antes | Ahora |
-|---|---:|---:|
-| `ok` | 1.92 s | 6.16 s |
-| `ok2` | **0.00 s** | 5.34 s |
-| `mal` | 1.25 s | 8.26 s |
-| `rapido` | **0.00 s** | 4.69 s |
-
-### Tono medido en voz real
+Veinte archivos de un hablante: cinco frases × cuatro versiones (`ok`, `ok2`,
+`mal`, `rapido`), grabados con la página de captura del protocolo.
 
 | | Valor |
 |---|---|
-| Rango detectado | 91 – 400 Hz |
-| Mediana | 118 Hz |
-| En un tramo hablado continuo | 120 – 131 Hz, estable |
+| Formato | PCM 16 bits, mono, 16 kHz — sin compresión |
+| Duración | 1.28 a 2.82 s, incluido medio segundo de silencio a cada lado |
+| Emisiones por archivo | **1**, verificado al grabar |
 
-Un fundamental masculino típico, y estable dentro de cada tramo: confirma que
-YIN engancha periodicidad real y no ruido. El rango configurado (60–400 Hz) es
-adecuado.
+Un control que da confianza en el material: la versión `rapido` salió más corta
+que la `ok` en las **cinco** frases, sin excepción. Las versiones se grabaron
+como el protocolo pedía.
 
-## 3. Lo que NO funcionó: el comparador
+## 2. Resultado principal: mide bien, pero por poco
 
-| | Distancia |
-|---|---|
-| Pares correctos (`ok`, `ok2`, `rapido` entre sí) | 25.38 – 28.21 |
-| Pares incorrectos (con `mal`) | 29.75 – 33.06 |
-| **Factor de separación** | **1.05** |
+Comparando a velocidad normal, dentro de cada frase:
 
-| Escala del puntaje | Δ entre bien y mal |
-|---:|---:|
-| 10 | 0.8 |
-| 20 (actual) | 1.8 |
-| 30 | 1.9 |
-| 60 | 1.6 |
+| Frase | Par mínimo | Repetir la frase | Decirla mal | Margen | Δ puntaje |
+|---|---|---:|---:|---:|---:|
+| 1 | ship / sheep | 12.9 | 13.8 | +0.9 | 2.4 |
+| 2 | bad / bed | 12.0 | 14.1 | +2.1 | 5.5 |
+| 3 | sit / seat | 14.0 | 15.6 | +1.6 | 3.9 |
+| 4 | live / leave | 12.6 | 16.6 | +4.0 | 9.6 |
+| 5 | pull / pool | 12.5 | 16.9 | +4.4 | 10.6 |
 
-**Ninguna escala alcanza los 20 puntos que exige RF-10.** El máximo posible con
-estos datos es 1.9.
+**Las cinco separan.** Decir la vocal equivocada siempre aleja más que volver a
+decir la frase bien. Eso es lo que el comparador tiene que hacer, y lo hace.
 
-### Qué se descartó
+Pero el margen es del orden del 10 % de la distancia, y al pasar por la curva de
+puntaje se traduce en 2 a 11 puntos, no en 20.
 
-**No es que el comparador esté roto.** Las distancias de referencia son sanas:
+Las frases 4 y 5 —*live/leave* y *pull/pool*— son las que mejor separan. Son
+también las que más cambian la duración de la vocal, que es lo que los MFCC
+capturan con más claridad.
 
-| Comparación | Distancia |
+## 3. Tres hallazgos de la medición
+
+### 3.1 Medir agrupando las cinco frases fabrica un solapamiento que no existe
+
+La versión anterior de la prueba metía los treinta pares en dos distribuciones,
+una de correctos y otra de incorrectos, y concluía que se solapaban. **Eso era un
+error de método.**
+
+Cada frase tiene su propio nivel de distancia base, porque depende de cuántos
+fonemas tiene y de cuáles. Repetir la frase 3 da 14.0, y decir mal la frase 1 da
+13.8: agrupadas, el error de una frase queda por debajo del acierto de otra, y
+las clases parecen mezcladas. Pero **la aplicación nunca compara la frase 1 con
+la 3**: siempre enfrenta lo que dijo el usuario contra la referencia de esa misma
+frase.
+
+Medido dentro de la frase, que es como se usa, la separación aparece.
+
+### 3.2 El recorte por voz estorba, y se sabe por qué
+
+Las grabaciones ya vienen recortadas con medio segundo parejo a cada lado.
+Aplicarles encima el recorte por voz no quita silencio: quita **cantidades
+distintas en cada archivo**. En la frase 1 se ve entero:
+
+| Archivo | Dura | Tras el recorte |
+|---|---:|---:|
+| `ok` | 2.05 s | **2.02 s — no recortó nada** |
+| `ok2` | 2.56 s | 1.74 s |
+| `mal` | 2.82 s | 1.70 s |
+
+Dos tomas de la misma frase quedan con contenidos distintos, y esa diferencia es
+mayor que la de la vocal que se busca.
+
+**El mecanismo.** La fracción de tramas sonoras de estas grabaciones cae entre
+0.11 y 0.41, y la puerta está en 0.10. Varios segmentos quedan a un punto
+porcentual del umbral, así que aceptarlos o rechazarlos pasa a depender del
+ruido de la medición y no del contenido.
+
+| | Frases que separan |
 |---|---:|
-| Una toma contra sí misma | **0.00** |
-| La misma toma desfasada 10 ms | 8.71 |
-| Dos tramos de silencio entre sí | 0.00 |
+| Sin recortar | **5 de 5** |
+| Con el recorte por voz | 4 de 5 |
 
-**No es el promediado de varias tomas por archivo.** Se repitió la medición
-extrayendo los 20 tramos de habla individuales y comparándolos de a pares: el
-resultado empeora. Correctos con mediana 47.99, incorrectos con mediana 49.45, y
-38 de 91 pares incorrectos caen por debajo de la mediana de los correctos.
+Esto **no es un problema del comparador sino del detector de voz**, y sí importa
+en producción: ahí la referencia viene del sintetizador, limpia y sin silencio, y
+la del usuario viene del micrófono con silencio alrededor. El recorte hace falta,
+pero con este umbral es demasiado frágil. Queda anotado como trabajo pendiente.
 
-**No es ruido de fondo.** El silencio de los archivos es digitalmente nulo.
+### 3.3 El límite lo pone la velocidad, no la pronunciación
 
-### El dato que orienta la investigación
+Al incluir la toma `rapido` entre las correctas, una frase deja de separar:
 
-> **Dos tomas de la misma versión, del mismo hablante y la misma sesión, dan
-> distancia 57.13** — más que la mediana de los pares "correcto contra
-> incorrecto", que es 49.45.
+| Frase 2 (*bad/bed*) | Distancia |
+|---|---:|
+| Repetir la frase | 12.0 |
+| **Decirla rápido** | **15.2** |
+| Decirla mal | 14.1 |
 
-Si dos repeticiones de la misma frase quedan tan lejos como dos frases
-distintas, el comparador no tiene con qué discriminar. Y como una toma contra sí
-misma da exactamente cero, el problema no está en la implementación.
+Hablar deprisa aleja **más** que pronunciar mal. Con eso, ningún umbral puede
+distinguir las dos cosas en esa frase.
 
-La hipótesis más probable es que **los tramos comparados no contienen el mismo
-contenido**: el detector separa por pausas, y un tramo puede quedarse con parte
-de la frase mientras otro se queda con otra parte. Comparar "I need" contra
-"a new ship" daría exactamente este resultado.
+Y no es un defecto del alineamiento. Se comprobó: quitar la banda de
+Sakoe–Chiba deja la distancia idéntica en 14 de 15 pares, así que el
+alineamiento no está forzado. Lo que pasa es acústico — al hablar rápido las
+vocales se reducen y el espectro cambia de verdad, y eso el alineamiento
+temporal no lo puede deshacer porque no es un problema de tiempo.
 
-**No se pudo verificar**, porque requiere escuchar las grabaciones y confirmar
-qué dice cada tramo.
+| | Frases que separan |
+|---|---:|
+| A velocidad normal | **5 de 5** |
+| Incluyendo la toma rápida | 4 de 5 |
 
-## 4. Qué hace falta para cerrar S9-T3
+Es una limitación real del enfoque, no un error de implementación, y conviene
+declararla: **el sistema tolera la velocidad solo hasta cierto punto.**
 
-Grabaciones con **una sola emisión de la frase por archivo**, recortadas, como
-especifica `tests/audio/fixtures/README.md`. Con eso la comparación enfrenta
-contenidos equivalentes y la medición pasa a ser interpretable.
+## 4. La vía que pide RF-10: puntuar por palabra
 
-Si con material limpio la separación sigue siendo insuficiente, entonces sí es
-un problema del comparador, y las vías a explorar serían el número de
-coeficientes, la ponderación de las bandas o el paso a una distancia distinta de
-la euclídea.
+El puntaje de la frase **diluye un error de un fonema por construcción**.
+Promedia el costo de todo el alineamiento, y en una frase de cinco palabras la
+vocal equivocada son unas pocas tramas de un centenar. Que el margen quede en el
+10 % no es casualidad: es aproximadamente la fracción de la frase que cambió.
 
-## 5. Estado del riesgo R03
+Por eso RF-10 no pide solo un puntaje global sino **también uno por palabra**, con
+las marcas de tiempo del reconocedor. Eso ya está implementado en
+`frameRangeForWord` y `segmentCost` (S6-T2), pero las marcas vienen del módulo de
+Isaac y aquí no las hay.
 
-**Abierto, y con evidencia de que es real.** El riesgo decía que comparar voz
-humana contra voz sintetizada podía castigar la pronunciación correcta. La
-medición no lo confirma ni lo descarta —falta material adecuado— pero sí muestra
-que **el puntaje no discrimina con las primeras grabaciones reales**, mientras
-que con señales sintéticas daba 31 puntos de separación.
+Se aproximó tomando el tramo del alineamiento donde el costo es mayor: si el
+único error introducido es la vocal del par mínimo, ese tramo debería caer sobre
+ella. La ventana es de 100 ms, la duración típica de una vocal acentuada.
 
-Hasta cerrarlo, la métrica de RF-10 debe leerse como **verificada solo sobre
-señales sintéticas**.
+| Frase | Repetir | Decirla mal | Margen |
+|---|---:|---:|---:|
+| 1 ship/sheep | 19.6 | 32.0 | +12.4 |
+| 2 bad/bed | 15.9 | 22.7 | +6.8 |
+| 3 sit/seat | 19.9 | 26.1 | +6.3 |
+| 4 live/leave | 15.6 | 31.8 | +16.1 |
+| 5 pull/pool | 17.7 | 31.9 | +14.3 |
 
-## 6. Archivos
+**Separan las cinco, y los márgenes se triplican.** En puntaje:
+
+| Escala | Δ peor frase | Δ mediana |
+|---:|---:|---:|
+| 20 (actual) | 9.9 | **17.3** |
+| 25 | 10.0 | 17.8 |
+| 30 | 9.7 | 17.6 |
+
+La mediana llega a 17.8 y la peor frase a 10.0. Sigue sin alcanzar los 20 en el
+peor caso, pero **confirma la dirección**: la discriminación vive en la palabra,
+no en el promedio de la frase. Medir por palabra con las marcas reales del
+reconocedor es lo que puede cerrar la brecha.
+
+La escala se deja en **20**. El barrido muestra que el óptimo está en 25 y que la
+mejora es de una décima de punto, que no justifica tocar una constante ya
+documentada.
+
+## 5. Estado de RF-10
+
+**No se cumple con voz real.** Δ medido entre 2.4 y 10.6 puntos por frase, o hasta
+17.8 de mediana midiendo localizado, contra los 20 exigidos.
+
+La métrica de 31 puntos que figuraba en la matriz de trazabilidad se obtuvo con
+**señales sintéticas de tres vocales sostenidas**, donde el fonema cambiado es un
+tercio de la señal en vez de una décima parte. Ese número describe el
+comportamiento del algoritmo sobre su caso más favorable, no sobre habla.
+
+## 6. Estado del riesgo R03
+
+**Abierto, pero acotado.** El riesgo decía que el puntaje podía no correlacionar
+con la percepción real. La medición muestra que **sí correlaciona en el sentido
+correcto, de forma consistente en las cinco frases**, y que el problema es de
+magnitud, no de dirección.
+
+Dos límites quedan declarados:
+
+- El puntaje global de la frase no puede alcanzar 20 puntos de separación para un
+  error de un solo fonema, por dilución.
+- Hablar rápido penaliza tanto como pronunciar mal en la frase más difícil de las
+  cinco.
+
+Falta lo que esta tanda no pudo medir: **un segundo hablante**. Toda la evidencia
+es de una sola voz, así que la parte del riesgo que dice "comparar contra una voz
+distinta puede castigar la pronunciación correcta" sigue sin comprobarse.
+
+## 7. Qué falta
+
+1. **Un segundo hablante**, idealmente con tono más agudo. Es lo único que mide
+   la tolerancia entre voces, que es el centro de R03.
+2. **Puntuar por palabra con las marcas del reconocedor**, en vez de aproximarlo
+   con la peor ventana. Es tarea conjunta con Isaac.
+3. **Arreglar la fragilidad del recorte por voz**: la fracción de tramas sonoras
+   queda demasiado cerca del umbral en voz real.
+
+## 8. Archivos
 
 | Archivo | Rol |
 |---|---|
-| `src/audio/features/voiceDetection.ts` | Umbrales recalibrados con voz real |
-| `tests/audio/calibracion.test.ts` | Mide las distribuciones y propone la escala |
+| `tests/audio/calibracion.test.ts` | Toda la medición de esta evidencia |
 | `tests/audio/fixtures/README.md` | Protocolo de grabación |
+| `src/audio/comparator/scorer.ts` | Escala del puntaje, sin cambios |

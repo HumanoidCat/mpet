@@ -40,7 +40,7 @@
 - [x] S8-T3 · Pruebas unitarias DSP con señales sintéticas conocidas → 284 pruebas del módulo, todas con señales generadas por código
 
 ## Semana 9
-- [ ] S9-T3 · Afinado final del comparador con datos de pruebas
+- [ ] S9-T3 · Afinado final del comparador con datos de pruebas → medido con 20 grabaciones reales: separa en 5 de 5 pares mínimos pero con 2.4–10.6 puntos, no los 20 de RF-10 (ver `docs/evidencias/s9/s9-t3-calibracion-voz-real.md`). Falta un segundo hablante
 
 ## Semana 10 — 🎯 ENTREGA FINAL (mar 8 sep)
 - [x] S10-T6 · Preparar respuestas: Nyquist, por qué MFCC, cómo funcionan YIN y DTW → `docs/entregas/preguntas-defensa-dsp.md`
@@ -67,11 +67,17 @@ Tu módulo está prácticamente cerrado. Quedan **3 tareas**, y las dos primeras
 las que deciden si el puntaje sirve.
 
 - [ ] **S9-T3 · Calibrar el comparador con las cuatro voces del equipo** (riesgo **R03**).
-      Comparar voz humana contra voz sintetizada puede castigar pronunciación correcta.
-      Si el puntaje no separa bien, la función principal del producto no sirve aunque
-      el código esté bien. Las herramientas de calibración ya las subiste
-- [ ] **S6-T7 · Pares mínimos**: ship/sheep, bad/bed. Es la evidencia más directa de que
-      el puntaje mide pronunciación y no timbre ni volumen (con el equipo)
+      **Hecho con una voz**, falta una segunda. Con 20 grabaciones propias el comparador
+      distingue bien de mal en **5 de 5** pares mínimos, pero con **2.4 a 10.6 puntos** de
+      margen contra los 20 que exige RF-10 — hasta 17.8 midiendo por palabra. Falla la
+      magnitud, no la dirección. Ver `docs/evidencias/s9/s9-t3-calibracion-voz-real.md`.
+      Lo que falta es un segundo hablante: la tolerancia entre voces distintas, que es el
+      centro de R03, sigue sin medirse
+- [x] **S6-T7 · Pares mínimos**: las cinco frases (ship/sheep, bad/bed, sit/seat,
+      live/leave, pull/pool) grabadas en cuatro versiones y medidas. Confirma que el
+      puntaje mide pronunciación: la vocal equivocada aleja más que repetir la frase en
+      las cinco. También destapa el límite — hablar rápido penaliza tanto como pronunciar
+      mal en la frase más difícil
 - [x] **RF-09 · Verificación cruzada de MFCC contra librosa** → **0.009 % de error**, contra
       el 5 % exigido. Destapó un defecto real: la corrección de amplitud hundía 24 de las
       26 bandas mel contra el piso de `log(0)`. Ver `docs/evidencias/s5/s5-t2-mfcc.md` §8
