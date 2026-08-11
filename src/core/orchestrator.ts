@@ -6,6 +6,7 @@ import type {
   PronunciationScorer,
   Transcription,
 } from '@shared/contracts';
+import { compararConObjetivo } from './fraseObjetivo';
 
 /**
  * Orquestador (S2-T7 + S6). Duenio: Alejandro.
@@ -39,11 +40,32 @@ import type {
  * La semantica de alta-o-actualizacion esta documentada en `AppEvent`
  * (`src/shared/contracts.ts`), porque es la frontera que consume la interfaz.
  *
- * QUE TEXTO SE SINTETIZA COMO REFERENCIA
- * Lo que el usuario dijo, no la version corregida. El puntaje mide pronunciacion
- * y la gramatica ya la cubre el corrector por separado. Ademas, sintetizar la
- * frase corregida compararia dos secuencias de palabras distintas, que es
- * justamente lo que el alineamiento temporal no debe hacer.
+ * QUE TEXTO SE SINTETIZA COMO REFERENCIA — CORREGIDO EN S9-T3
+ *
+ * Hasta agosto se sintetizaba `transcription.text`, o sea **lo que el estudiante
+ * acababa de decir**. El razonamiento escrito entonces era que sintetizar la frase
+ * corregida compararia dos secuencias de palabras distintas. Eso vale para la
+ * gramatica, pero se extendio a toda la referencia sin ver la consecuencia:
+ *
+ *   la transcripcion ya lleva dentro el error de pronunciacion.
+ *
+ * Si el estudiante dice `sheep` donde iba `ship`, el reconocedor escribe `sheep`,
+ * el sintetizador dice `sheep`, y el estudiante se compara contra su propio error.
+ * **El puntaje no podia detectar una palabra mal dicha, por construccion.** Lo
+ * detecto Fabrizio midiendo con voz real (S9-T3); fue un error de diseno mio y
+ * estuvo activo varias semanas.
+ *
+ * Ahora se sintetiza la **frase objetivo**: lo que se le pidio repetir. Y si no hay
+ * frase objetivo —conversacion libre— **no se puntua**, porque no existe una
+ * pronunciacion correcta contra la que comparar. Mejor ningun numero que uno que
+ * en realidad mide cuanto se parece la voz del estudiante a la del sintetizador.
+ *
+ * LIMITE QUE SIGUE ABIERTO
+ * Incluso con la referencia correcta, el puntaje acustico depende mas de quien
+ * habla que de como pronuncia: cambiar de voz cuesta +7.08 de distancia y
+ * pronunciar mal solo +1.20 (R03). Por eso el modo practica combina este puntaje
+ * con la comparacion de la transcripcion contra el objetivo
+ * (`src/core/fraseObjetivo.ts`), que es la unica senal independiente del hablante.
  */
 
 export type OrchestratorState = 'idle' | 'recording' | 'processing';
@@ -55,6 +77,17 @@ export interface Orchestrator {
   toggleMic(): Promise<void>;
   /** Carga los modelos de IA (reporta progreso via event bus). */
   init(): Promise<void>;
+  /**
+   * Fija la frase que el estudiante debe repetir, o `null` para conversacion
+   * libre.
+   *
+   * Es lo que decide si se puntua la pronunciacion: sin objetivo no hay una
+   * pronunciacion correcta contra la que comparar (ver cabecera). La interfaz la
+   * fija al entrar al modo practica y la limpia al salir.
+   */
+  setFraseObjetivo(texto: string | null): void;
+  /** Frase objetivo vigente, o `null` si se esta en conversacion libre. */
+  getFraseObjetivo(): string | null;
 }
 
 interface Deps {
@@ -74,6 +107,8 @@ const newId = () => `msg-${Date.now()}-${nextId++}`;
 export function createOrchestrator({ audio, ai, bus, scorer }: Deps): Orchestrator {
   let state: OrchestratorState = 'idle';
   const history: ChatMessage[] = [];
+  /** `null` = conversacion libre, y entonces no se puntua la pronunciacion. */
+  let fraseObjetivo: string | null = null;
 
   /**
    * Aplica un cambio a un mensaje ya publicado y lo vuelve a emitir.
@@ -137,8 +172,12 @@ export function createOrchestrator({ audio, ai, bus, scorer }: Deps): Orchestrat
     // Sin comparador, sin palabras reconocidas o sin audio no hay nada que medir.
     if (!scorer || transcription.words.length === 0 || pcm.length === 0) return;
 
+    // SIN FRASE OBJETIVO NO SE PUNTUA. Ver la cabecera del archivo: sintetizar la
+    // transcripcion comparaba al estudiante contra su propia equivocacion.
+    if (!fraseObjetivo) return;
+
     try {
-      const referencePcm = await ai.speak(transcription.text);
+      const referencePcm = await ai.speak(fraseObjetivo);
       // El sintetizador puede no estar disponible todavia: devuelve vacio y se
       // omite el puntaje en silencio, sin ensuciar el chat con un error.
       if (referencePcm.length === 0) return;
@@ -186,11 +225,19 @@ export function createOrchestrator({ audio, ai, bus, scorer }: Deps): Orchestrat
 
       const correction = await ai.correctGrammar(transcription.text);
 
+      // En un turno de practica se compara lo transcrito contra la frase que se
+      // pidio repetir. Es la unica senal que depende de la pronunciacion y no de
+      // la voz, y se calcula DENTRO del turno porque es texto contra texto: no
+      // cuesta nada y llega junto con la correccion.
+      const objetivo = fraseObjetivo;
       const userMsg: ChatMessage = {
         id: newId(),
         role: 'user',
         text: transcription.text,
         correction,
+        ...(objetivo
+          ? { target: objetivo, targetMatch: compararConObjetivo(objetivo, transcription.text) }
+          : {}),
         ts: Date.now(),
       };
       history.push(userMsg);
@@ -223,6 +270,13 @@ export function createOrchestrator({ audio, ai, bus, scorer }: Deps): Orchestrat
 
   return {
     getState: () => state,
+
+    setFraseObjetivo(texto) {
+      const limpio = texto?.trim() ?? '';
+      fraseObjetivo = limpio.length > 0 ? limpio : null;
+    },
+
+    getFraseObjetivo: () => fraseObjetivo,
 
     async init() {
       await ai.init((model, progress) => {

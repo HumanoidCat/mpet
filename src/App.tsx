@@ -9,6 +9,7 @@ import { createPronunciationScorer } from '@audio/comparator/scorer';
 import { createMockScorer } from '@mocks/mockScorer';
 import { createSessionStore, createMemorySessionStore, type SessionSummary } from '@core/sessionStore';
 import { descargarWav } from '@core/wavExport';
+import { siguienteFrase, type FrasePractica } from '@core/bancoFrases';
 import { Chat } from '@ui/chat/Chat';
 import { VisualizerScreen } from '@ui/visualizer/VisualizerScreen';
 import SplashScreen, { type ModelStatus } from '@ui/shell/Splash';
@@ -251,6 +252,37 @@ export function App() {
     });
   }, [bus, modoGrabacion]);
 
+  // ── Modo practica con frase objetivo (S9-T3) ────────────────────
+  //
+  // Es lo unico que permite puntuar pronunciacion: hace falta una frase correcta
+  // contra la que comparar. En conversacion libre no existe, y por eso el
+  // orquestador no puntua sin objetivo (ver `orchestrator.ts`).
+  //
+  // No es una pantalla aparte a proposito: se monta sobre el chat que ya existe,
+  // y el color por palabra que ya pinta `Chat.tsx` sirve igual.
+  const [practica, setPractica] = useState<FrasePractica | null>(null);
+  const [hechas, setHechas] = useState<string[]>([]);
+
+  function empezarPractica() {
+    const frase = siguienteFrase(hechas);
+    setPractica(frase);
+    orch.setFraseObjetivo(frase.texto);
+    setScreen('chat');
+    setSidebarOpen(false);
+  }
+
+  function siguientePractica() {
+    if (practica) setHechas((h) => (h.includes(practica.id) ? h : [...h, practica.id]));
+    const frase = siguienteFrase(practica ? [...hechas, practica.id] : hechas);
+    setPractica(frase);
+    orch.setFraseObjetivo(frase.texto);
+  }
+
+  function salirDePractica() {
+    setPractica(null);
+    orch.setFraseObjetivo(null);
+  }
+
   async function onMicClick() {
     setMicError(null);
     try {
@@ -447,6 +479,56 @@ export function App() {
                   style={{ width: `${Math.round(cargaEnCurso.progress * 100)}%` }}
                 />
               </div>
+            </div>
+          )}
+
+          {screen === 'chat' && practica && (
+            <div className="px-4 py-3 bg-amber-50 border-b border-amber-200">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-[11px] font-semibold text-amber-700 uppercase tracking-wider">
+                    Repetí esta frase · {practica.contraste}
+                  </p>
+                  <p className="text-base font-medium text-slate-900 mt-0.5">
+                    {practica.texto}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <button
+                    onClick={() => void onPlay(practica.texto, true)}
+                    className="text-xs font-medium text-amber-800 underline underline-offset-2"
+                  >
+                    Escuchar despacio
+                  </button>
+                  <button
+                    onClick={siguientePractica}
+                    className="text-xs font-medium text-amber-800 underline underline-offset-2"
+                  >
+                    Siguiente
+                  </button>
+                  <button
+                    onClick={salirDePractica}
+                    className="text-xs text-slate-500 underline underline-offset-2"
+                  >
+                    Salir
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {screen === 'chat' && !practica && (
+            <div className="px-4 py-2 border-b border-[var(--color-border)] flex items-center justify-between gap-3">
+              <p className="text-xs text-[var(--color-muted)]">
+                En conversación libre no se puntúa la pronunciación: hace falta una
+                frase de referencia para poder compararla.
+              </p>
+              <button
+                onClick={empezarPractica}
+                className="text-xs font-semibold text-blue-700 underline underline-offset-2 flex-shrink-0"
+              >
+                Practicar pronunciación
+              </button>
             </div>
           )}
 
