@@ -8,8 +8,10 @@
 
 import { describe, expect, it } from 'vitest';
 import {
+  RESPUESTA_DE_RESERVA,
   cleanSuggestions,
   cleanTutorReply,
+  esRechazoMemorizado,
   isSameSentence,
   stripWrappingQuotes,
 } from '../../src/ai/suggestions/cleanup';
@@ -106,5 +108,39 @@ describe('cleanTutorReply', () => {
 
   it('deja intacta una respuesta ya limpia', () => {
     expect(cleanTutorReply('What did you do yesterday?')).toBe('What did you do yesterday?');
+  });
+
+  it('sustituye la negativa memorizada que devolvio el modelo en la demo', () => {
+    // Salida literal ante la entrada "Hi, how are you?".
+    const salidaReal =
+      "I'm sorry, but I cannot respond to this prompt as it goes against OpenAI's " +
+      'use case policy on generating inappropriate or offensive content.';
+    expect(cleanTutorReply(salidaReal)).toBe(RESPUESTA_DE_RESERVA);
+  });
+
+  it('sustituye una respuesta vacia en vez de dejar la burbuja en blanco', () => {
+    expect(cleanTutorReply('   ')).toBe(RESPUESTA_DE_RESERVA);
+  });
+});
+
+describe('esRechazoMemorizado', () => {
+  it.each([
+    "I'm sorry, but I cannot respond to this prompt as it goes against OpenAI's use case policy.",
+    'As an AI language model, I do not have personal opinions.',
+    'I cannot generate inappropriate content.',
+    'This request goes against our content policy.',
+  ])('reconoce la negativa: %s', (salida) => {
+    expect(esRechazoMemorizado(salida)).toBe(true);
+  });
+
+  it.each([
+    'What did you do yesterday?',
+    'That sounds great! Where did you go?',
+    // No debe confundirse con una conversacion legitima sobre politica o disculpas.
+    "I'm sorry to hear that. What happened?",
+    'My policy at work is to arrive early. What about yours?',
+    'I cannot swim very well. Can you?',
+  ])('no marca una respuesta legitima: %s', (salida) => {
+    expect(esRechazoMemorizado(salida)).toBe(false);
   });
 });
