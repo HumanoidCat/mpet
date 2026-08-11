@@ -93,11 +93,61 @@ export function cleanSuggestions(original: string, raw: readonly string[]): stri
 }
 
 /**
+ * Huellas de que el modelo está repitiendo material de entrenamiento en vez de
+ * responder.
+ *
+ * POR QUE EXISTE: LaMini-Flan-T5 se destilo a partir de salidas de GPT-3.5, asi que su
+ * corpus de entrenamiento contiene las negativas de ese sistema. Ante una entrada que
+ * no sabe continuar, el modelo devuelve una de esas negativas memorizadas — incluida
+ * la mencion literal a la politica de uso de otra empresa. Es texto memorizado, no una
+ * decision del modelo ni un fallo del prompt.
+ *
+ * Se detecto con la entrada mas trivial posible: "Hi, how are you?".
+ *
+ * El criterio es deliberadamente amplio. Equivocarse hacia el lado de filtrar cuesta
+ * una respuesta generica pero valida; equivocarse hacia el otro pone en pantalla del
+ * estudiante una negativa que habla de una empresa que no tiene nada que ver con esta
+ * aplicacion. Ninguna respuesta legitima de un tutor de ingles contiene estas frases.
+ */
+const HUELLAS_DE_RECHAZO: readonly RegExp[] = [
+  /\bopen\s?ai\b/i,
+  /\bchat\s?gpt\b/i,
+  /use case polic/i,
+  /content polic/i,
+  /as an ai(\s+language)?\s+model/i,
+  /\bi (can ?not|cannot|can't|am unable to|am not able to) (respond|answer|reply|generate|provide|comply|assist)/i,
+  /i'?m sorry,? but i (can ?not|cannot|can't)/i,
+  /(inappropriate|offensive) content/i,
+  /(goes |it )?against .{0,40}\bpolic/i,
+];
+
+/**
+ * Respuesta con la que se sustituye una negativa memorizada.
+ *
+ * Cumple el mismo contrato que le pide `TUTOR_INSTRUCTION` al modelo —una frase corta
+ * que termina en pregunta— para que la conversacion no se muera. Devolver cadena
+ * vacia no serviria: el chat mostraria una burbuja en blanco, que para el estudiante
+ * es igual de roto.
+ */
+export const RESPUESTA_DE_RESERVA =
+  "Sorry, I didn't quite follow that. Could you tell me a bit more?";
+
+/** ¿La salida es una negativa memorizada en vez de una respuesta? */
+export function esRechazoMemorizado(text: string): boolean {
+  return HUELLAS_DE_RECHAZO.some((huella) => huella.test(text));
+}
+
+/**
  * Limpia la respuesta conversacional del tutor.
  *
  * Además de las comillas, junta los saltos de línea: el chat muestra el mensaje en un
  * solo bloque y un salto suelto se ve como un hueco raro en medio de la burbuja.
+ *
+ * Y descarta las negativas memorizadas (ver `HUELLAS_DE_RECHAZO`), que es el unico
+ * caso en que esta funcion sustituye el texto del modelo en lugar de solo limpiarlo.
  */
 export function cleanTutorReply(text: string): string {
-  return stripWrappingQuotes(text).replace(/\s*\n\s*/g, ' ').trim();
+  const limpio = stripWrappingQuotes(text).replace(/\s*\n\s*/g, ' ').trim();
+  if (limpio.length === 0 || esRechazoMemorizado(limpio)) return RESPUESTA_DE_RESERVA;
+  return limpio;
 }
