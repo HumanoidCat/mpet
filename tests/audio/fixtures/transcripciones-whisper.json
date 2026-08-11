@@ -1,0 +1,69 @@
+{
+  "_generado": "Xenova/whisper-tiny.en via @huggingface/transformers, 11 ago 2026",
+  "_procedimiento": "Se corrio una vez fuera de la suite alimentando el PCM de cada WAV al pipeline automatic-speech-recognition. Se versiona el resultado y no la ejecucion, igual que el fixture de librosa (D-07): cargar el modelo tarda y depende de red la primera vez.",
+  "_normalizacion": "minusculas, sin signos de puntuacion",
+  "frases": {
+    "1": {
+      "objetivo": "i need a new ship",
+      "par": "ship/sheep"
+    },
+    "2": {
+      "objetivo": "she had a bad day",
+      "par": "bad/bed"
+    },
+    "3": {
+      "objetivo": "please sit down here",
+      "par": "sit/seat"
+    },
+    "4": {
+      "objetivo": "he will live there",
+      "par": "live/leave"
+    },
+    "5": {
+      "objetivo": "can you pull it",
+      "par": "pull/pool"
+    }
+  },
+  "transcripciones": {
+    "evelyn-1-mal": "i need a new sheep",
+    "evelyn-1-ok": "i need a new chip",
+    "evelyn-1-ok2": "i need a new chip",
+    "evelyn-1-rapido": "i need a new sheep",
+    "evelyn-2-mal": "she had a bit late",
+    "evelyn-2-ok": "she had a bad day",
+    "evelyn-2-ok2": "she had a birthday",
+    "evelyn-2-rapido": "cheeratavate",
+    "evelyn-3-mal": "please see it down here",
+    "evelyn-3-ok": "please sit down here",
+    "evelyn-3-ok2": "felicity down here",
+    "evelyn-3-rapido": "please don't hear",
+    "evelyn-4-mal": "he will leave there",
+    "evelyn-4-ok": "he will leave there",
+    "evelyn-4-ok2": "he will leave there",
+    "evelyn-4-rapido": "he will leave there",
+    "evelyn-5-mal": "can you bo-eat",
+    "evelyn-5-ok": "can you pull it",
+    "evelyn-5-ok2": "can you pull it",
+    "evelyn-5-rapido": "can you pull it",
+    "fabrizio-1-mal": "i need a new sheep",
+    "fabrizio-1-ok": "i need a new ship",
+    "fabrizio-1-ok2": "i need a new ship",
+    "fabrizio-1-rapido": "i need a new ship",
+    "fabrizio-2-mal": "she had a bit day",
+    "fabrizio-2-ok": "she had a bad date",
+    "fabrizio-2-ok2": "she had a bad day",
+    "fabrizio-2-rapido": "she had a bad day",
+    "fabrizio-3-mal": "please sit down here",
+    "fabrizio-3-ok": "please sit down here",
+    "fabrizio-3-ok2": "please sit down here",
+    "fabrizio-3-rapido": "please sit down here",
+    "fabrizio-4-mal": "he will leave there",
+    "fabrizio-4-ok": "he will leave there",
+    "fabrizio-4-ok2": "he will leave there",
+    "fabrizio-4-rapido": "he will leave there",
+    "fabrizio-5-mal": "can you pull it",
+    "fabrizio-5-ok": "can you pull it",
+    "fabrizio-5-ok2": "can you pull it",
+    "fabrizio-5-rapido": "can you pull it"
+  }
+}
