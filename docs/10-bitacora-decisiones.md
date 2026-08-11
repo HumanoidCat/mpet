@@ -534,3 +534,27 @@ falla en el uso más corriente del idioma.
 five dollars»). Cabe entero en `src/ai/`, no depende de Kokoro y **se prioriza por
 delante de él**: es una tarde de trabajo con efecto visible, frente a 216 MiB con
 efecto por medir.
+
+---
+
+## D-13 · Interfaz en español, contenido en inglés (Semana 7)
+
+**Contexto.** La interfaz mezclaba jerga técnica en inglés —«Synthesizing
+Speech…» en cada turno— con instrucciones en español.
+
+**Decisión.** Se traduce y simplifica todo el texto de navegación y de proceso.
+Queda en inglés solo lo que es material de aprendizaje: lo que dice el
+estudiante, la respuesta del tutor, las correcciones y las sugerencias.
+
+**Justificación.** El usuario es un estudiante hispanohablante que está
+aprendiendo inglés. Obligarle a descifrar la interfaz añade una dificultad que no
+es la que vino a practicar, y en un principiante compite con el contenido. La
+frontera queda clara: el envoltorio en su idioma, el ejercicio en el que
+practica.
+
+**Añadido.** Una línea de ánimo por nivel de puntaje (`TIER_ENCOURAGEMENT`), para
+que un puntaje bajo se lea como retroalimentación y no como un veredicto. Es
+coherente con la mitigación prevista para R03.
+
+**Registro.** La decisión la tomó el módulo de interfaz durante S7-T3. Se anota
+aquí porque afecta al producto entero, no solo a `src/ui/`.

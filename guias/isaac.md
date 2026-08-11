@@ -75,23 +75,44 @@ El orden ya no lo fija la semana del calendario sino la dependencia (D-08).
 
 ---
 
-## Lo que falta — actualizado 4 ago
+## Cerrado el 7 de agosto
 
-Quedan **6 tareas**. Las dos primeras son las que más se notan en la demo: hoy el
-tutor contesta siempre lo mismo y no sugiere nada.
+- [x] **S7-T4 · Bajar el peso de la descarga inicial** → carga bajo demanda del
+      sintetizador, de **411.5 a 302.6 MiB** (D-11)
+- [x] **Conteo de fallos de pronunciación del TTS** → **7 de 14**, por encima del
+      umbral de 5. Fallan también `water` y `book`, que eran palabras de control.
+      Kokoro queda aprobado y diferido a la entrega final (D-12)
+- [x] **Peso exacto de la descarga y datos de I-04** → registrados en la bitácora
 
-- [ ] **S7-T2 · Respuesta del tutor.** `reply()` devuelve un texto fijo.
-      Recomendación para el Avance 2: **plantilla** a partir de la transcripción y la
-      corrección, sin modelo nuevo. Un LLM ligero solo si la latencia medida cabe en
-      los 2 s comprometidos, y eso hay que medirlo antes, como hiciste con el TTS
-- [ ] **S6-T4 · Sugerencias.** `suggest()` devuelve lista vacía y la pantalla
-      Suggestions muestra texto escrito a mano
-- [ ] **S7-T4 · Bajar el peso de la descarga inicial**, hoy unos **388 MB** (no 300).
-      La cuantización a 4 bits quedó descartada por medición (D-05). La vía es carga
-      bajo demanda del TTS, que no se necesita hasta después del primer turno
-- [ ] Conteo de fallos de pronunciación del TTS con las 14 frases, según el protocolo
-      acordado. Es lo único que decide si Kokoro entra o no
-- [ ] Confirmar el peso exacto de la descarga y los datos de la incidencia **I-04**
-      (barra de progreso), para que Alejandro los registre
-- [ ] S8-T1 · Medir WER: 50 frases, 4 hablantes
-- [ ] S10-T6 · Preparar respuestas: cuantización, ONNX/WASM, WER, por qué whisper-tiny
+---
+
+## Lo que falta — actualizado 11 ago
+
+Sos el cuello de botella del proyecto: **las tres primeras son lo único que separa
+a la aplicación de estar terminada.**
+
+- [ ] **S7-T2 · Respuesta del tutor.** Sin esto la aplicación no conversa, que es
+      lo que promete el nombre. Recomendación: plantilla a partir de la
+      transcripción y la corrección. Un LLM solo si la latencia medida cabe en 2 s
+- [ ] **S6-T4 · Sugerencias.** `suggest()` devuelve lista vacía. El orquestador y
+      la pantalla ya están cableados: funciona en cuanto exista el modelo
+- [ ] **I-07 · Números a letras.** El sintetizador no dice cifras: con `$25` no se
+      oye un número equivocado, no se oye nada. Una tarde, y va **antes** que Kokoro
+- [ ] **R16 · Fijar la referencia del TTS entre sesiones** (con Alejandro). La
+      misma frase se sintetiza distinta al recargar, así que el mismo estudiante
+      saca puntajes distintos por algo que no depende de él. Ensucia la pantalla
+      de progreso de Monestel
+- [ ] **Evaluar Kokoro** con el mismo banco de 14 + 5 palabras antes de adoptarlo
+      (D-12). Está aprobado pero no medido: si no mejora, no se adopta
+- [ ] **S8-T1 · Medir WER**: 50 frases, 4 hablantes. Es la única métrica del
+      reconocedor que el curso pide y que no se ha tomado
+- [ ] S10-T6 · Preparar respuestas para la defensa. El modelo a seguir es
+      `docs/entregas/preguntas-defensa-dsp.md`, de Fabrizio
+
+### Nota de Monestel, de su revisión manual
+
+El texto `'Got it! (respuesta del tutor pendiente — S7-T2)'` **le muestra al
+usuario un código de tarea interno**. Es el mismo problema que vigila
+`tests/ui/sinNotasDeEquipo.test.ts`, pero esa prueba solo cubre `src/ui/`. No lo
+tocó por estar fuera de su módulo. Se resuelve solo cuando entregues S7-T2; si se
+demora, cambiá al menos el texto por algo sin código de tarea.
