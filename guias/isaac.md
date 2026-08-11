@@ -82,20 +82,3 @@ El orden ya no lo fija la semana del calendario sino la dependencia (D-08).
 
 ---
 
-## Lo que falta — actualizado 7 ago
-
-- [~] **S7-T4 · Bajar el peso de la descarga inicial.** Hecha la carga bajo demanda:
-      el arranque baja de 411.5 a **302.6 MiB**. Pero el modelo del tutor añade
-      264.8 MiB en el primer turno, así que una sesión completa son **676.4 MiB**.
-      Siguiente vía: el corrector de gramática (241 MiB) es el único de los cuatro
-      modelos que nunca se comparó contra alternativas más livianas.
-- [ ] **Segundo oyente para el conteo de pronunciación.** El primero dio 7 fallos de
-      14, por encima del umbral de 5, y fallan `water` y `book` que eran palabras de
-      control. Falta la segunda persona para cerrarlo formalmente.
-- [ ] **Mandarle a Alejandro** `src/ai/RESPUESTA-a-alejandro-s7-t4.md`: lleva los
-      datos de I-04 y el peso real (411 MiB, no 388, con el lío de unidades explicado).
-- [ ] **Revisar el PR #58 de Fabrizio** con lo que sé y él no: la referencia del TTS
-      no es reproducible entre sesiones, y el sintetizador pronuncia mal hasta
-      palabras comunes. Puede explicar por qué R03 se materializó.
-- [ ] S8-T1 · Medir WER: 50 frases, 4 hablantes
-- [ ] S10-T6 · Preparar respuestas: cuantización, ONNX/WASM, WER, por qué whisper-tiny

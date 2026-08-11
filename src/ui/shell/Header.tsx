@@ -10,15 +10,18 @@ type ProcessingState =
   | 'synthesizing'
   | 'finished'
 
+// Traducidos y simplificados para un estudiante, no un desarrollador: antes
+// decian cosas como "Synthesizing Speech" — jerga tecnica del pipeline que no
+// le dice nada util a alguien practicando ingles.
 const PROCESSING_LABELS: Record<ProcessingState, string> = {
   idle: '',
-  listening: 'Listening...',
-  processing: 'Processing Audio...',
-  transcribing: 'Transcribing...',
-  correcting: 'Correcting Grammar...',
-  generating: 'Generating Suggestions...',
-  synthesizing: 'Synthesizing Speech...',
-  finished: 'Finished',
+  listening: 'Escuchando...',
+  processing: 'Procesando audio...',
+  transcribing: 'Transcribiendo...',
+  correcting: 'Revisando gramática...',
+  generating: 'Buscando sugerencias...',
+  synthesizing: 'Preparando el audio...',
+  finished: 'Listo',
 }
 
 const PIPELINE_STAGES: ProcessingState[] = [
@@ -86,12 +89,12 @@ export default function Header({
           ) : processingState === 'finished' ? (
             <>
               <div className="w-2 h-2 rounded-full bg-green-500" />
-              <span className="text-xs font-medium text-green-700">Analysis Complete</span>
+              <span className="text-xs font-medium text-green-700">Análisis completo</span>
             </>
           ) : (
             <>
               <div className="w-2 h-2 rounded-full bg-slate-300" />
-              <span className="text-xs text-slate-400">Ready</span>
+              <span className="text-xs text-slate-400">Listo</span>
             </>
           )}
         </div>
@@ -128,13 +131,13 @@ export default function Header({
           }`}
         >
           <Mic className={`w-3.5 h-3.5 ${micActive ? 'text-red-500' : 'text-slate-400'}`} />
-          <span className="hidden sm:inline">{micActive ? 'Active' : 'Off'}</span>
+          <span className="hidden sm:inline">{micActive ? 'Grabando' : 'Apagado'}</span>
         </div>
 
         {/* Offline badge */}
         <div className="flex items-center gap-1 sm:gap-1.5 px-2 py-1.5 rounded-lg bg-green-50 ring-1 ring-green-200 text-xs font-semibold text-green-700">
           <WifiOff className="w-3.5 h-3.5 text-green-600" />
-          <span className="hidden sm:inline">Offline</span>
+          <span className="hidden sm:inline">Sin conexión</span>
         </div>
 
         {/* Theme toggle */}

@@ -57,7 +57,7 @@ export default function SplashScreen({ models, overallProgress, ready, onReady }
               English Teacher
             </h1>
             <p className="text-sm text-slate-500 mt-1.5">
-              AI-Powered Conversation Coach · 100% Offline
+              Tu entrenador de conversación con IA · 100% sin conexión
             </p>
           </div>
         </div>
@@ -67,7 +67,7 @@ export default function SplashScreen({ models, overallProgress, ready, onReady }
           {/* Main progress */}
           <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between text-sm">
-              <span className="font-medium text-slate-700">Preparing AI models...</span>
+              <span className="font-medium text-slate-700">Preparando los modelos de IA...</span>
               <span className="font-mono font-medium text-blue-600">{pct}%</span>
             </div>
             <div className="h-2.5 bg-slate-100 rounded-full overflow-hidden">
@@ -81,7 +81,7 @@ export default function SplashScreen({ models, overallProgress, ready, onReady }
           {/* Current model */}
           <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200">
             <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">
-              Loading Models
+              Cargando modelos
             </p>
             <div className="flex flex-col gap-2.5">
               {models.map((model) => {
@@ -109,7 +109,7 @@ export default function SplashScreen({ models, overallProgress, ready, onReady }
           <div className="flex items-center gap-2.5 bg-green-50 rounded-xl px-4 py-3 border border-green-200">
             <WifiOff className="w-4 h-4 text-green-600 flex-shrink-0" />
             <p className="text-sm text-green-700 font-medium">
-              Once installed, works 100% offline — no internet required.
+              Una vez instalada, funciona 100% sin conexión — no necesitás internet.
             </p>
           </div>
 
@@ -119,7 +119,7 @@ export default function SplashScreen({ models, overallProgress, ready, onReady }
               onClick={onReady}
               className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition-colors text-sm"
             >
-              Start Learning →
+              Empezar a practicar →
             </button>
           )}
         </div>
