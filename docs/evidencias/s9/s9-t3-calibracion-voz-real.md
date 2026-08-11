@@ -241,27 +241,78 @@ diferencia entre bien y mal: margen 0.03 contra 1.98.
 En las cuatro variantes, cambiar de voz sigue pesando más que pronunciar mal en
 las cinco frases.
 
+### La medición que lo explica del todo
+
+La frase anterior —"dos personas distintas diciendo lo mismo se parecen menos que
+una persona diciendo dos cosas distintas"— no es una figura retórica. Está
+medida:
+
+| | Misma frase | Otra frase | **Contraste fonético** |
+|---|---:|---:|---:|
+| Misma voz | 12.86 | 21.11 | **8.25** |
+| Otra voz | 20.12 | 23.59 | **3.47** |
+
+Decir la frase **correcta con otra voz** (20.12) queda tan lejos como decir **una
+frase completamente distinta con la propia** (21.11). El cambio de hablante
+consume casi todo el rango disponible.
+
+Lo que queda para distinguir pronunciación es el contraste: **8.25 dentro de la
+misma voz, 3.47 entre voces**. Se reduce al 42 %. Y como una vocal es alrededor
+del 15 % del contenido fonético de la frase, el error a detectar vale ~1.2
+puntos con la misma voz —que es exactamente lo medido— y ~0.5 entre voces, por
+debajo de la variación entre dos tomas de la misma persona.
+
+**No hay señal que rescatar en ese régimen.** No es cuestión de afinar una
+constante.
+
+### Ocho vías probadas para cumplir RF-10
+
+Antes de declararlo no alcanzable se buscó activamente una configuración que
+cumpliera. Cada fila se midió sobre las 40 grabaciones.
+
+| Vía | Idea | Resultado |
+|---|---|---|
+| Escala del puntaje | Barrido de 10 a 60 | El óptimo está en 15–25 y mueve décimas |
+| Estadístico localizado | Peor ventana de 50, 100 y 200 ms en vez del promedio | **Ayuda con la misma voz** (mediana 5.9 → 14.3); entre voces, nada |
+| Coeficientes delta | Añadir las derivadas temporales, que dependen menos del hablante | Con la misma voz, mediana 15.4 (el mejor); entre voces, nada |
+| CMN desde c₂ y c₃ | Descartar más coeficientes bajos, que cargan la huella del hablante | Baja la penalización por voz, pero **baja más la señal del error** |
+| CMVN | Normalizar también la varianza | Comprime todo a la cuarta parte y **borra el error**: margen 0.03 contra 1.98 |
+| **VTLN** | Escalar el eje de frecuencias del banco mel por un factor α por hablante, estimado con una frase de calibración | α = 0.92 y 1.10, direcciones plausibles, pero la distancia solo baja de 17.0 a 16.9. **La diferencia entre voces no es un escalado uniforme** |
+| **Doble referencia** | Comparar contra la versión correcta *y* la incorrecta sintetizadas con la misma voz, y decidir por cuál está más cerca. El desplazamiento por voz debería cancelarse | 13 de 20 aciertos, Δ 1.2 puntos. **No se cancela**, porque el alineamiento no es lineal |
+| Sin recorte por voz | Quitar la fuente de variación del detector | Sube de 4 a 5 de 5 con la misma voz; entre voces, nada |
+
+**La mejor configuración encontrada** —deltas más peor ventana de 100 ms, escala
+25— detecta el error en **10 de 10** frases con la misma voz y sube la mediana
+del Δ de 5.9 a **15.4**. Sigue sin llegar a 20 en el peor caso, y **no mejora el
+escenario real** entre voces.
+
+Por eso no se cambia la implementación: sería añadir complejidad para mejorar una
+métrica que no es la que decide.
+
 ### Por qué era esperable
 
-Comparar MFCC crudos con alineamiento temporal mide **parecido acústico**, y dos
-personas distintas diciendo lo mismo se parecen menos acústicamente que una
-persona diciendo dos cosas distintas. El largo del tracto vocal cambia las
-frecuencias de los formantes, y eso vive en los mismos coeficientes que
-distinguen una vocal de otra.
+Comparar MFCC crudos con alineamiento temporal mide **parecido acústico**. El
+largo del tracto vocal escala las frecuencias de los formantes, y eso vive en los
+mismos coeficientes que distinguen una vocal de otra: no hay forma de quitar uno
+sin quitar el otro, y las seis normalizaciones probadas lo confirman.
 
 Los sistemas que sí puntúan pronunciación de forma independiente del hablante no
-comparan contra una grabación: comparan contra un **modelo acústico de fonemas**,
-entrenado con muchos hablantes. Eso está fuera del alcance del curso, y no es un
-defecto de la implementación: es el límite del método elegido.
+comparan contra una grabación: comparan contra un **modelo acústico de fonemas**
+entrenado con miles de voces, y puntúan con la probabilidad de que lo dicho
+corresponda al fonema esperado. Eso requiere entrenamiento y está fuera del
+alcance del curso.
+
+No es un defecto de la implementación —verificada contra librosa con 0.009 % de
+error— sino el límite del método elegido.
 
 ## 6. Estado de RF-10
 
-**No se cumple.**
+**No se cumple, y se buscó activamente que se cumpliera** (§5, ocho vías).
 
 | Escenario | Δ medido | Exigido |
 |---|---|---:|
-| Referencia de la misma voz | 2.4 a 10.6 por frase | 20 |
-| Referencia de la misma voz, midiendo por palabra | hasta 17.8 de mediana | 20 |
+| Referencia de la misma voz, configuración actual | 2.4 a 10.6 por frase | 20 |
+| Referencia de la misma voz, mejor configuración hallada | peor 0.7, **mediana 15.4** | 20 |
 | **Referencia de otra voz — el caso real** | **−3.0 a +11.0** | 20 |
 
 La métrica de 31 puntos que figuraba en la matriz de trazabilidad se obtuvo con
