@@ -116,16 +116,50 @@ export function Chat({ messages, state, onMicClick, audio, onPlay }: Props) {
                       : m.text}
                 </div>
 
+                {/*
+                  En un turno de practica manda la comparacion contra la frase
+                  objetivo, no el puntaje acustico. El puntaje resulto medir mas
+                  QUIEN habla que COMO pronuncia: cambiar de voz cuesta +7.08 de
+                  distancia y pronunciar mal solo +1.20 (S9-T3, riesgo R03). La
+                  comparacion contra el objetivo pasa por el reconocedor, que esta
+                  entrenado con miles de voces, asi que el timbre deja de influir.
+
+                  La redaccion no es negociable: esa senal tiene 4 falsas alarmas
+                  de cada 10 aciertos, asi que dice "no te entendi" y nunca "lo
+                  dijiste mal". Acusar a quien pronuncio bien desmotiva y ademas
+                  es falso.
+                */}
+                {m.targetMatch && (
+                  <div
+                    className={`text-xs px-2 py-1 rounded-lg border ${
+                      m.targetMatch.noReconocidas === 0
+                        ? 'text-emerald-700 bg-emerald-50 border-emerald-200'
+                        : 'text-amber-800 bg-amber-50 border-amber-200'
+                    }`}
+                  >
+                    {m.targetMatch.noReconocidas === 0
+                      ? 'Se entendió completa'
+                      : `No entendí bien: ${m.targetMatch.palabras
+                          .filter((p) => p.noReconocida)
+                          .map((p) => p.palabra)
+                          .join(', ')}`}
+                  </div>
+                )}
+
                 {hasPronunciation && (
                   <div
                     className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg border"
                     style={{
-                      color: scoreColor(m.pronunciation!.overall),
-                      background: scoreColor(m.pronunciation!.overall) + '15',
-                      borderColor: scoreColor(m.pronunciation!.overall) + '40',
+                      // En practica el puntaje es dato secundario, asi que va en
+                      // gris: darle color de semaforo lo pondria al mismo nivel
+                      // que la senal fiable.
+                      color: m.targetMatch ? '#64748B' : scoreColor(m.pronunciation!.overall),
+                      background: m.targetMatch ? '#F8FAFC' : scoreColor(m.pronunciation!.overall) + '15',
+                      borderColor: m.targetMatch ? '#E2E8F0' : scoreColor(m.pronunciation!.overall) + '40',
                     }}
                   >
-                    Puntaje de pronunciación: {Math.round(m.pronunciation!.overall)}
+                    {m.targetMatch ? 'Parecido acústico' : 'Puntaje de pronunciación'}:{' '}
+                    {Math.round(m.pronunciation!.overall)}
                   </div>
                 )}
 

@@ -78,6 +78,7 @@ export type Screen =
 export function App() {
   const mockMode = useMockMode();
   const modoGrabacion = useModoGrabacion();
+  const medirTiempos = new URLSearchParams(window.location.search).get('medir') === '1';
 
   const { bus, orch, audio, ai, store } = useMemo(() => {
     const bus = createEventBus();
@@ -289,6 +290,21 @@ export function App() {
       const turn = orch.toggleMic();
       setState(orch.getState() === 'idle' ? 'processing' : orch.getState());
       await turn;
+
+      // Con `?medir=1` se vuelca el reparto de tiempos del turno (R06, S8-T7).
+      // Se mide con la aplicacion real en vez de estimarlo desde un spike: los
+      // numeros del spike se tomaron con la pestania en segundo plano, donde el
+      // navegador limita el procesamiento.
+      if (medirTiempos) {
+        const t = orch.getTiempos();
+        if (t) {
+          const seg = (t.muestras / SAMPLE_RATE).toFixed(1);
+          console.log(
+            `[turno ${seg}s] ASR ${t.asr} · gramatica ${t.gramatica} · ` +
+              `RETROALIMENTACION ${t.retroalimentacion} · tutor ${t.tutor} · total ${t.total} (ms)`
+          );
+        }
+      }
     } catch (err) {
       // Mensaje segun la causa real (permiso, sin dispositivo, en uso por
       // otra app) en vez de uno generico: el usuario necesita saber que

@@ -70,6 +70,30 @@ import { compararConObjetivo } from './fraseObjetivo';
 
 export type OrchestratorState = 'idle' | 'recording' | 'processing';
 
+/**
+ * Duraciones de un turno, en milisegundos. Para cerrar R06 (S8-T7).
+ *
+ * El presupuesto de dos segundos se aplica a `retroalimentacion` —transcripcion
+ * mas correccion—, que es lo que pierde valor si tarda: una correccion que llega
+ * tarde ya no se conecta con lo que el estudiante acaba de decir. La respuesta
+ * del tutor admite mas, porque una pausa de segundo y medio antes de contestar es
+ * lo normal en una conversacion (ver D-15).
+ */
+export interface TiemposTurno {
+  /** Reconocimiento de voz. */
+  asr: number;
+  /** Correccion gramatical. */
+  gramatica: number;
+  /** ASR + gramatica: lo que cubre el presupuesto de 2 s. */
+  retroalimentacion: number;
+  /** Generacion de la respuesta del tutor, dentro del turno pero despues. */
+  tutor: number;
+  /** Desde que se suelta el microfono hasta que el tutor responde. */
+  total: number;
+  /** Muestras de audio del turno, para poder normalizar por duracion hablada. */
+  muestras: number;
+}
+
 export interface Orchestrator {
   /** Estado actual del turno. */
   getState(): OrchestratorState;
@@ -88,6 +112,11 @@ export interface Orchestrator {
   setFraseObjetivo(texto: string | null): void;
   /** Frase objetivo vigente, o `null` si se esta en conversacion libre. */
   getFraseObjetivo(): string | null;
+  /**
+   * Tiempos del ultimo turno completado, o `null` si todavia no hubo ninguno.
+   * Existe para poder medir R06 con la aplicacion real en vez de estimarlo.
+   */
+  getTiempos(): TiemposTurno | null;
 }
 
 interface Deps {
@@ -109,6 +138,7 @@ export function createOrchestrator({ audio, ai, bus, scorer }: Deps): Orchestrat
   const history: ChatMessage[] = [];
   /** `null` = conversacion libre, y entonces no se puntua la pronunciacion. */
   let fraseObjetivo: string | null = null;
+  let tiempos: TiemposTurno | null = null;
 
   /**
    * Aplica un cambio a un mensaje ya publicado y lo vuelve a emitir.
@@ -216,7 +246,12 @@ export function createOrchestrator({ audio, ai, bus, scorer }: Deps): Orchestrat
       // devolver texto inventado, que es peor que no responder nada.
       if (pcm.length === 0) return;
 
+      // Se mide con `Date.now()` y no con `performance.now()` a proposito: la
+      // resolucion de milisegundos sobra para etapas de cientos de ms, y asi el
+      // nucleo no depende de una API que no existe en el entorno de pruebas.
+      const t0 = Date.now();
       const transcription = await ai.transcribe(pcm);
+      const tAsr = Date.now();
       bus.emit({ type: 'transcription', result: transcription });
 
       // Nada reconocible: silencio o ruido de fondo. Se sale sin agregar un
@@ -224,6 +259,7 @@ export function createOrchestrator({ audio, ai, bus, scorer }: Deps): Orchestrat
       if (transcription.text.trim().length === 0) return;
 
       const correction = await ai.correctGrammar(transcription.text);
+      const tGramatica = Date.now();
 
       // En un turno de practica se compara lo transcrito contra la frase que se
       // pidio repetir. Es la unica senal que depende de la pronunciacion y no de
@@ -249,6 +285,16 @@ export function createOrchestrator({ audio, ai, bus, scorer }: Deps): Orchestrat
       void suggest(userMsg, transcription.text);
 
       const replyText = await ai.reply(history);
+      const tTutor = Date.now();
+
+      tiempos = {
+        asr: tAsr - t0,
+        gramatica: tGramatica - tAsr,
+        retroalimentacion: tGramatica - t0,
+        tutor: tTutor - tGramatica,
+        total: tTutor - t0,
+        muestras: pcm.length,
+      };
       const tutorMsg: ChatMessage = {
         id: newId(),
         role: 'tutor',
@@ -277,6 +323,8 @@ export function createOrchestrator({ audio, ai, bus, scorer }: Deps): Orchestrat
     },
 
     getFraseObjetivo: () => fraseObjetivo,
+
+    getTiempos: () => tiempos,
 
     async init() {
       await ai.init((model, progress) => {
