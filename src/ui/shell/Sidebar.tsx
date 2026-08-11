@@ -10,27 +10,42 @@ import {
   ChevronRight,
   Plus,
 } from 'lucide-react'
+import type { SessionSummary } from '@core/sessionStore'
 // TODO: cuando se conecte a App.tsx real, importar Screen desde ahi.
 type Screen = 'splash' | 'chat' | 'visualizer' | 'pronunciation' | 'grammar' | 'suggestions' | 'summary' | 'models'
 
 interface SidebarProps {
   active: Screen
   onNavigate: (screen: Screen) => void
+  /** Vacia el chat y arranca un id de sesion nuevo. Antes este boton solo navegaba a Chat sin limpiar nada. */
+  onNewConversation?: () => void
+  /** Cuantas sugerencias reales hay en la sesion (0 no muestra el badge). */
+  suggestionsCount?: number
+  /** SessionStore.list(), mas reciente primero. Reemplaza la lista de ejemplo del prototipo. */
+  recentSessions?: SessionSummary[]
 }
 
-const NAV_ITEMS: { id: Screen; icon: React.ElementType; label: string; badge?: string }[] = [
+interface NavItem {
+  id: Screen
+  icon: React.ElementType
+  label: string
+}
+
+const NAV_ITEMS: NavItem[] = [
   { id: 'chat', icon: MessageSquare, label: 'Chat' },
-  { id: 'visualizer', icon: Activity, label: 'Visualizer' },
-  { id: 'pronunciation', icon: Mic2, label: 'Pronunciation' },
-  { id: 'grammar', icon: BookOpen, label: 'Grammar' },
-  { id: 'suggestions', icon: Lightbulb, label: 'Suggestions', badge: '3' },
-  { id: 'summary', icon: BarChart3, label: 'Summary' },
-  { id: 'models', icon: HardDrive, label: 'Offline Models' },
+  { id: 'visualizer', icon: Activity, label: 'Visualizador' },
+  { id: 'pronunciation', icon: Mic2, label: 'Pronunciación' },
+  { id: 'grammar', icon: BookOpen, label: 'Gramática' },
+  { id: 'suggestions', icon: Lightbulb, label: 'Sugerencias' },
+  { id: 'summary', icon: BarChart3, label: 'Resumen' },
+  { id: 'models', icon: HardDrive, label: 'Modelos sin conexión' },
 ]
 
-const RECENT = ['Job Interview Practice', 'Daily Conversation', 'Travel Phrases', 'Business Email']
+function formatFecha(ts: number): string {
+  return new Date(ts).toLocaleDateString(undefined, { day: '2-digit', month: 'short' })
+}
 
-export default function Sidebar({ active, onNavigate }: SidebarProps) {
+export default function Sidebar({ active, onNavigate, onNewConversation, suggestionsCount = 0, recentSessions = [] }: SidebarProps) {
   return (
     <aside className="w-[220px] bg-white border-r border-slate-200 flex flex-col h-full shadow-xl lg:shadow-none">
       {/* Logo */}
@@ -49,21 +64,22 @@ export default function Sidebar({ active, onNavigate }: SidebarProps) {
       {/* New conversation */}
       <div className="px-3 pt-3 pb-2 flex-shrink-0">
         <button
-          onClick={() => onNavigate('chat')}
+          onClick={() => (onNewConversation ? onNewConversation() : onNavigate('chat'))}
           className="w-full flex items-center justify-center gap-2 py-2.5 px-3 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-xl text-sm font-semibold transition-colors"
         >
           <Plus className="w-4 h-4" />
-          New Conversation
+          Nueva conversación
         </button>
       </div>
 
       {/* Nav items */}
       <nav className="flex-1 px-3 py-1 overflow-y-auto">
         <p className="text-xs font-semibold text-slate-400 px-2 py-2 uppercase tracking-wider">
-          Screens
+          Pantallas
         </p>
-        {NAV_ITEMS.map(({ id, icon: Icon, label, badge }) => {
+        {NAV_ITEMS.map(({ id, icon: Icon, label }) => {
           const isActive = active === id
+          const badge = id === 'suggestions' && suggestionsCount > 0 ? String(suggestionsCount) : null
           return (
             <button
               key={id}
@@ -90,26 +106,35 @@ export default function Sidebar({ active, onNavigate }: SidebarProps) {
           )
         })}
 
-        {/* Recent sessions */}
+        {/* Recent sessions: SessionStore.list() real, ya no la lista de ejemplo
+            ("Job Interview Practice"...) del prototipo de Figma Make. */}
         <p className="text-xs font-semibold text-slate-400 px-2 py-2 mt-3 uppercase tracking-wider">
-          Recent Sessions
+          Sesiones recientes
         </p>
-        {RECENT.map((session, i) => (
-          <button
-            key={i}
-            className="sidebar-item w-full flex items-center gap-2 px-3 py-2 rounded-xl mb-0.5 text-xs text-slate-500 hover:bg-slate-50 hover:text-slate-700 active:bg-slate-100 text-left transition-colors"
-          >
-            <div className="w-1.5 h-1.5 rounded-full bg-slate-300 flex-shrink-0" />
-            <span className="truncate">{session}</span>
-          </button>
-        ))}
+        {recentSessions.length === 0 ? (
+          <p className="px-3 py-2 text-xs text-slate-400">Todavía no hay sesiones guardadas</p>
+        ) : (
+          recentSessions.slice(0, 5).map((s) => (
+            <button
+              key={s.id}
+              onClick={() => onNavigate('summary')}
+              className="sidebar-item w-full flex items-center gap-2 px-3 py-2 rounded-xl mb-0.5 text-xs text-slate-500 hover:bg-slate-50 hover:text-slate-700 active:bg-slate-100 text-left transition-colors"
+            >
+              <div className="w-1.5 h-1.5 rounded-full bg-slate-300 flex-shrink-0" />
+              <span className="truncate flex-1">{formatFecha(s.startedAt)} · {s.userTurns} turnos</span>
+              {s.pronunciationAvg != null && (
+                <span className="font-mono text-slate-400 flex-shrink-0">{Math.round(s.pronunciationAvg)}%</span>
+              )}
+            </button>
+          ))
+        )}
       </nav>
 
       {/* Settings */}
       <div className="px-3 py-3 border-t border-slate-100 flex-shrink-0">
         <button className="sidebar-item w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900 active:bg-slate-100 transition-colors">
           <Settings className="w-4 h-4 text-slate-400" />
-          Settings
+          Configuración
         </button>
       </div>
     </aside>

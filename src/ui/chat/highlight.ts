@@ -1,4 +1,4 @@
-import type { Edit } from '@shared/contracts';
+import type { Edit, WordScore } from '@shared/contracts';
 
 /**
  * Segmentacion de un texto corregido para resaltado en el chat (S3-T4).
@@ -30,4 +30,26 @@ export function buildSegments(originalText: string, edits: Edit[]): Segment[] {
     }
   });
   return segments;
+}
+
+export interface PronunciationSegment {
+  text: string;
+  /** null si el comparador no puntuo esta palabra (arreglos de distinto largo). */
+  score: number | null;
+}
+
+/**
+ * Empareja el texto transcrito con el puntaje por palabra (S6-T3).
+ *
+ * `words` viene de `transcription.words` (ver `src/core/orchestrator.ts`), que es
+ * la misma tokenizacion que usa `buildSegments` para los indices de `Edit`. Por
+ * eso empareja por posicion en vez de por texto: dos palabras iguales en la misma
+ * frase no serian distinguibles por texto, pero si por su indice.
+ */
+export function buildPronunciationSegments(
+  originalText: string,
+  words: WordScore[]
+): PronunciationSegment[] {
+  const tokens = originalText.split(/\s+/).filter((w) => w.length > 0);
+  return tokens.map((text, i) => ({ text, score: words[i]?.score ?? null }));
 }

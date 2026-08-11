@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { buildSegments } from '../../src/ui/chat/highlight';
-import type { Edit } from '../../src/shared/contracts';
+import { buildSegments, buildPronunciationSegments } from '../../src/ui/chat/highlight';
+import type { Edit, WordScore } from '../../src/shared/contracts';
 
 describe('buildSegments (S3-T4, highlights de gramatica)', () => {
   it('texto sin errores produce solo segmentos planos', () => {
@@ -39,5 +39,36 @@ describe('buildSegments (S3-T4, highlights de gramatica)', () => {
     ];
     const segs = buildSegments('I  goed   home', edits);
     expect(segs[1].kind).toBe('error');
+  });
+});
+
+describe('buildPronunciationSegments (S6-T3, puntaje por palabra en el chat)', () => {
+  function word(word: string, score: number): WordScore {
+    return { word, start: 0, end: 0, score };
+  }
+
+  it('empareja cada palabra del texto con su puntaje por posicion', () => {
+    const words: WordScore[] = [word('I', 90), word('went', 45), word('home', 80)];
+    const segs = buildPronunciationSegments('I went home', words);
+    expect(segs).toEqual([
+      { text: 'I', score: 90 },
+      { text: 'went', score: 45 },
+      { text: 'home', score: 80 },
+    ]);
+  });
+
+  it('palabras del texto sin puntaje quedan en null en vez de romper', () => {
+    const words: WordScore[] = [word('I', 90)];
+    const segs = buildPronunciationSegments('I went home', words);
+    expect(segs[0]).toEqual({ text: 'I', score: 90 });
+    expect(segs[1]).toEqual({ text: 'went', score: null });
+    expect(segs[2]).toEqual({ text: 'home', score: null });
+  });
+
+  it('maneja espacios multiples sin romper indices', () => {
+    const words: WordScore[] = [word('I', 90), word('went', 45)];
+    const segs = buildPronunciationSegments('I   went', words);
+    expect(segs).toHaveLength(2);
+    expect(segs[1].score).toBe(45);
   });
 });
