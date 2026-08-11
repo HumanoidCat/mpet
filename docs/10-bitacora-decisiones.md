@@ -534,3 +534,89 @@ falla en el uso más corriente del idioma.
 five dollars»). Cabe entero en `src/ai/`, no depende de Kokoro y **se prioriza por
 delante de él**: es una tarde de trabajo con efecto visible, frente a 216 MiB con
 efecto por medir.
+
+---
+
+## D-13 · Interfaz en español, contenido en inglés (Semana 7)
+
+**Contexto.** La interfaz mezclaba jerga técnica en inglés —«Synthesizing
+Speech…» en cada turno— con instrucciones en español.
+
+**Decisión.** Se traduce y simplifica todo el texto de navegación y de proceso.
+Queda en inglés solo lo que es material de aprendizaje: lo que dice el
+estudiante, la respuesta del tutor, las correcciones y las sugerencias.
+
+**Justificación.** El usuario es un estudiante hispanohablante que está
+aprendiendo inglés. Obligarle a descifrar la interfaz añade una dificultad que no
+es la que vino a practicar, y en un principiante compite con el contenido. La
+frontera queda clara: el envoltorio en su idioma, el ejercicio en el que
+practica.
+
+**Añadido.** Una línea de ánimo por nivel de puntaje (`TIER_ENCOURAGEMENT`), para
+que un puntaje bajo se lea como retroalimentación y no como un veredicto. Es
+coherente con la mitigación prevista para R03.
+
+**Registro.** La decisión la tomó el módulo de interfaz durante S7-T3. Se anota
+aquí porque afecta al producto entero, no solo a `src/ui/`.
+
+---
+
+## D-14 · Un solo modelo para las sugerencias y la respuesta del tutor (Semana 7)
+
+**Contexto.** S6-T4 y S7-T2 piden dos cosas distintas —sugerir mejoras y responder
+como tutor— que podrían salir de dos modelos. Cargar dos T5 duplicaría cientos de
+MB sin ganar nada, así que se decide con una sola elección.
+
+**Alternativas medidas.** Un modelo pequeño de 77M (93 MiB) y uno de 248M
+(265 MiB), los dos cuantizados a 8 bits.
+
+**El pequeño no es la opción barata: es inservible.** No ejecuta la instrucción,
+la parafrasea. Pedirle reescribir «My favorite food is rice with chicken» devuelve
+«The native English speaker would say it is a favorite food». Y dos de las cuatro
+respuestas de tutor fueron negativas del tipo «I cannot provide a response… it goes
+against my programming to provide inappropriate or offensive content», ante frases
+sobre arroz con pollo y sobre películas de terror. Es ruido heredado de la
+destilación, no una decisión sobre el contenido.
+
+**Decisión.** LaMini-Flan-T5-248M q8. La comparación de peso no llega a plantearse:
+93 MiB no valen nada si lo que devuelven no se puede enseñar a un estudiante.
+
+**Consecuencia declarada.** Una sesión completa pasa a descargar **676.4 MiB**:
+302.6 al arrancar, 264.8 del tutor en el primer turno y 109 del sintetizador la
+primera vez que se pide audio. La carga bajo demanda evita que la pantalla inicial
+espere por ellos, no los ahorra. La vía que queda para adelgazar es el **corrector
+de gramática (241 MiB)**, el único de los cuatro modelos que nunca se comparó
+contra alternativas.
+
+**Evidencia.** `docs/evidencias/s6/s6-t4-modelo-tutor.md`
+
+---
+
+## D-15 · Qué cubre el presupuesto de 2 segundos (Semana 7)
+
+**Contexto.** El modelo del tutor tiene una latencia mediana de 1751 ms y máxima de
+2285 ms. Leído sin contexto parece que rompe el compromiso de responder en menos de
+dos segundos, y el riesgo R06 quedaría materializado.
+
+**Aclaración.** No lo rompe, porque el turno no es una sola espera. El orquestador
+emite el mensaje del estudiante **con su transcripción y su corrección antes** de
+pedir la respuesta del tutor, y calcula el puntaje de pronunciación y las
+sugerencias **fuera del turno**.
+
+Reparto real de un turno:
+
+| Qué | Cuándo llega |
+|---|---|
+| Transcripción y corrección gramatical | dentro del presupuesto de 2 s |
+| Respuesta del tutor | ~1.75 s después |
+| Puntaje de pronunciación y sugerencias | asíncronos, sin bloquear |
+
+**Decisión.** El presupuesto de dos segundos se aplica a la **retroalimentación**,
+que es lo que pierde valor si tarda: una corrección que llega tarde ya no se
+conecta con lo que el estudiante acaba de decir. La respuesta conversacional del
+tutor admite más, porque una pausa de un segundo y medio antes de contestar es lo
+normal en una conversación humana.
+
+**Pendiente.** La medición de punta a punta con todo integrado. Los 1751 ms vienen
+del spike, medidos además con la pestaña en segundo plano, donde el navegador
+limita el procesamiento: son pesimistas.

@@ -27,9 +27,10 @@ propiedades del producto:
 | **Funciona sin conexión** | Tras la descarga inicial de los modelos, la aplicación opera sin red. Es lo que la vuelve utilizable donde la conectividad es intermitente o costosa. |
 | **Privacidad por arquitectura** | La voz es un dato biométrico. Aquí no se transmite, no se almacena en terceros y no se usa para entrenar modelos ajenos. No depende de una política: depende de cómo está construida. |
 
-El costo asumido es el peso de la descarga inicial (unos 411 MiB entre modelos y
-runtime), del que solo **303 MiB** se pagan al arrancar: el sintetizador se carga
-la primera vez que hace falta audio. La caché persistente evita repetirlo.
+El costo asumido es el peso de los modelos. Una sesión completa descarga unos
+**676 MiB**, pero solo **303 MiB** se pagan al arrancar: el modelo del tutor
+(265 MiB) llega en el primer turno de conversación y el sintetizador (109 MiB) la
+primera vez que hace falta audio. La caché persistente evita repetirlo.
 
 ---
 
@@ -117,9 +118,9 @@ su evidencia están en [`docs/10-bitacora-decisiones.md`](docs/10-bitacora-decis
 
 ## Estado actual
 
-- **435 pruebas automatizadas** en verde, en 35 archivos. Las 4 omitidas necesitan grabaciones de voz que no se versionan en el repositorio.
+- **Pruebas automatizadas** en verde, en 40 archivos. Las 4 omitidas necesitan grabaciones de voz que no se versionan en el repositorio.
 - Cadena de audio completa e integrada: captura, remuestreo, preprocesamiento, detección de actividad de voz, STFT, frecuencia fundamental y MFCC.
-- Reconocimiento de voz, corrección gramatical y síntesis de voz implementados sobre sus contratos.
+- Ciclo de conversación completo: reconocimiento, corrección gramatical, síntesis de voz, respuesta del tutor y sugerencias. El contrato `AIPipeline` no tiene etapas pendientes.
 - Comparador por alineamiento temporal dinámico y puntaje de pronunciación por palabra, conectados al turno de conversación.
 - Persistencia de sesiones en IndexedDB.
 - Interfaz con chat, control de micrófono con estados, forma de onda, espectrograma y contorno de tono en tiempo real.
@@ -131,12 +132,11 @@ su evidencia están en [`docs/10-bitacora-decisiones.md`](docs/10-bitacora-decis
   entre pares correctos e incorrectos es de 1.05 cuando el objetivo son 20 puntos.
   Con señales sintéticas alcanza 31. Es el riesgo R03 y está en investigación
   ([evidencia](docs/evidencias/s9/s9-t3-calibracion-voz-real.md)).
-- La interfaz aún no muestra el puntaje por palabra, aunque el motor ya lo entrega.
-- La respuesta del tutor y las sugerencias están cableadas pero devuelven valores
-  neutros: falta el modelo que las genere.
-- Falta verificar el arranque sin conexión. La descarga inicial baja de 411 a
-  **303 MiB** con la carga bajo demanda del sintetizador, que se paga solo cuando
-  se necesita audio.
+- El sintetizador **no sabe decir cifras**: ante un precio no se oye un número
+  equivocado, no se oye nada. Se corrige normalizando números a letras.
+- Falta verificar el arranque sin conexión en un equipo limpio.
+- El peso total, 676 MiB, sigue siendo alto. La vía que queda es el corrector de
+  gramática (241 MiB), el único modelo que nunca se comparó contra alternativas.
 
 El estado por requerimiento está en la
 [matriz de trazabilidad](docs/07-matriz-trazabilidad.md), las decisiones y sus

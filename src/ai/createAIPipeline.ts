@@ -6,32 +6,43 @@
  *   ✅ transcribe     — S2-T4: ASR real con timestamps por palabra
  *   ✅ correctGrammar — S3-T3: T5 cuantizado + diff palabra a palabra
  *   ✅ speak          — S5-T5: MMS-TTS, PCM de referencia a 16 kHz
- *   ⏳ suggest        — S6-T4 (LLM ligero)
- *   ⏳ reply          — S7-T2 (prompt de tutor)
+ *   ✅ suggest        — S6-T4: LaMini-Flan-T5-248M con prompts fijos
+ *   ✅ reply          — S7-T2: mismo modelo, prompt de tutor
  *
- * POR QUÉ LAS ETAPAS PENDIENTES NO LANZAN ERROR:
- * El orquestador (Alejandro) llama a `transcribe → correctGrammar → reply` en
- * cadena. Si las que faltan lanzaran excepción, integrar lo ya hecho rompería la app
- * entera. En su lugar devuelven un valor neutro y documentado: la app funciona de
- * punta a punta y cada etapa se sustituye sin tocar este contrato.
+ * El contrato queda completo: ya no hay etapas de paso a través. Durante semanas las
+ * pendientes devolvieron valores neutros —lista vacía, frase fija, silencio— para que
+ * el orquestador pudiera integrar lo ya hecho sin que la aplicación reventara; ese
+ * andamio ya no hace falta.
+ *
+ * QUÉ SE CARGA CUÁNDO (S7-T4):
+ *   `init()`      → reconocedor y corrector, ~303 MiB. Son los que hacen falta en
+ *                   cuanto el estudiante abre la boca.
+ *   bajo demanda  → sintetizador (109 MiB) al pedir audio, y modelo del tutor
+ *                   (265 MiB) en el primer turno de conversación.
  */
 
-import type { AIPipeline, Edit, Transcription } from '@shared/contracts';
+import type { AIPipeline, ChatMessage, Edit, Transcription } from '@shared/contracts';
 import { createAsrClient, type AsrClientOptions } from './asr/asrClient';
 import { createGrammarClient, type GrammarClientOptions } from './grammar/grammarClient';
 import { createLazyLoader } from './lazy';
+import {
+  createSuggestionsClient,
+  type SuggestionsClientOptions,
+} from './suggestions/suggestionsClient';
 import { createTtsClient, type TtsClientOptions } from './tts/ttsClient';
 
 export interface AIPipelineOptions {
   asr?: AsrClientOptions;
   grammar?: GrammarClientOptions;
   tts?: TtsClientOptions;
+  suggestions?: SuggestionsClientOptions;
 }
 
 export function createAIPipeline(options: AIPipelineOptions = {}): AIPipeline {
   const asr = createAsrClient(options.asr);
   const grammar = createGrammarClient(options.grammar);
   const tts = createTtsClient(options.tts);
+  const suggestions = createSuggestionsClient(options.suggestions);
 
   // Se guarda el callback de progreso que llega en `init()` porque el sintetizador se
   // carga más tarde, cuando ya nadie nos lo va a volver a pasar: sin esto, esa
@@ -40,6 +51,14 @@ export function createAIPipeline(options: AIPipelineOptions = {}): AIPipeline {
 
   const ttsLoader = createLazyLoader(() =>
     tts.init((model, progress) => reportProgress?.(model, progress))
+  );
+
+  // El modelo del tutor también va bajo demanda, pero por una razón distinta que el
+  // sintetizador: no es que se use poco —`reply()` interviene en cada turno— sino que
+  // son 265 MiB que no hacen falta para la pantalla inicial. Lo que se gana es que la
+  // primera carga no espere por ellos, no ahorrarlos. Medido en el spike S6-T4.
+  const suggestionsLoader = createLazyLoader(() =>
+    suggestions.init((model, progress) => reportProgress?.(model, progress))
   );
 
   return {
@@ -88,16 +107,30 @@ export function createAIPipeline(options: AIPipelineOptions = {}): AIPipeline {
       return tts.speak(text);
     },
 
-    // ── Pendientes: paso a través temporal ───────────────────────────────────
-
-    /** PENDIENTE S6-T4. Sin sugerencias todavía: lista vacía. */
-    async suggest(): Promise<string[]> {
-      return [];
+    /**
+     * S6-T4 · Sugerencias de mejora para la frase del estudiante.
+     *
+     * Puede devolver **lista vacía**, y no es un error: significa que el modelo no
+     * encontró nada que mejorar. Es preferible a mostrar una "sugerencia" que repite
+     * palabra por palabra lo que el estudiante acaba de decir, que era el caso más
+     * frecuente antes de filtrarlas (5 de 8 en el spike S6-T4).
+     */
+    async suggest(text: string): Promise<string[]> {
+      await suggestionsLoader.ensure();
+      return suggestions.suggest(text);
     },
 
-    /** PENDIENTE S7-T2. Respuesta fija para que el chat no quede mudo. */
-    async reply(): Promise<string> {
-      return 'Got it! (respuesta del tutor pendiente — S7-T2)';
+    /**
+     * S7-T2 · Respuesta conversacional del tutor.
+     *
+     * Del historial solo viajan el rol y el texto. No es solo eficiencia: un
+     * `ChatMessage` lleva dentro el resultado de pronunciación con sus arrays de
+     * audio, y mandar todo eso al worker en cada turno sería copiar megabytes que el
+     * modelo no mira.
+     */
+    async reply(history: ChatMessage[]): Promise<string> {
+      await suggestionsLoader.ensure();
+      return suggestions.reply(history.map((m) => ({ role: m.role, text: m.text })));
     },
   };
 }

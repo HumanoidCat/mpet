@@ -37,11 +37,16 @@
         reproducible entre llamadas y barra de progreso rota en los tres modelos).
 
 ## Semana 6
-- [ ] S6-T4 · Worker sugerencias: LLM ligero con prompts fijos (naturalidad, vocabulario)
+- [x] S6-T4 · Worker sugerencias: LLM ligero con prompts fijos (naturalidad, vocabulario)
+      → `src/ai/suggestions/`. LaMini-Flan-T5-248M elegido por medición: el de 77M no
+        ejecuta la instrucción, la parafrasea. Evidencia: `docs/evidencias/s6/s6-t4-modelo-tutor.md`
 - [x] S6-T2 · Timestamps por palabra de Whisper para el puntaje (con Fabrizio)
+      → Lo cerró Fabrizio en el PR #58 usando los timestamps que expone mi ASR.
 
 ## Semana 7 — 🎯 AVANCE 2 (mar 11 ago)
-- [ ] S7-T2 · Respuesta conversacional (prompt de tutor)
+- [x] S7-T2 · Respuesta conversacional (prompt de tutor)
+      → Mismo worker que S6-T4: un solo modelo con dos instrucciones. Verificado en
+        ejecución (suggest y reply a la vez, sin cruzarse).
 - [ ] S7-T4 · Optimizar latencia: pipeline en paralelo, medir por etapa (con Fabrizio)
 - [ ] Mi sección del documento Avance 2
 
@@ -72,26 +77,8 @@ El orden ya no lo fija la semana del calendario sino la dependencia (D-08).
         Ruta crítica liberada: Fabrizio ya puede empezar el DTW y José Pablo el color
         por palabra. Falta abrir el PR a `dev`.
 - [x] S6-T2 · Puntaje por palabra con las marcas temporales de Whisper (con Fabrizio)
+- [x] S6-T4 · Worker de sugerencias del tutor
+- [x] S7-T2 · Respuesta del tutor
 
 ---
 
-## Lo que falta — actualizado 4 ago
-
-Quedan **6 tareas**. Las dos primeras son las que más se notan en la demo: hoy el
-tutor contesta siempre lo mismo y no sugiere nada.
-
-- [ ] **S7-T2 · Respuesta del tutor.** `reply()` devuelve un texto fijo.
-      Recomendación para el Avance 2: **plantilla** a partir de la transcripción y la
-      corrección, sin modelo nuevo. Un LLM ligero solo si la latencia medida cabe en
-      los 2 s comprometidos, y eso hay que medirlo antes, como hiciste con el TTS
-- [ ] **S6-T4 · Sugerencias.** `suggest()` devuelve lista vacía y la pantalla
-      Suggestions muestra texto escrito a mano
-- [ ] **S7-T4 · Bajar el peso de la descarga inicial**, hoy unos **388 MB** (no 300).
-      La cuantización a 4 bits quedó descartada por medición (D-05). La vía es carga
-      bajo demanda del TTS, que no se necesita hasta después del primer turno
-- [ ] Conteo de fallos de pronunciación del TTS con las 14 frases, según el protocolo
-      acordado. Es lo único que decide si Kokoro entra o no
-- [ ] Confirmar el peso exacto de la descarga y los datos de la incidencia **I-04**
-      (barra de progreso), para que Alejandro los registre
-- [ ] S8-T1 · Medir WER: 50 frases, 4 hablantes
-- [ ] S10-T6 · Preparar respuestas: cuantización, ONNX/WASM, WER, por qué whisper-tiny

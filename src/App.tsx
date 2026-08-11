@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createOrchestrator, type OrchestratorState } from '@core/orchestrator';
 import { createEventBus } from '@core/eventBus';
 import { createMockAudioEngine } from '@mocks/mockAudioEngine';
@@ -7,7 +7,7 @@ import { createAIPipeline } from '@ai/createAIPipeline';
 import { createDspAudioEngine } from '@core/audioEngineAdapter';
 import { createPronunciationScorer } from '@audio/comparator/scorer';
 import { createMockScorer } from '@mocks/mockScorer';
-import { createSessionStore, createMemorySessionStore } from '@core/sessionStore';
+import { createSessionStore, createMemorySessionStore, type SessionSummary } from '@core/sessionStore';
 import { descargarWav } from '@core/wavExport';
 import { Chat } from '@ui/chat/Chat';
 import { VisualizerScreen } from '@ui/visualizer/VisualizerScreen';
@@ -20,6 +20,8 @@ import GrammarScreen from '@ui/feedback/Grammar';
 import SuggestionsScreen from '@ui/chat/Suggestions';
 import SummaryScreen from '@ui/progress/Progress';
 import ModelsScreen from '@ui/shell/Models';
+import { micErrorMessage } from '@ui/shell/micErrorMessage';
+import { computeStreak, countMasteredPhrases } from '@ui/progress/gamification';
 import { SAMPLE_RATE } from '@shared/constants';
 import type { AIPipeline, ChatMessage } from '@shared/contracts';
 
@@ -76,7 +78,7 @@ export function App() {
   const mockMode = useMockMode();
   const modoGrabacion = useModoGrabacion();
 
-  const { bus, orch, audio, ai, store, sessionId } = useMemo(() => {
+  const { bus, orch, audio, ai, store } = useMemo(() => {
     const bus = createEventBus();
     const audio = mockMode ? createMockAudioEngine() : createDspAudioEngine();
     const ai: AIPipeline = mockMode ? createMockAIPipeline() : createAIPipeline();
@@ -85,9 +87,12 @@ export function App() {
     // En modo demostracion el historial va en memoria: no tiene sentido dejar
     // sesiones de ejemplo en el disco de quien solo esta viendo la aplicacion.
     const store = mockMode ? createMemorySessionStore() : createSessionStore();
-    const sessionId = `sesion-${Date.now()}`;
-    return { bus, orch, audio, ai, store, sessionId };
+    return { bus, orch, audio, ai, store };
   }, [mockMode]);
+  // Aparte del useMemo de arriba: "Nueva conversacion" necesita poder generar
+  // un id nuevo sin recrear el orquestador ni el motor de audio, que son caros
+  // y no deben reconstruirse en cada turno.
+  const [sessionId, setSessionId] = useState(() => `sesion-${Date.now()}`);
 
   // ── Carga de modelos (Splash) ──────────────────────────────────
   const [models, setModels] = useState<Record<string, number>>({});
@@ -150,6 +155,9 @@ export function App() {
   const [micError, setMicError] = useState<string | null>(null);
   const [playError, setPlayError] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  // Para el boton "Reintentar" del banner de error (S7-T3): guarda la ultima
+  // frase pedida, ya que onPlay no la recibe de vuelta si falla.
+  const lastPlayRef = useRef<{ text: string; slow: boolean } | null>(null);
 
   useEffect(() => {
     // El puntaje de pronunciacion llega despues del turno y vuelve a emitir el
@@ -186,6 +194,51 @@ export function App() {
       .catch((err: unknown) => console.error('[sesion] no se pudo guardar', err));
   }, [messages, store, sessionId]);
 
+  // ── Historial de sesiones para la pantalla de progreso (S9-T1) ──
+  // Se relee despues de cada guardado (mismo disparador que el efecto de
+  // arriba) para que la sesion en curso aparezca en la lista apenas se
+  // persiste, sin esperar a que el usuario recargue la pantalla.
+  const [sessionHistory, setSessionHistory] = useState<SessionSummary[]>([]);
+  useEffect(() => {
+    if (messages.length === 0) return;
+    void store
+      .list()
+      .then(setSessionHistory)
+      .catch((err: unknown) => console.error('[sesion] no se pudo leer el historial', err));
+  }, [messages, store]);
+
+  // ── Gamificacion ligera (S9-T2, opcional) ────────────────────────
+  // La racha sale directo de sessionHistory (ya en memoria). Las frases
+  // dominadas de SESIONES ANTERIORES piden los mensajes completos, que
+  // list() no trae (S9-T1 los omite a proposito por peso); se buscan uno por
+  // uno con store.get() solo cuando la pantalla de progreso esta visible, no
+  // en cada turno del chat, para que siga siendo "ligera". La sesion actual
+  // se cuenta aparte, en vivo, desde `messages` (ver Progress.tsx) para no
+  // depender de que el guardado ya haya terminado.
+  const [masteredPrevias, setMasteredPrevias] = useState(0);
+  useEffect(() => {
+    if (screen !== 'summary') return;
+    const previas = sessionHistory.filter((s) => s.id !== sessionId);
+    if (previas.length === 0) {
+      setMasteredPrevias(0);
+      return;
+    }
+    let cancelado = false;
+    void Promise.all(previas.map((s) => store.get(s.id)))
+      .then((sesiones) => {
+        if (cancelado) return;
+        const total = sesiones.reduce(
+          (acc, s) => acc + (s ? countMasteredPhrases(s.messages) : 0),
+          0
+        );
+        setMasteredPrevias(total);
+      })
+      .catch((err: unknown) => console.error('[gamificacion] no se pudo contar frases dominadas', err));
+    return () => {
+      cancelado = true;
+    };
+  }, [screen, sessionHistory, sessionId, store]);
+
   // ── Captura de tomas para la calibracion (S9-T3) ────────────────
   useEffect(() => {
     if (!modoGrabacion) return;
@@ -204,8 +257,11 @@ export function App() {
       const turn = orch.toggleMic();
       setState(orch.getState() === 'idle' ? 'processing' : orch.getState());
       await turn;
-    } catch {
-      setMicError('No se pudo acceder al microfono. Revisa los permisos del navegador.');
+    } catch (err) {
+      // Mensaje segun la causa real (permiso, sin dispositivo, en uso por
+      // otra app) en vez de uno generico: el usuario necesita saber que
+      // accion tomar, no solo que algo fallo (S7-T3).
+      setMicError(micErrorMessage(err));
     } finally {
       setState(orch.getState());
     }
@@ -225,6 +281,7 @@ export function App() {
    */
   async function onPlay(text: string, slow: boolean) {
     setPlayError(null);
+    lastPlayRef.current = { text, slow };
     try {
       const pcm = await ai.speak(text);
       if (pcm.length === 0) return;
@@ -251,6 +308,22 @@ export function App() {
 
   function handleNavigate(s: Screen) {
     setScreen(s);
+    setSidebarOpen(false);
+  }
+
+  /**
+   * "Nueva conversacion": antes solo navegaba a Chat sin vaciar nada, asi que
+   * si ya estabas en Chat el boton no hacia nada visible. Vacia el historial
+   * en memoria (la sesion anterior ya quedo guardada en sessionStore, no se
+   * pierde) y arranca un id de sesion nuevo para que la proxima se guarde
+   * aparte en vez de seguir acumulandose sobre la misma.
+   */
+  function handleNewConversation() {
+    setMessages([]);
+    setSessionId(`sesion-${Date.now()}`);
+    setMicError(null);
+    setPlayError(null);
+    setScreen('chat');
     setSidebarOpen(false);
   }
 
@@ -312,7 +385,13 @@ export function App() {
             sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
           }`}
         >
-          <Sidebar active={screen} onNavigate={handleNavigate} />
+          <Sidebar
+            active={screen}
+            onNavigate={handleNavigate}
+            onNewConversation={handleNewConversation}
+            suggestionsCount={messages.reduce((n, m) => n + (m.suggestions?.length ?? 0), 0)}
+            recentSessions={sessionHistory}
+          />
         </div>
         {sidebarOpen && (
           <div
@@ -323,9 +402,34 @@ export function App() {
 
         <main className="flex-1 flex flex-col overflow-hidden">
           {(micError || playError) && (
-            <p className="text-[var(--color-danger)] text-xs px-4 py-2 bg-[var(--color-danger-light)]">
-              {micError ?? playError}
-            </p>
+            <div className="flex items-center justify-between gap-3 text-[var(--color-danger)] text-xs px-4 py-2 bg-[var(--color-danger-light)]">
+              <span className="flex-1">{micError ?? playError}</span>
+              <div className="flex items-center gap-3 flex-shrink-0">
+                {micError && (
+                  <button onClick={() => void onMicClick()} className="font-semibold underline underline-offset-2">
+                    Reintentar
+                  </button>
+                )}
+                {playError && lastPlayRef.current && (
+                  <button
+                    onClick={() => void onPlay(lastPlayRef.current!.text, lastPlayRef.current!.slow)}
+                    className="font-semibold underline underline-offset-2"
+                  >
+                    Reintentar
+                  </button>
+                )}
+                <button
+                  onClick={() => {
+                    setMicError(null);
+                    setPlayError(null);
+                  }}
+                  aria-label="Cerrar aviso"
+                  className="text-[var(--color-danger)]"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
           )}
 
           {cargaEnCurso && (
@@ -356,15 +460,23 @@ export function App() {
             />
           )}
           {screen === 'visualizer' && <VisualizerScreen audio={audio} />}
-          {screen === 'pronunciation' && <PronunciationScreen />}
+          {screen === 'pronunciation' && <PronunciationScreen messages={messages} onPlay={onPlay} />}
           {screen === 'grammar' && <GrammarScreen messages={messages} />}
-          {screen === 'suggestions' && <SuggestionsScreen />}
-          {screen === 'summary' && <SummaryScreen />}
-          {screen === 'models' && <ModelsScreen />}
+          {screen === 'suggestions' && <SuggestionsScreen messages={messages} />}
+          {screen === 'summary' && (
+            <SummaryScreen
+              messages={messages}
+              history={sessionHistory}
+              sessionId={sessionId}
+              streak={computeStreak(sessionHistory)}
+              masteredTotal={countMasteredPhrases(messages) + masteredPrevias}
+            />
+          )}
+          {screen === 'models' && <ModelsScreen models={modelList} modelsReady={modelsReady} />}
         </main>
       </div>
 
-      <Footer currentScreen={screen} onNavigate={handleNavigate} />
+      <Footer currentScreen={screen} onNavigate={handleNavigate} modelsReady={modelsReady} />
     </div>
   );
 }
