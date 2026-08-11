@@ -34,6 +34,7 @@ import {
   createRangedProgressAggregator,
   type RawProgressEvent,
 } from '../model-cache/progress';
+import { normalizeForSpeech } from './textNormalization';
 import { getTtsConfig, type TtsRequest, type TtsResponse } from './ttsProtocol';
 
 type Tokenizer = Awaited<ReturnType<typeof AutoTokenizer.from_pretrained>>;
@@ -117,7 +118,13 @@ self.onmessage = async (event: MessageEvent<TtsRequest>) => {
         throw new Error('El modelo de TTS no está cargado: llama a init() primero.');
       }
 
-      const inputs = tokenizer(msg.text);
+      // I-07 · Números a letras antes de tokenizar. MMS-TTS trabaja carácter a
+      // carácter y nunca aprendió que "2" se dice "two": con cifras no pronuncia mal,
+      // no pronuncia nada. Medido en S7-T4, donde `$25` dio silencio tres de tres
+      // veces. La conversión ocurre aquí y no en el cliente para que cualquiera que
+      // use el worker la reciba, venga de donde venga el texto.
+      const texto = normalizeForSpeech(msg.text);
+      const inputs = tokenizer(texto);
       const { waveform } = await model(inputs);
 
       // Copia propia antes de transferir: el búfer que devuelve ONNX Runtime puede

@@ -50,6 +50,11 @@
 - [ ] S7-T4 · Optimizar latencia: pipeline en paralelo, medir por etapa (con Fabrizio)
 - [ ] Mi sección del documento Avance 2
 
+## Extra — incidencias
+- [x] I-07 · Números a letras antes de sintetizar
+      → `src/ai/tts/textNormalization.ts`. El reconocedor ya recupera $25, 8:30 y 1998
+        donde antes no oía nada. Evidencia: `docs/evidencias/s7/i07-numeros-a-letras.md`
+
 ## Semana 8
 - [ ] S8-T1 · Medir WER: set de 50 frases, 4 hablantes
 - [ ] S8-T2 · Edge cases: acento fuerte, ruido (con Fabrizio)
