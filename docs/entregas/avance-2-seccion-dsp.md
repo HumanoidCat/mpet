@@ -1,5 +1,17 @@
 # Avance 2 — Sección de Procesamiento Digital de Señales
 
+> # ⚠️ VERSIÓN SUPERADA — NO INTEGRAR ESTA
+>
+> **Integrar `avance-2-seccion-dsp-actualizado.md`.**
+>
+> La calibración con voz real (11 de agosto, S9-T3) contradijo tres
+> afirmaciones de este documento: que la normalización cepstral resuelve la
+> penalización por cambio de voz, que RF-10 se cumple con 31 puntos, y que la
+> verificación contra librosa estaba pendiente.
+>
+> Este archivo se conserva **sin modificar** como registro de lo que se sabía al
+> redactarlo. El contenido de abajo queda intacto a propósito.
+
 > **Material preparado por Fabrizio Espinoza para integrar en `avance-2.md`.**
 >
 > No es el documento de la entrega: es el aporte del módulo de audio, redactado
