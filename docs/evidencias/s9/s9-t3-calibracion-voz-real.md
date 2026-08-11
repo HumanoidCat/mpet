@@ -24,6 +24,17 @@ correcta.
 
 **RF-10 no se cumple y el riesgo R03 se confirma.**
 
+Revisando la integración aparece además una **segunda causa, independiente**
+(§6): la referencia contra la que se puntúa es el sintetizador diciendo *lo que
+el reconocedor entendió*, no la pronunciación correcta. Con eso el puntaje no
+puede detectar una palabra mal dicha por construcción, porque la referencia se
+adapta al error.
+
+Y con ella, la primera vía prometedora: **el reconocedor sí distingue los pares
+mínimos en el texto** —6 de 10, con 4 falsas alarmas— y esa señal es
+independiente del hablante. No alcanza sola, pero es la única de las nueve vías
+probadas que ataca el problema por fuera del parecido acústico.
+
 Esto corrige la medición anterior, que daba 1.9 puntos y ni siquiera acertaba el
 sentido. Aquella se hizo con grabaciones que traían varias emisiones por archivo;
 el problema era el material, como se sospechaba.
@@ -305,7 +316,103 @@ alcance del curso.
 No es un defecto de la implementación —verificada contra librosa con 0.009 % de
 error— sino el límite del método elegido.
 
-## 6. Estado de RF-10
+## 6. Una segunda causa, en la integración
+
+Todo lo anterior mide el comparador suponiendo que la referencia es la
+pronunciación **correcta** de la frase. Revisando cómo lo llama el orquestador,
+resulta que no lo es. En `src/core/orchestrator.ts`:
+
+```ts
+const referencePcm = await ai.speak(transcription.text);
+```
+
+**La referencia es el sintetizador diciendo lo que el reconocedor entendió**, no
+una frase objetivo. Si el usuario dice *sheep* donde iba *ship*, el reconocedor
+transcribe *sheep*, el sintetizador dice *sheep*, y el usuario se compara contra
+su propio error.
+
+**El puntaje no puede detectar una palabra mal dicha, por construcción.** Lo que
+mide es cuánto se parece la voz del usuario a la del sintetizador diciendo *sus
+mismas palabras*: acento y timbre. Eso concuerda exactamente con lo medido en §5
+—que el puntaje está dominado por la identidad del hablante— y le da una segunda
+explicación, independiente.
+
+No es un defecto del módulo de audio: el contrato `PronunciationScorer` recibe la
+referencia ya elegida. Es una decisión de integración que hay que revisar con el
+equipo.
+
+### El reconocedor sí distingue los pares mínimos, en parte
+
+Esto abre una vía que se había descartado demasiado rápido. En §5 se concluyó que
+puntuar pronunciación de forma independiente del hablante requiere un modelo
+acústico de fonemas entrenado con miles de voces. **El proyecto ya tiene uno:
+Whisper.** Si se compara la *transcripción* contra una frase objetivo, el error
+se detecta en el texto y la identidad del hablante deja de importar.
+
+Se midió sobre las 40 grabaciones con `Xenova/whisper-tiny.en`, el modelo que usa
+el proyecto:
+
+| Grabación | Debía decir | Whisper oyó | |
+|---|---|---|---|
+| fabrizio 1 ok | ship | "I need a new ship." | ✅ |
+| fabrizio 1 mal | sheep | "I need a new **sheep**" | ✅ detecta |
+| fabrizio 2 ok | bad day | "She had a bad **date**." | ⚠️ falsa alarma |
+| fabrizio 2 mal | bed | "She had a **bit** day." | ✅ detecta |
+| fabrizio 3 ok | sit | "Please, sit down here." | ✅ |
+| fabrizio 3 mal | seat | "Please, **sit** down here." | ❌ no detecta |
+| fabrizio 4 ok | live | "He will **leave** there." | ⚠️ falsa alarma |
+| fabrizio 4 mal | leave | "He will leave there" | ❌ no distingue |
+| fabrizio 5 ok | pull | "Can you pull it?" | ✅ |
+| fabrizio 5 mal | pool | "Can you **pull it**?" | ❌ no detecta |
+| evelyn 1 ok | ship | "I need a new **chip**" | ⚠️ falsa alarma |
+| evelyn 1 mal | sheep | "I need a new **sheep**" | ✅ detecta |
+| evelyn 2 ok | bad day | "She had a bad day." | ✅ |
+| evelyn 2 mal | bed | "She had a **bit late**." | ✅ detecta |
+| evelyn 3 ok | sit | "Please sit down here." | ✅ |
+| evelyn 3 mal | seat | "Please **see it** down here." | ✅ detecta |
+| evelyn 4 ok | live | "He will **leave** there." | ⚠️ falsa alarma |
+| evelyn 4 mal | leave | "He will leave there." | ❌ no distingue |
+| evelyn 5 ok | pull | "Can you pull it?" | ✅ |
+| evelyn 5 mal | pool | "Can you **bo-eat**?" | ✅ detecta |
+
+| | Resultado |
+|---|---:|
+| Errores detectados en el texto | **6 de 10** |
+| Falsas alarmas sobre tomas correctas | 4 de 10 |
+
+No alcanza sola, pero es una señal **independiente de la acústica** y del
+hablante, y las dos se pueden combinar. Sobre todo: es la única de las nueve vías
+probadas que ataca el problema por fuera del parecido acústico.
+
+### Un límite del conjunto de pruebas que conviene declarar
+
+En la frase 4 (*live/leave*), Whisper oyó **"leave" en las cuatro grabaciones** —
+las buenas y las malas, de los dos hablantes.
+
+Un modelo entrenado con miles de voces oyendo la misma palabra en las dos
+versiones sugiere que **en esas tomas no se produjo el contraste**. *Live/leave*
+es de los pares más difíciles para hispanohablantes. Y era justamente la frase
+que fallaba acústicamente con la segunda hablante.
+
+Lo mismo puede pasar en `fabrizio 3 mal` y `fabrizio 5 mal`, donde Whisper oyó la
+versión correcta.
+
+Esto **no cambia la conclusión sobre RF-10** —el efecto del hablante está medido
+aparte, con las tomas correctas de las dos personas, y ahí no hay ambigüedad—
+pero sí acota cómo leer el 6 de 10 acústico: parte de los fallos pueden ser tomas
+donde el error no estaba en el audio. Cerrarlo requiere verificar
+perceptualmente que cada toma `mal` contiene el sonido equivocado.
+
+### Reproducirlo
+
+El reconocedor no se corre en la suite: cargar el modelo tarda y depende de red
+la primera vez. Se hizo una vez fuera del repositorio con
+`@huggingface/transformers`, que ya es dependencia del proyecto, alimentando el
+PCM de cada WAV al *pipeline* `automatic-speech-recognition`. Es el mismo
+procedimiento acordado para el fixture de librosa (**D-07**): se corre una vez y
+se versiona el resultado, no la dependencia.
+
+## 7. Estado de RF-10
 
 **No se cumple, y se buscó activamente que se cumpliera** (§5, ocho vías).
 
@@ -321,7 +428,7 @@ misma y con el fonema cambiado ocupando un tercio de la señal en vez de una
 décima parte. Ese número describe el algoritmo en su caso más favorable, no sobre
 habla.
 
-## 7. Estado del riesgo R03
+## 8. Estado del riesgo R03
 
 **Confirmado y materializado.** El riesgo decía que el puntaje podía no
 correlacionar con la percepción real. La medición muestra que:
@@ -338,18 +445,35 @@ sentido que la interfaz muestre la evolución del usuario contra sus propias
 tomas anteriores —donde el comparador sí es fiable— antes que un número absoluto
 contra la referencia sintetizada.
 
-## 8. Qué falta
+## 9. Qué falta
 
-1. **Decidir con el equipo cómo se presenta el puntaje**, a la luz de esto. Es
-   una decisión de producto, no de DSP, y afecta a la interfaz (RF-17) y al
-   documento final.
-2. **Puntuar por palabra con las marcas del reconocedor**, en vez de aproximarlo
+En orden de lo que más mueve la aguja:
+
+1. **Revisar contra qué se puntúa** (§6). Hoy la referencia es el sintetizador
+   diciendo lo que el reconocedor entendió, así que un error de palabra es
+   invisible por construcción. Es lo primero, porque hasta que no se resuelva
+   ninguna mejora del comparador puede notarse. Toca el orquestador: decisión
+   con Alejandro.
+2. **Un modo práctica con frase objetivo.** Es lo que habilita detectar el error
+   en el texto, comparando la transcripción contra la frase que se pidió repetir.
+   Hoy la aplicación es conversación libre, así que no hay contra qué comparar
+   —de ahí que el diseño terminara sintetizando la transcripción—. Toca
+   orquestador e interfaz.
+3. **Combinar las dos señales**: la textual del reconocedor (6 de 10,
+   independiente del hablante) con la acústica (informativa contra la propia voz).
+   Ninguna alcanza sola.
+4. **Decidir cómo se presenta el puntaje.** Es decisión de producto y afecta a la
+   interfaz (RF-17) y al documento final.
+5. **Puntuar por palabra con las marcas del reconocedor**, en vez de aproximarlo
    con la peor ventana. Sube el Δ de 5.5 a 17.3 de mediana contra la propia voz.
    Tarea conjunta con Isaac.
-3. **Arreglar la fragilidad del recorte por voz**: la fracción de tramas sonoras
-   queda entre 0.11 y 0.41 con la puerta en 0.10, demasiado al filo.
+6. **Arreglar la fragilidad del recorte por voz**: la fracción de tramas sonoras
+   queda entre 0.11 y 0.41 con la puerta en 0.10, demasiado al filo. Es del
+   módulo de audio y se puede hacer aparte.
+7. **Verificar perceptualmente las tomas `mal`**, sobre todo las de *live/leave*,
+   donde hay indicios de que el contraste no se produjo.
 
-## 9. Archivos
+## 10. Archivos
 
 | Archivo | Rol |
 |---|---|
