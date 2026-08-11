@@ -118,7 +118,6 @@ escritos.
 
 **Coordinación**
 
-- [ ] Avisar a Monestel del cambio en `contracts.ts` y en `Chat.tsx` (**I-08**)
 - [ ] S7-T5 y S9-T4 · Coordinar los documentos del Avance 2 y final
 - [ ] S9-T6 · Congelamiento de código antes de la entrega
 - [ ] S10-T2 y S10-T5 · Matriz final y entrega en plataforma

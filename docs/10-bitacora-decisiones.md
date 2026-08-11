@@ -683,9 +683,9 @@ para evitar daño técnico, sino para que quien consume el contrato se entere, y
 módulo de interfaz consume `ChatMessage`.
 
 **Acción.** No se revierte: revertir y rehacer por solicitud no añadiría revisión
-sobre un cambio ya integrado y probado. Se compensa avisando por escrito al
-responsable del módulo consumidor, con el detalle de qué cambió y por qué, y se
-declara la etiqueta en la siguiente incorporación a `main`.
+sobre un cambio ya integrado y probado. Se declara la etiqueta `shared-change` en
+la siguiente incorporación a `main`, de modo que quede el registro aunque el
+cambio ya esté dentro.
 
 **Aprendizaje.** Una regla de proceso no sobrevive a una instrucción que la
 contradice, por muy explicada que esté la regla. Al indicar los pasos hay que
