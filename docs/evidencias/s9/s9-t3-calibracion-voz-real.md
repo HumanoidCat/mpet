@@ -6,19 +6,23 @@
 
 ## Resumen
 
-Con veinte grabaciones de voz real que cumplen el protocolo, **el comparador sí
-distingue una pronunciación incorrecta de una correcta: acierta el sentido en las
-cinco frases.** Lo que no alcanza es el margen.
+Cuarenta grabaciones de **dos hablantes** que cumplen el protocolo. El resultado
+depende por completo de contra qué se compare, y esa es la conclusión:
 
-| | Resultado |
+| Escenario | Detecta el error |
 |---|---|
-| Frases donde el error queda más lejos que repetir la frase | **5 de 5** |
-| Δ de puntaje entre bien y mal, por frase | 2.4 a 10.6 puntos (mediana 5.5) |
-| Δ midiendo localizado, como pide RF-10 | 6.3 a 16.1 puntos (mediana **17.3**) |
-| **Exigido por RF-10** | **20 puntos** |
+| Referencia de la **misma voz** del usuario | **9 de 10** frases |
+| Referencia de **otra voz** — como en la aplicación | **6 de 10** frases |
 
-O sea: la dirección es correcta y consistente, pero la magnitud se queda a
-mitad de camino. **RF-10 no se cumple con voz real.**
+Comparando contra la propia voz el comparador funciona en el sentido correcto,
+aunque con poco margen: 2.4 a 10.6 puntos contra los 20 que exige RF-10.
+
+Comparando contra otra voz —que es lo que la aplicación hace, porque la
+referencia la sintetiza el TTS— **el puntaje deja de ser confiable**. Δ va de −3.0
+a +11.0: en cuatro de diez casos la pronunciación incorrecta puntúa mejor que la
+correcta.
+
+**RF-10 no se cumple y el riesgo R03 se confirma.**
 
 Esto corrige la medición anterior, que daba 1.9 puntos y ni siquiera acertaba el
 sentido. Aquella se hizo con grabaciones que traían varias emisiones por archivo;
@@ -26,40 +30,42 @@ el problema era el material, como se sospechaba.
 
 ## 1. Las grabaciones
 
-Veinte archivos de un hablante: cinco frases × cuatro versiones (`ok`, `ok2`,
-`mal`, `rapido`), grabados con la página de captura del protocolo.
+Cuarenta archivos, dos hablantes (`fabrizio` y `evelyn`), cinco frases × cuatro
+versiones (`ok`, `ok2`, `mal`, `rapido`), grabados con la página de captura del
+protocolo.
 
 | | Valor |
 |---|---|
 | Formato | PCM 16 bits, mono, 16 kHz — sin compresión |
-| Duración | 1.28 a 2.82 s, incluido medio segundo de silencio a cada lado |
+| Duración | 1.28 a 3.07 s, incluido medio segundo de silencio a cada lado |
 | Emisiones por archivo | **1**, verificado al grabar |
 
 Un control que da confianza en el material: la versión `rapido` salió más corta
-que la `ok` en las **cinco** frases, sin excepción. Las versiones se grabaron
-como el protocolo pedía.
+que la `ok` en las **cinco** frases de cada hablante, sin excepción. Las
+versiones se grabaron como el protocolo pedía.
 
-## 2. Resultado principal: mide bien, pero por poco
+## 2. Contra la propia voz: mide bien, pero por poco
 
-Comparando a velocidad normal, dentro de cada frase:
+Comparando a velocidad normal, dentro de cada frase y con el mismo hablante:
 
-| Frase | Par mínimo | Repetir la frase | Decirla mal | Margen | Δ puntaje |
-|---|---|---:|---:|---:|---:|
-| 1 | ship / sheep | 12.9 | 13.8 | +0.9 | 2.4 |
-| 2 | bad / bed | 12.0 | 14.1 | +2.1 | 5.5 |
-| 3 | sit / seat | 14.0 | 15.6 | +1.6 | 3.9 |
-| 4 | live / leave | 12.6 | 16.6 | +4.0 | 9.6 |
-| 5 | pull / pool | 12.5 | 16.9 | +4.4 | 10.6 |
+| Frase | Par mínimo | fabrizio: repetir → mal | Δ | evelyn: repetir → mal | Δ |
+|---|---|---|---:|---|---:|
+| 1 | ship / sheep | 12.9 → 13.8 | 2.4 | 12.3 → 15.6 | 8.2 |
+| 2 | bad / bed | 12.0 → 14.1 | 5.5 | 13.0 → 13.8 | 2.0 |
+| 3 | sit / seat | 14.0 → 15.6 | 3.9 | 13.2 → 14.2 | 2.6 |
+| 4 | live / leave | 12.6 → 16.6 | 9.6 | 14.6 → 14.0 | **−1.3** |
+| 5 | pull / pool | 12.5 → 16.9 | 10.6 | 12.5 → 15.2 | 6.9 |
 
-**Las cinco separan.** Decir la vocal equivocada siempre aleja más que volver a
-decir la frase bien. Eso es lo que el comparador tiene que hacer, y lo hace.
+**Nueve de diez separan.** Decir la vocal equivocada aleja más que volver a decir
+la frase bien, salvo en *live/leave* de la segunda hablante.
 
 Pero el margen es del orden del 10 % de la distancia, y al pasar por la curva de
 puntaje se traduce en 2 a 11 puntos, no en 20.
 
-Las frases 4 y 5 —*live/leave* y *pull/pool*— son las que mejor separan. Son
-también las que más cambian la duración de la vocal, que es lo que los MFCC
-capturan con más claridad.
+Ninguna frase es difícil para las dos voces: *live/leave* es la mejor de un
+hablante y la única que falla en la otra. Con dos hablantes no se puede
+distinguir si eso es propiedad del par mínimo o de cómo lo pronunció cada
+persona.
 
 ## 3. Tres hallazgos de la medición
 
@@ -129,8 +135,8 @@ temporal no lo puede deshacer porque no es un problema de tiempo.
 
 | | Frases que separan |
 |---|---:|
-| A velocidad normal | **5 de 5** |
-| Incluyendo la toma rápida | 4 de 5 |
+| A velocidad normal | **9 de 10** |
+| Incluyendo la toma rápida | 4 de 10 |
 
 Es una limitación real del enfoque, no un error de implementación, y conviene
 declararla: **el sistema tolera la velocidad solo hasta cierto punto.**
@@ -176,44 +182,123 @@ La escala se deja en **20**. El barrido muestra que el óptimo está en 25 y que
 mejora es de una décima de punto, que no justifica tocar una constante ya
 documentada.
 
-## 5. Estado de RF-10
+## 5. El riesgo R03, medido: cambiar de voz pesa más que pronunciar mal
 
-**No se cumple con voz real.** Δ medido entre 2.4 y 10.6 puntos por frase, o hasta
-17.8 de mediana midiendo localizado, contra los 20 exigidos.
+Con las dos voces se puede por fin hacer la pregunta que define el riesgo:
+
+> ¿Está más lejos decir la frase **bien con otra voz** que decirla **mal con la
+> propia**?
+
+| | Distancia mediana | Puntaje |
+|---|---:|---:|
+| Bien pronunciada, misma voz | 13.04 | 52 |
+| **Bien pronunciada, otra voz** | **20.12** | **37** |
+| Mal pronunciada, misma voz | 14.24 | 49 |
+
+**Sí, y en las cinco frases.** Cambiar de voz cuesta **+7.08** de distancia;
+pronunciar mal cuesta **+1.20**. Casi seis veces más. Una persona que pronuncia
+perfecto pero con otra voz saca 37, y una que se equivoca de vocal con la voz de
+referencia saca 49.
+
+### Pero eso todavía no decide
+
+En la aplicación la referencia es **fija** —siempre la que sintetiza el TTS— así
+que ese desplazamiento afecta por igual a la toma buena y a la mala, y en
+principio podría cancelarse. Lo que importa es si, con una referencia de otra
+voz, el error sigue quedando más lejos que el acierto.
+
+Medido usando la toma buena de cada hablante como referencia del otro:
+
+| Usuario | Referencia | Detecta el error |
+|---|---|---:|
+| evelyn | fabrizio | 2 de 5 |
+| fabrizio | evelyn | 4 de 5 |
+| | **Total** | **6 de 10** |
+
+**No se cancela.** Contra la propia voz detecta 9 de 10; contra otra voz, 6 de
+10, y el Δ de puntaje va de **−3.0 a +11.0**. En cuatro de diez casos la
+pronunciación incorrecta puntúa mejor que la correcta.
+
+Seis de diez, con dos clases, está cerca de lo que daría tirar una moneda.
+
+### Se intentó arreglarlo, y no alcanza
+
+La normalización cepstral por media (CMN) está puesta justamente para quitar la
+huella del hablante. Se probaron variantes más agresivas:
+
+| Variante | Bien, misma voz | Bien, otra voz | Mal, misma voz | Margen del error |
+|---|---:|---:|---:|---:|
+| CMN desde c₁ (actual) | 12.67 | 20.59 | 14.65 | 1.98 |
+| CMN desde c₃ | 11.13 | 17.51 | 12.16 | 1.03 |
+| CMVN desde c₁ | 2.52 | 3.44 | 2.55 | **0.03** |
+| CMVN desde c₃ | 2.38 | 3.23 | 2.41 | 0.02 |
+
+Ninguna sirve. Descartar más coeficientes bajos reduce algo la penalización por
+voz, pero **reduce todavía más la señal del error**. Y normalizar también la
+varianza (CMVN) comprime todas las distancias a la cuarta parte y borra la
+diferencia entre bien y mal: margen 0.03 contra 1.98.
+
+En las cuatro variantes, cambiar de voz sigue pesando más que pronunciar mal en
+las cinco frases.
+
+### Por qué era esperable
+
+Comparar MFCC crudos con alineamiento temporal mide **parecido acústico**, y dos
+personas distintas diciendo lo mismo se parecen menos acústicamente que una
+persona diciendo dos cosas distintas. El largo del tracto vocal cambia las
+frecuencias de los formantes, y eso vive en los mismos coeficientes que
+distinguen una vocal de otra.
+
+Los sistemas que sí puntúan pronunciación de forma independiente del hablante no
+comparan contra una grabación: comparan contra un **modelo acústico de fonemas**,
+entrenado con muchos hablantes. Eso está fuera del alcance del curso, y no es un
+defecto de la implementación: es el límite del método elegido.
+
+## 6. Estado de RF-10
+
+**No se cumple.**
+
+| Escenario | Δ medido | Exigido |
+|---|---|---:|
+| Referencia de la misma voz | 2.4 a 10.6 por frase | 20 |
+| Referencia de la misma voz, midiendo por palabra | hasta 17.8 de mediana | 20 |
+| **Referencia de otra voz — el caso real** | **−3.0 a +11.0** | 20 |
 
 La métrica de 31 puntos que figuraba en la matriz de trazabilidad se obtuvo con
-**señales sintéticas de tres vocales sostenidas**, donde el fonema cambiado es un
-tercio de la señal en vez de una décima parte. Ese número describe el
-comportamiento del algoritmo sobre su caso más favorable, no sobre habla.
+**señales sintéticas de tres vocales sostenidas**, comparando cada voz contra sí
+misma y con el fonema cambiado ocupando un tercio de la señal en vez de una
+décima parte. Ese número describe el algoritmo en su caso más favorable, no sobre
+habla.
 
-## 6. Estado del riesgo R03
+## 7. Estado del riesgo R03
 
-**Abierto, pero acotado.** El riesgo decía que el puntaje podía no correlacionar
-con la percepción real. La medición muestra que **sí correlaciona en el sentido
-correcto, de forma consistente en las cinco frases**, y que el problema es de
-magnitud, no de dirección.
+**Confirmado y materializado.** El riesgo decía que el puntaje podía no
+correlacionar con la percepción real. La medición muestra que:
 
-Dos límites quedan declarados:
+- Contra la propia voz **sí correlaciona**, en 9 de 10 frases, con poco margen.
+- Contra otra voz **no correlaciona de forma confiable**: 6 de 10, y en cuatro
+  casos el orden se invierte.
+- La causa está identificada y **no se resuelve con los ajustes disponibles**.
 
-- El puntaje global de la frase no puede alcanzar 20 puntos de separación para un
-  error de un solo fonema, por dilución.
-- Hablar rápido penaliza tanto como pronunciar mal en la frase más difícil de las
-  cinco.
+Corresponde aplicar la mitigación que el propio riesgo preveía: **presentar el
+puntaje como retroalimentación educativa relativa y no como veredicto**, y
+declarar la limitación en el documento de la entrega. Concretamente, tiene
+sentido que la interfaz muestre la evolución del usuario contra sus propias
+tomas anteriores —donde el comparador sí es fiable— antes que un número absoluto
+contra la referencia sintetizada.
 
-Falta lo que esta tanda no pudo medir: **un segundo hablante**. Toda la evidencia
-es de una sola voz, así que la parte del riesgo que dice "comparar contra una voz
-distinta puede castigar la pronunciación correcta" sigue sin comprobarse.
+## 8. Qué falta
 
-## 7. Qué falta
-
-1. **Un segundo hablante**, idealmente con tono más agudo. Es lo único que mide
-   la tolerancia entre voces, que es el centro de R03.
+1. **Decidir con el equipo cómo se presenta el puntaje**, a la luz de esto. Es
+   una decisión de producto, no de DSP, y afecta a la interfaz (RF-17) y al
+   documento final.
 2. **Puntuar por palabra con las marcas del reconocedor**, en vez de aproximarlo
-   con la peor ventana. Es tarea conjunta con Isaac.
+   con la peor ventana. Sube el Δ de 5.5 a 17.3 de mediana contra la propia voz.
+   Tarea conjunta con Isaac.
 3. **Arreglar la fragilidad del recorte por voz**: la fracción de tramas sonoras
-   queda demasiado cerca del umbral en voz real.
+   queda entre 0.11 y 0.41 con la puerta en 0.10, demasiado al filo.
 
-## 8. Archivos
+## 9. Archivos
 
 | Archivo | Rol |
 |---|---|

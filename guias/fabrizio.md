@@ -40,7 +40,7 @@
 - [x] S8-T3 · Pruebas unitarias DSP con señales sintéticas conocidas → 284 pruebas del módulo, todas con señales generadas por código
 
 ## Semana 9
-- [ ] S9-T3 · Afinado final del comparador con datos de pruebas → medido con 20 grabaciones reales: separa en 5 de 5 pares mínimos pero con 2.4–10.6 puntos, no los 20 de RF-10 (ver `docs/evidencias/s9/s9-t3-calibracion-voz-real.md`). Falta un segundo hablante
+- [x] S9-T3 · Afinado final del comparador con datos de pruebas → 40 grabaciones, 2 hablantes. Contra la propia voz detecta el error en 9 de 10 frases; contra otra voz en 6 de 10. RF-10 no se cumple, R03 confirmado (ver `docs/evidencias/s9/s9-t3-calibracion-voz-real.md`)
 
 ## Semana 10 — 🎯 ENTREGA FINAL (mar 8 sep)
 - [x] S10-T6 · Preparar respuestas: Nyquist, por qué MFCC, cómo funcionan YIN y DTW → `docs/entregas/preguntas-defensa-dsp.md`
@@ -66,13 +66,14 @@ El orden ya no lo fija la semana del calendario sino la dependencia (D-08).
 Tu módulo está prácticamente cerrado. Quedan **3 tareas**, y las dos primeras son
 las que deciden si el puntaje sirve.
 
-- [ ] **S9-T3 · Calibrar el comparador con las cuatro voces del equipo** (riesgo **R03**).
-      **Hecho con una voz**, falta una segunda. Con 20 grabaciones propias el comparador
-      distingue bien de mal en **5 de 5** pares mínimos, pero con **2.4 a 10.6 puntos** de
-      margen contra los 20 que exige RF-10 — hasta 17.8 midiendo por palabra. Falla la
-      magnitud, no la dirección. Ver `docs/evidencias/s9/s9-t3-calibracion-voz-real.md`.
-      Lo que falta es un segundo hablante: la tolerancia entre voces distintas, que es el
-      centro de R03, sigue sin medirse
+- [x] **S9-T3 · Calibrar el comparador con voces reales** (riesgo **R03**) → medido con
+      **40 grabaciones de 2 hablantes**. Resultado: contra la propia voz detecta el error
+      en **9 de 10** frases, con 2.4 a 10.6 puntos de margen; **contra otra voz —el caso
+      real— solo en 6 de 10**, porque cambiar de voz cuesta +7.08 de distancia y
+      pronunciar mal +1.20. **RF-10 no se cumple y R03 queda confirmado.** Se probaron
+      CMN desde c₁/c₂/c₃ y CMVN: ninguna lo arregla. La causa es del método, no de la
+      implementación. Ver `docs/evidencias/s9/s9-t3-calibracion-voz-real.md`.
+      **Queda una decisión de producto para el equipo**: cómo se presenta el puntaje
 - [x] **S6-T7 · Pares mínimos**: las cinco frases (ship/sheep, bad/bed, sit/seat,
       live/leave, pull/pool) grabadas en cuatro versiones y medidas. Confirma que el
       puntaje mide pronunciación: la vocal equivocada aleja más que repetir la frase en

@@ -323,6 +323,130 @@ describe.skipIf(tomas.length === 0)('S9-T3 · Calibración con voz real', () => 
   });
 
   /**
+   * **La medición que decide el riesgo R03.**
+   *
+   * El riesgo dice que comparar la voz del usuario contra una voz distinta —la
+   * del sintetizador, o la de otra persona— puede castigar una pronunciación
+   * correcta. La pregunta concreta es una comparación de magnitudes:
+   *
+   *   ¿Está más lejos decir la frase BIEN con otra voz,
+   *    que decirla MAL con la misma voz?
+   *
+   * Si la respuesta es que sí, el puntaje mide quién habla y no cómo pronuncia,
+   * y la función principal del producto no sirve. La normalización cepstral
+   * (CMN) existe justamente para evitarlo; esto comprueba si alcanza.
+   */
+  it('mide la tolerancia entre voces distintas (R03)', () => {
+    const cache = new Map<string, Float32Array[]>();
+    const mfcc = (t: Toma) => {
+      if (!cache.has(t.archivo)) cache.set(t.archivo, analizar(t.archivo));
+      return cache.get(t.archivo)!;
+    };
+    const buscar = (h: string, f: string, v: string) =>
+      tomas.find((t) => t.hablante === h && t.frase === f && t.version === v);
+
+    const hablantes = [...new Set(tomas.map((t) => t.hablante))].sort();
+    if (hablantes.length < 2) {
+      console.log('\n== R03 ==\n  Hace falta un segundo hablante. Ver fixtures/README.md.');
+      return;
+    }
+    const frases = [...new Set(tomas.map((t) => t.frase))].sort();
+    const [A, B] = hablantes;
+
+    const mismaVoz: number[] = [];
+    const otraVoz: number[] = [];
+    const errorMismaVoz: number[] = [];
+    let castiga = 0;
+    let total = 0;
+
+    console.log(`\n== Tolerancia entre voces: ${A} contra ${B} ==`);
+    console.log('  frase   bien misma voz   BIEN OTRA VOZ   mal misma voz   ¿castiga la voz?');
+
+    for (const f of frases) {
+      const aOk = buscar(A, f, 'ok');
+      const aOk2 = buscar(A, f, 'ok2');
+      const aMal = buscar(A, f, 'mal');
+      const bOk = buscar(B, f, 'ok');
+      const bMal = buscar(B, f, 'mal');
+      if (!aOk || !aOk2 || !aMal || !bOk || !bMal) continue;
+      total++;
+
+      const dMisma = distancia(mfcc(aOk), mfcc(aOk2));
+      const dOtra = distancia(mfcc(aOk), mfcc(bOk));
+      const dError = Math.min(distancia(mfcc(aOk), mfcc(aMal)), distancia(mfcc(bOk), mfcc(bMal)));
+
+      mismaVoz.push(dMisma);
+      otraVoz.push(dOtra);
+      errorMismaVoz.push(dError);
+
+      // El caso que rompería el producto: la voz distinta pesa más que el error.
+      const malo = dOtra > dError;
+      if (malo) castiga++;
+
+      console.log(
+        `  ${f}     ${dMisma.toFixed(1).padStart(11)} ${dOtra.toFixed(1).padStart(15)} ` +
+          `${dError.toFixed(1).padStart(15)}   ${malo ? 'SÍ — la castiga' : 'no'}`
+      );
+    }
+
+    const e = (xs: number[]) => estadisticas(xs).mediana;
+    console.log(`\n  Mediana bien, misma voz  : ${e(mismaVoz).toFixed(2)}`);
+    console.log(`  Mediana bien, otra voz   : ${e(otraVoz).toFixed(2)}  (penalización por cambiar de voz: +${(e(otraVoz) - e(mismaVoz)).toFixed(2)})`);
+    console.log(`  Mediana mal, misma voz   : ${e(errorMismaVoz).toFixed(2)}`);
+    console.log(`\n  Frases donde cambiar de voz pesa más que pronunciar mal: ${castiga} de ${total}`);
+    console.log(
+      `  En puntaje: bien con otra voz ${distanceToScore(e(otraVoz)).toFixed(0)}, ` +
+        `mal con la propia ${distanceToScore(e(errorMismaVoz)).toFixed(0)}`
+    );
+
+    // ------------------------------------------------------------------
+    // El escenario de producción. Lo anterior mide el desplazamiento que
+    // introduce la voz, pero no decide todavía: en la aplicación la
+    // referencia es **fija** —siempre la del sintetizador— así que ese
+    // desplazamiento afecta por igual a la toma buena y a la mala, y podría
+    // cancelarse. Esto comprueba si se cancela.
+    console.log('\n== Escenario de producción: referencia fija de otra voz ==');
+    let aciertos = 0;
+    let casos = 0;
+    const deltas: number[] = [];
+
+    for (const [usuario, referencia] of [
+      [A, B],
+      [B, A],
+    ]) {
+      console.log(`\n  usuario ${usuario}, referencia ${referencia}`);
+      console.log('  frase   ref vs ok   ref vs ok2   ref vs MAL   ¿detecta el error?');
+      for (const f of frases) {
+        const ref = buscar(referencia, f, 'ok');
+        const uOk = buscar(usuario, f, 'ok');
+        const uOk2 = buscar(usuario, f, 'ok2');
+        const uMal = buscar(usuario, f, 'mal');
+        if (!ref || !uOk || !uOk2 || !uMal) continue;
+        casos++;
+
+        const dOk = distancia(mfcc(ref), mfcc(uOk));
+        const dOk2 = distancia(mfcc(ref), mfcc(uOk2));
+        const dMal = distancia(mfcc(ref), mfcc(uMal));
+        const peorBien = Math.max(dOk, dOk2);
+        const detecta = dMal > peorBien;
+        if (detecta) aciertos++;
+        deltas.push(distanceToScore(peorBien) - distanceToScore(dMal));
+
+        console.log(
+          `  ${f}     ${dOk.toFixed(1).padStart(9)} ${dOk2.toFixed(1).padStart(12)} ` +
+            `${dMal.toFixed(1).padStart(12)}        ${detecta ? 'sí' : 'NO'}`
+        );
+      }
+    }
+
+    console.log(`\n  Detecta el error con referencia de otra voz: ${aciertos} de ${casos}`);
+    console.log(`  Δ de puntaje: de ${Math.min(...deltas).toFixed(1)} a ${Math.max(...deltas).toFixed(1)}`);
+    console.log(`  Con la voz propia como referencia detectaba 9 de 10.`);
+
+    expect(total).toBeGreaterThan(0);
+  });
+
+  /**
    * Comprueba el efecto del recorte por voz sobre material ya recortado. Está
    * como prueba y no como nota porque es un defecto medible del detector, y si
    * alguna vez se corrige conviene que la cifra se actualice sola.
