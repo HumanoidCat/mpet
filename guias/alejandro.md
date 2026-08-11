@@ -85,29 +85,39 @@ Lunes noche: `dev` estable + ensayo · Martes 1 pm: clase + retro · Jueves: che
 
 ---
 
-## Lo que falta — actualizado 4 ago
+## Cerrado el 11 de agosto
 
-**Cerrado el 5 de agosto**
+- [x] **Corregir contra qué se puntúa la pronunciación.** El orquestador sintetizaba
+      la transcripción, o sea el propio error del estudiante. Error de diseño mío,
+      detectado por Fabrizio midiendo (S9-T3)
+- [x] **Modo práctica con frase objetivo**, sobre el chat existente: banco curado de
+      diez frases, comparación de lo transcrito contra el objetivo, y `targetMatch`
+      como señal principal en el chat (**D-16**)
+- [x] **Instrumentar el turno** con `getTiempos()` y volcado con `?medir=1`, para
+      poder cerrar R06 midiendo en vez de estimar
+- [x] Persistencia de sesiones en IndexedDB (**D-10**)
+- [x] Exportador de tomas a WAV para la calibración (S9-T3)
+- [x] Prueba de arranque que monta `App.tsx`
 
-- [x] S5-T6 · Persistencia de sesiones en IndexedDB → `src/core/sessionStore.ts`, sin dependencias nuevas (**D-10**). 14 pruebas
-- [x] Cablear las sugerencias al turno, con la carrera entre los dos cálculos asíncronos corregida
-- [x] Endurecer el turno contra tres fallos que solo aparecen con micrófono real
-- [x] Prueba de arranque que monta `App.tsx` → `tests/ui/appArranca.test.tsx`
-- [x] Retirar de la interfaz las notas internas visibles en producción (**I-06**)
-- [x] Actualizar matriz, riesgos, bitácora y los cuatro checklists
-- [x] Registrar **I-04**, **I-05**, **I-06**, **D-09** y **D-10** en la bitácora
+---
 
-**Producto**
+## Lo que falta — actualizado 11 ago
 
-- [ ] **Correr la aplicación con los cambios de esta semana juntos**, con micrófono y modelos reales. No es que nunca se haya corrido —se demuestra en cada entrega— sino que el comparador conectado, la persistencia, el endurecimiento del turno y la corrección de los MFCC entraron sin usarse a la vez (**R15** reformulado)
-- [ ] S6-T5 y S6-T6 · PWA completa y arranque verificado en modo avión (RF-14, RF-15)
-- [ ] S7-T1 · Cerrar el orquestador cuando Isaac entregue sugerencias y respuesta del tutor
-- [ ] S8-T5 · Prueba offline integral en máquina limpia
+Ninguna es de código. Las tres primeras se cierran en una sola sesión con
+`docs/evidencias/s8/s8-t5-offline-y-latencia.md`, que ya tiene los criterios
+escritos.
+
+- [ ] **Latencia del turno** (R06): `?medir=1`, cinco turnos. Lo que hay que
+      defender es la retroalimentación por debajo de 2 s, no el total (**D-15**)
+- [ ] **Arranque sin conexión y caché** (RF-14, RF-15): instalar, modo avión, usar
+      el flujo completo. Declarados pendientes desde el 17 de julio y nunca
+      comprobados, y sostienen el argumento central del README
+- [ ] **Prueba offline en máquina limpia** (S8-T5)
+- [ ] **Decidir RF-10** con la medición de Fabrizio: si el modo práctica supera los
+      6 de 10 de la señal sola, se presenta cumplido con su limitación declarada
 
 **Coordinación**
 
-- [ ] **Decidir cómo se presenta RF-10 el martes** si el comparador no llega a separar con voz real
-- [ ] Repoblar el tablero: no hay issues de Semana 6 ni 7
 - [ ] S7-T5 y S9-T4 · Coordinar los documentos del Avance 2 y final
-- [ ] S9-T6 · Congelamiento de código antes de cada entrega
+- [ ] S9-T6 · Congelamiento de código antes de la entrega
 - [ ] S10-T2 y S10-T5 · Matriz final y entrega en plataforma

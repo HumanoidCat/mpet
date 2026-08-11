@@ -620,3 +620,73 @@ normal en una conversación humana.
 **Pendiente.** La medición de punta a punta con todo integrado. Los 1751 ms vienen
 del spike, medidos además con la pestaña en segundo plano, donde el navegador
 limita el procesamiento: son pesimistas.
+
+---
+
+## D-16 · Modo práctica con frase objetivo (Semana 7)
+
+**Contexto.** La calibración con voz real (S9-T3) demostró que el puntaje acústico
+no puede cumplir RF-10, por dos causas encadenadas. La primera, en el comparador:
+el efecto del hablante pesa unas seis veces más que el error de pronunciación. La
+segunda, en la integración: el orquestador sintetizaba la transcripción, es decir
+**la propia equivocación del estudiante**, así que el puntaje no podía detectar
+una palabra mal dicha por construcción.
+
+**Decisión.** El puntaje solo se calcula contra una **frase objetivo**, y en
+conversación libre no se calcula. La razón de fondo es que en conversación libre
+no existe una pronunciación correcta contra la que comparar: no sabemos qué quiso
+decir el estudiante. Mejor ningún número que uno que en realidad mide cuánto se
+parece su voz a la del sintetizador.
+
+**Cómo se implementa, y por qué así.** Sobre el chat que ya existe, sin pantalla
+nueva: la aplicación propone una frase, el estudiante la repite con el mismo botón
+de micrófono, y el color por palabra que ya pintaba la interfaz sirve igual. La
+alternativa —una pantalla de práctica aparte— habría duplicado el flujo de captura
+para no aportar nada que el chat no hiciera ya.
+
+**La señal que decide.** `targetMatch` compara lo transcrito contra el objetivo. Es
+la única señal independiente del hablante que tiene el proyecto: el reconocedor
+está entrenado con miles de voces, así que el error aparece en el texto, donde el
+timbre no influye. El puntaje acústico pasa a dato secundario.
+
+**Limitación declarada.** Esa señal detecta 6 de cada 10 errores y produce 4 falsas
+alarmas. Por eso se redacta como «no entendí bien» y **nunca** como «lo dijiste
+mal»: acusar a quien pronunció bien desmotiva y además es falso. El campo se llama
+`noReconocida` y no `incorrecta` por lo mismo.
+
+**Efecto secundario buscado.** Un banco cerrado de frases resuelve también **R16**:
+cada referencia se sintetiza una sola vez, así que deja de cambiar entre sesiones.
+Y permite curar el conjunto para esquivar las palabras que el sintetizador
+pronuncia mal (S7-T4) y las cifras que no sabe decir (I-07). `cumpleCriterio()` lo
+verifica sobre todo el banco en la suite.
+
+**Pendiente.** Medir si la combinación de las dos señales supera los 6 de 10 de la
+señal sola. Es lo que decide cómo queda RF-10 en la entrega final.
+
+---
+
+## I-08 · Un cambio de contrato entró sin revisión (Semana 7)
+
+**Incidencia.** Los campos `target` y `targetMatch` de `ChatMessage`, más los tipos
+`PalabraObjetivo` y `ComparacionObjetivo`, entraron a `dev` en los commits
+`08a64ee` y `3a8e94b` **sin solicitud de incorporación y sin revisión**, pese a que
+el proceso exige ambas para `src/shared/`.
+
+**Causa.** Se indicó abrir la solicitud con la etiqueta `shared-change` y acto
+seguido se entregó una secuencia de comandos que confirmaba y empujaba
+directamente a `dev`. La instrucción contradecía a la regla y se siguió la
+instrucción.
+
+**Efecto real.** Ninguno técnico: los dos campos son opcionales, ningún campo
+existente cambió y la integración continua quedó en verde. Pero la regla no existe
+para evitar daño técnico, sino para que quien consume el contrato se entere, y el
+módulo de interfaz consume `ChatMessage`.
+
+**Acción.** No se revierte: revertir y rehacer por solicitud no añadiría revisión
+sobre un cambio ya integrado y probado. Se declara la etiqueta `shared-change` en
+la siguiente incorporación a `main`, de modo que quede el registro aunque el
+cambio ya esté dentro.
+
+**Aprendizaje.** Una regla de proceso no sobrevive a una instrucción que la
+contradice, por muy explicada que esté la regla. Al indicar los pasos hay que
+mirar si coinciden con lo que se acaba de exigir.

@@ -82,6 +82,9 @@ describe('Orchestrator v0 (S2-T7)', () => {
     const messages: ChatMessage[] = [];
     bus.on('message', (e) => messages.push(e.message));
 
+    // Con objetivo puesto, para que lo que se prueba sea la ausencia de
+    // comparador y no la ausencia de frase objetivo.
+    orch.setFraseObjetivo('I need a new ship');
     await orch.toggleMic();
     await orch.toggleMic();
     await dejarCorrerElPuntaje();
@@ -109,6 +112,7 @@ describe('Orchestrator v0 (S2-T7)', () => {
     const eventos: ChatMessage[] = [];
     bus.on('message', (e) => eventos.push(e.message));
 
+    orch.setFraseObjetivo('I need a new ship');
     await orch.toggleMic();
     await orch.toggleMic();
 
@@ -145,6 +149,8 @@ describe('Orchestrator v0 (S2-T7)', () => {
     bus.on('message', (e) => eventos.push(e.message));
     bus.on('error', (e) => errores.push(e.stage));
 
+    // Sin objetivo la prueba pasaria sin llegar nunca al sintetizador.
+    orch.setFraseObjetivo('I need a new ship');
     await orch.toggleMic();
     await orch.toggleMic();
     await dejarCorrerElPuntaje();
@@ -167,6 +173,8 @@ describe('Orchestrator v0 (S2-T7)', () => {
     bus.on('message', (e) => eventos.push(e.message));
     bus.on('error', (e) => errores.push(e.stage));
 
+    // Sin objetivo no se llamaria al comparador y no habria fallo que informar.
+    orch.setFraseObjetivo('I need a new ship');
     await orch.toggleMic();
     await orch.toggleMic();
     await dejarCorrerElPuntaje();
@@ -254,6 +262,7 @@ describe('Orchestrator v0 (S2-T7)', () => {
     const eventos: ChatMessage[] = [];
     bus.on('message', (e) => eventos.push(e.message));
 
+    orch.setFraseObjetivo('I need a new ship');
     await orch.toggleMic();
     await orch.toggleMic();
     await new Promise((r) => setTimeout(r, 500));
@@ -333,6 +342,113 @@ describe('Orchestrator v0 (S2-T7)', () => {
 
     expect(eventos).toHaveLength(0);
     expect(orch.getState()).toBe('idle');
+  });
+
+  it('sin frase objetivo no se puntua la pronunciacion (S9-T3)', async () => {
+    // Es el error de diseno que Fabrizio destapo midiendo: se sintetizaba la
+    // transcripcion, o sea la propia equivocacion del estudiante, y se comparaba
+    // contra ella. Sin objetivo no existe una pronunciacion correcta, asi que no
+    // se puntua. Mejor ningun numero que uno que mide parecido de timbre.
+    const { bus, orch } = setup({ scorer: createMockScorer() });
+    const eventos: ChatMessage[] = [];
+    bus.on('message', (e) => eventos.push(e.message));
+
+    expect(orch.getFraseObjetivo()).toBeNull();
+
+    await orch.toggleMic();
+    await orch.toggleMic();
+    await new Promise((r) => setTimeout(r, 300));
+
+    expect(eventos.every((m) => m.pronunciation === undefined)).toBe(true);
+  });
+
+  it('con frase objetivo se sintetiza el OBJETIVO, no lo que se dijo', async () => {
+    // La referencia tiene que ser la pronunciacion correcta. Si se sintetizara la
+    // transcripcion, el estudiante se compararia contra su propio error y el
+    // puntaje no podria detectar una palabra mal dicha.
+    const pedidas: string[] = [];
+    const base = createMockAIPipeline();
+    const espia: AIPipeline = {
+      ...base,
+      async speak(text: string) {
+        pedidas.push(text);
+        return base.speak(text);
+      },
+    };
+
+    const { bus, orch } = setup({ scorer: createMockScorer(), ai: espia });
+    const eventos: ChatMessage[] = [];
+    bus.on('message', (e) => eventos.push(e.message));
+
+    orch.setFraseObjetivo('I need a new ship');
+    await orch.toggleMic();
+    await orch.toggleMic();
+    await new Promise((r) => setTimeout(r, 300));
+
+    expect(pedidas).toContain('I need a new ship');
+    const puntuado = eventos.filter((m) => m.pronunciation !== undefined);
+    expect(puntuado.length).toBeGreaterThan(0);
+  });
+
+  it('la frase objetivo se limpia con null y con texto en blanco', async () => {
+    const { orch } = setup();
+
+    orch.setFraseObjetivo('  Please sit down  ');
+    expect(orch.getFraseObjetivo()).toBe('Please sit down');
+
+    orch.setFraseObjetivo('   ');
+    expect(orch.getFraseObjetivo()).toBeNull();
+
+    orch.setFraseObjetivo('otra');
+    orch.setFraseObjetivo(null);
+    expect(orch.getFraseObjetivo()).toBeNull();
+  });
+
+  it('un turno de practica adjunta la comparacion contra el objetivo', async () => {
+    // El mock transcribe "Yesterday I go to the market". Se pide repetir otra
+    // cosa, asi que casi todas las palabras del objetivo no se reconocen.
+    const { bus, orch } = setup();
+    const eventos: ChatMessage[] = [];
+    bus.on('message', (e) => eventos.push(e.message));
+
+    orch.setFraseObjetivo('I need a new ship');
+    await orch.toggleMic();
+    await orch.toggleMic();
+
+    const usuario = eventos.find((m) => m.role === 'user')!;
+    expect(usuario.target).toBe('I need a new ship');
+    expect(usuario.targetMatch).toBeDefined();
+    expect(usuario.targetMatch!.palabras).toHaveLength(5);
+    expect(usuario.targetMatch!.noReconocidas).toBeGreaterThan(0);
+  });
+
+  it('en conversacion libre el mensaje no lleva objetivo ni comparacion', async () => {
+    const { bus, orch } = setup();
+    const eventos: ChatMessage[] = [];
+    bus.on('message', (e) => eventos.push(e.message));
+
+    await orch.toggleMic();
+    await orch.toggleMic();
+
+    const usuario = eventos.find((m) => m.role === 'user')!;
+    expect(usuario.target).toBeUndefined();
+    expect(usuario.targetMatch).toBeUndefined();
+  });
+
+  it('la comparacion contra el objetivo llega DENTRO del turno', async () => {
+    // Es texto contra texto: no cuesta nada y debe llegar junto con la
+    // correccion, no despues como el puntaje acustico.
+    const { bus, orch } = setup();
+    let primerMensaje: ChatMessage | null = null;
+    bus.on('message', (e) => {
+      if (!primerMensaje && e.message.role === 'user') primerMensaje = e.message;
+    });
+
+    orch.setFraseObjetivo('I need a new ship');
+    await orch.toggleMic();
+    await orch.toggleMic();
+
+    expect(primerMensaje!.targetMatch).toBeDefined();
   });
 
   it('init reporta progreso de carga de modelos', async () => {

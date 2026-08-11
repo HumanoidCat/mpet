@@ -94,6 +94,37 @@ export interface PronunciationResult {
   dtwDistance: number;
 }
 
+/**
+ * Estado de una palabra de la frase objetivo tras compararla con lo que el
+ * reconocedor entendió (S9-T3).
+ *
+ * ⚠️ `noReconocida` **no significa «mal pronunciada»**. El reconocedor tiene su
+ * propia tasa de error: medido sobre 40 grabaciones, detecta 6 de cada 10 errores
+ * reales pero produce 4 falsas alarmas. Quien lo muestre debe decir «no te
+ * entendí bien» y nunca «lo dijiste mal»: acusar a un estudiante que pronunció
+ * bien desmotiva y además es falso.
+ */
+export interface PalabraObjetivo {
+  palabra: string;
+  noReconocida: boolean;
+}
+
+/**
+ * Comparación de lo transcrito contra la frase que se pidió repetir.
+ *
+ * Es la **única señal independiente del hablante** del proyecto. El puntaje
+ * acústico no lo es: cambiar de voz cuesta +7.08 de distancia y pronunciar mal
+ * solo +1.20, así que mide más quién habla que cómo pronuncia (R03). El
+ * reconocedor, entrenado con miles de voces, hace que el error aparezca en el
+ * texto, donde el timbre ya no influye.
+ */
+export interface ComparacionObjetivo {
+  palabras: PalabraObjetivo[];
+  noReconocidas: number;
+  /** Fracción del objetivo reconocida, de 0 a 1. */
+  aciertos: number;
+}
+
 export interface PronunciationScorer {
   score(
     user: AudioFrame[],
@@ -136,6 +167,17 @@ export interface ChatMessage {
   correction?: { corrected: string; edits: Edit[] };
   suggestions?: string[];
   pronunciation?: PronunciationResult;
+  /**
+   * Frase que se pidió repetir en este turno, si lo hubo. Su presencia distingue
+   * un turno de práctica de uno de conversación libre.
+   */
+  target?: string;
+  /**
+   * Resultado de comparar la transcripción contra `target`. Solo existe en turnos
+   * de práctica, y es la señal que **sí** depende de la pronunciación y no de la
+   * voz del hablante.
+   */
+  targetMatch?: ComparacionObjetivo;
   ts: number;
 }
 

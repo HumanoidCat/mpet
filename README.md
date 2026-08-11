@@ -64,7 +64,8 @@ microfono 48 kHz
   -> ASR Whisper-tiny.en                                  -> transcripcion
   -> correccion gramatical T5                             -> ediciones
   -> sintesis de voz MMS-TTS (VITS)                       -> audio de referencia
-  -> comparacion MFCC por DTW                             -> puntaje por palabra
+  -> en modo practica: comparacion contra la frase objetivo -> palabra por palabra
+                       + comparacion MFCC por DTW           -> puntaje acustico
 ```
 
 ---
@@ -118,23 +119,26 @@ su evidencia están en [`docs/10-bitacora-decisiones.md`](docs/10-bitacora-decis
 
 ## Estado actual
 
-- **Pruebas automatizadas** en verde, en 40 archivos. Las 4 omitidas necesitan grabaciones de voz que no se versionan en el repositorio.
+- **Pruebas automatizadas** en verde, en 42 archivos. Las 4 omitidas necesitan grabaciones de voz que no se versionan en el repositorio.
 - Cadena de audio completa e integrada: captura, remuestreo, preprocesamiento, detección de actividad de voz, STFT, frecuencia fundamental y MFCC.
 - Ciclo de conversación completo: reconocimiento, corrección gramatical, síntesis de voz, respuesta del tutor y sugerencias. El contrato `AIPipeline` no tiene etapas pendientes.
-- Comparador por alineamiento temporal dinámico y puntaje de pronunciación por palabra, conectados al turno de conversación.
+- Modo práctica: la aplicación propone una frase, el estudiante la repite y se compara palabra por palabra contra ella. Es donde se puntúa la pronunciación.
 - Persistencia de sesiones en IndexedDB.
 - Interfaz con chat, control de micrófono con estados, forma de onda, espectrograma y contorno de tono en tiempo real.
 - PWA instalable con service worker y caché de modelos.
 
 **Pendiente, con lo más relevante primero:**
 
-- El puntaje de pronunciación **no discrimina todavía con voz real**: la separación
-  entre pares correctos e incorrectos es de 1.05 cuando el objetivo son 20 puntos.
-  Con señales sintéticas alcanza 31. Es el riesgo R03 y está en investigación
+- **El puntaje de pronunciación solo funciona en modo práctica.** Medido con voz
+  real, el puntaje acústico depende más de quién habla que de cómo pronuncia:
+  cambiar de voz cuesta +7.08 de distancia y pronunciar mal solo +1.20. Por eso la
+  señal principal pasa a ser la comparación de lo transcrito contra la frase
+  objetivo, que es independiente del hablante, y en conversación libre no se puntúa
   ([evidencia](docs/evidencias/s9/s9-t3-calibracion-voz-real.md)).
 - El sintetizador **no sabe decir cifras**: ante un precio no se oye un número
   equivocado, no se oye nada. Se corrige normalizando números a letras.
-- Falta verificar el arranque sin conexión en un equipo limpio.
+- Falta comprobar el arranque sin conexión: la PWA y la caché de modelos están
+  implementadas pero nunca se han ejercido en modo avión (RF-14, RF-15).
 - El peso total, 676 MiB, sigue siendo alto. La vía que queda es el corrector de
   gramática (241 MiB), el único modelo que nunca se comparó contra alternativas.
 
