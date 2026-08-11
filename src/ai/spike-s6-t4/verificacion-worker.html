@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>S6-T4 / S7-T2 · Verificación del worker del tutor</title>
+  <style>
+    :root { color-scheme: light dark; }
+    body { font-family: system-ui, sans-serif; max-width: 900px; margin: 2rem auto; padding: 0 1rem; line-height: 1.5; }
+    h1 { font-size: 1.3rem; } h2 { font-size: 1.05rem; margin-top: 1.6rem; }
+    button { padding: .5rem .9rem; margin: .2rem .3rem .2rem 0; cursor: pointer; border-radius: 6px; border: 1px solid #8888; background: #8881; }
+    button:disabled { opacity: .45; cursor: not-allowed; }
+    input[type=text] { width: 100%; padding: .5rem; border-radius: 6px; border: 1px solid #8886; background: transparent; color: inherit; }
+    #log { white-space: pre-wrap; font-family: ui-monospace, monospace; font-size: .8rem; background: #8881; padding: .7rem; border-radius: 8px; max-height: 420px; overflow: auto; }
+    .muted { opacity: .7; font-size: .85rem; }
+    progress { width: 100%; height: 14px; }
+  </style>
+</head>
+<body>
+  <h1>🔌 Verificación del worker del tutor (S6-T4 / S7-T2)</h1>
+  <p class="muted">
+    Usa el <code>AIPipeline</code> real, no el cliente suelto. Comprueba en ejecución
+    que el worker arranca, que <code>suggest()</code> y <code>reply()</code> devuelven
+    lo que promete el contrato, que las dos respuestas no se cruzan por el mismo canal
+    de mensajes, y que la limpieza de comillas y de sugerencias vacías funciona con
+    salidas reales del modelo.
+  </p>
+  <p class="muted">
+    <strong>Sin llamar a <code>init()</code>:</strong> el modelo del tutor se carga
+    bajo demanda, así que la primera llamada debería descargarlo sola (265 MiB).
+  </p>
+
+  <p><input type="text" id="frase" value="I went to the beach yesterday with my family." /></p>
+
+  <div class="row">
+    <button id="btnSuggest">suggest()</button>
+    <button id="btnReply">reply()</button>
+    <button id="btnAmbos">Los dos a la vez (prueba de cruce)</button>
+    <progress id="bar" value="0" max="1"></progress>
+  </div>
+
+  <h2>Registro</h2>
+  <div id="log"></div>
+
+  <script type="module" src="./verificacion-worker.ts"></script>
+</body>
+</html>
