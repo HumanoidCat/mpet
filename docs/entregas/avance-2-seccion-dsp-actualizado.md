@@ -1,18 +1,10 @@
-# Avance 2 — Sección de Procesamiento Digital de Señales
-
-> # ⚠️ VERSIÓN SUPERADA — NO INTEGRAR ESTA
->
-> **Integrar `avance-2-seccion-dsp-actualizado.md`.**
->
-> La calibración con voz real (11 de agosto, S9-T3) contradijo tres
-> afirmaciones de este documento: que la normalización cepstral resuelve la
-> penalización por cambio de voz, que RF-10 se cumple con 31 puntos, y que la
-> verificación contra librosa estaba pendiente.
->
-> Este archivo se conserva **sin modificar** como registro de lo que se sabía al
-> redactarlo. El contenido de abajo queda intacto a propósito.
+# Avance 2 — Sección de Procesamiento Digital de Señales · ACTUALIZADO
 
 > **Material preparado por Fabrizio Espinoza para integrar en `avance-2.md`.**
+>
+> ⚠️ **Esta versión sustituye a `avance-2-seccion-dsp.md`**, que se conserva sin
+> modificar como registro de lo que se sabía al redactarlo. **Es esta la que debe
+> integrarse.**
 >
 > No es el documento de la entrega: es el aporte del módulo de audio, redactado
 > en el mismo registro que el Avance 1 y listo para insertar. Cada bloque indica
@@ -20,6 +12,28 @@
 >
 > Todas las cifras están medidas y son reproducibles con `npx vitest run tests/audio`.
 > El desarrollo completo de cada una está en `docs/evidencias/`.
+
+## Qué cambia respecto de la versión anterior (11 de agosto)
+
+La calibración con voz real —cuarenta grabaciones de dos hablantes— **contradijo
+tres afirmaciones** de la versión anterior. Se corrigen aquí y se detallan por
+transparencia, porque el cambio es de fondo y no de redacción.
+
+| Afirmación anterior | Qué mostró la medición con voz real |
+|---|---|
+| La normalización cepstral resuelve la penalización por cambio de voz | **La atenúa, no la resuelve.** Con voz real, decir la frase **bien con otra voz** puntúa 37 y decirla **mal con la propia** puntúa 49 |
+| RF-10 cumplido con 31 puntos de separación ✅ | Esa cifra corresponde a **señales sintéticas de vocales sostenidas**. Con voz real la separación va de 2.4 a 10.6 puntos, y contra otra voz de −3.0 a +11.0. **RF-10 no se cumple** |
+| Verificación de los coeficientes cepstrales contra librosa pendiente | **Ejecutada: 0.009 % de error**, frente al 5 % exigido. Destapó además un defecto real de escala |
+
+La versión anterior no era deshonesta: cada cifra estaba medida sobre las señales
+disponibles en ese momento, y su propia sección de limitaciones advertía que la
+calibración se había hecho con señales sintéticas y que los valores con voz real
+diferirían. **Diferieron más de lo previsto, y en la dirección desfavorable.**
+
+Todo lo relativo a la transformada de tiempo corto, la escala mel, el algoritmo
+YIN, el costo computacional y las optimizaciones **se mantiene sin cambios**: son
+propiedades del algoritmo verificadas contra la definición matemática, y la voz
+real no las afecta.
 
 ---
 
@@ -223,7 +237,7 @@ respecto de la diagonal. Sin ella el algoritmo puede deformar el tiempo
 arbitrariamente y alinear una sílaba con otra muy posterior si con ello reduce el
 costo.
 
-### Normalización cepstral: una necesidad, no una mejora
+### Normalización cepstral: necesaria, pero insuficiente
 
 La referencia de comparación la genera un sintetizador de voz. En consecuencia,
 usuario y referencia corresponden **siempre** a hablantes distintos, y esta
@@ -234,21 +248,46 @@ casi tanto como un cambio de vocal: 46.10 frente a 36.49 unidades de distancia.
 El evaluador habría penalizado una pronunciación correcta por proceder de una voz
 distinta a la de la referencia.
 
-Sobre frases de tres vocales, las dos clases resultaban **indistinguibles**:
+La técnica consiste en sustraer de cada trama el promedio del enunciado. El
+fundamento es que lo que diferencia a dos hablantes que pronuncian lo mismo
+incluye una inclinación espectral aproximadamente constante a lo largo de la
+emisión —longitud del tracto vocal, frecuencia fundamental, respuesta del
+micrófono—, y esa componente constante es precisamente la media.
+
+Sobre frases sintéticas de tres vocales el efecto es concluyente:
 
 | | Peor caso bien pronunciado | Mejor caso mal pronunciado |
 |---|---:|---:|
 | **Sin normalización cepstral** | 39.39 | 11.66 — **las clases se solapan** |
 | **Con normalización cepstral** | 6.45 | 17.91 — separadas por un factor de 2.8 |
 
-Sin la normalización, una pronunciación **correcta emitida por otra voz**
-obtenía peor puntuación que una **incorrecta emitida por la misma voz**.
+**Con voz real, en cambio, la corrección resulta insuficiente.** Medido sobre
+cuarenta grabaciones de dos hablantes, con la normalización aplicada:
 
-La técnica consiste en sustraer de cada trama el promedio del enunciado. Lo que
-diferencia a dos hablantes que pronuncian lo mismo es fundamentalmente una
-inclinación espectral constante a lo largo de la emisión —longitud del tracto
-vocal, frecuencia fundamental, respuesta del micrófono—, y esa componente
-constante es precisamente la media.
+| | Distancia | Puntuación |
+|---|---:|---:|
+| Bien pronunciada, misma voz | 13.04 | 52 |
+| **Bien pronunciada, otra voz** | **20.12** | **37** |
+| Mal pronunciada, misma voz | 14.24 | 49 |
+
+Cambiar de voz cuesta **+7.08** unidades de distancia; pronunciar mal, **+1.20**.
+Es decir que **persiste, atenuado, el mismo fenómeno que la normalización debía
+corregir**: una pronunciación correcta emitida por otra voz obtiene peor
+puntuación que una incorrecta emitida por la voz de referencia.
+
+La razón de la discrepancia entre ambas mediciones es que las vocales sintéticas
+se generaron variando únicamente la frecuencia fundamental sobre la misma
+envolvente de formantes. Eso sí es una inclinación espectral constante, y la
+media la elimina por completo. Dos personas distintas difieren además en la
+**posición de los formantes**, que no es una componente constante sino un
+escalado del eje de frecuencias, y la sustracción de la media no lo toca.
+
+El desarrollo completo de esta medición, incluidas ocho variantes ensayadas para
+corregirla —normalización de varianza, descarte de coeficientes bajos,
+normalización por longitud del tracto vocal y comparación contra doble
+referencia— se encuentra en `docs/evidencias/s9/s9-t3-calibracion-voz-real.md`.
+Ninguna resulta suficiente, y se documenta el motivo: el escalado de los
+formantes reside en los mismos coeficientes que distinguen una vocal de otra.
 
 ### Del costo a la puntuación
 
@@ -282,20 +321,48 @@ integración declaraba pendientes quedaron cubiertos.
 | Requisito | Criterio | Resultado medido |
 |---|---|---|
 | RF-08 · Frecuencia fundamental | Error < 3 Hz | **0.115 Hz** ✅ |
-| RF-09 · Coeficientes cepstrales | Error < 5 % frente a referencia | Validado contra la definición de cada etapa; contraste con librosa pendiente |
-| RF-10 · Puntuación de pronunciación | Discriminación > 20 puntos | **31 puntos** ✅ |
+| RF-09 · Coeficientes cepstrales | Error < 5 % frente a librosa | **0.009 %** ✅ |
+| RF-10 · Puntuación de pronunciación | Discriminación > 20 puntos | **No alcanzado con voz real** ❌ — véase abajo |
 
-### Invariancias verificadas de la puntuación
+**RF-09** se cerró ejecutando la verificación cruzada contra librosa 0.11.0. El
+contraste destapó un defecto real: la cadena aplicaba al espectro de potencia una
+corrección de amplitud que hundía **veinticuatro de las veintiséis bandas mel**
+por debajo del valor mínimo que evita el logaritmo de cero, de modo que dejaban
+de responder a la señal. Retirada la corrección, el error desciende de 5.02 % a
+0.009 %. La validación por etapas no lo había detectado porque cada etapa era
+correcta por separado: el defecto estaba en la escala con que se encadenaban.
 
-Tres factores que no deben influir en la evaluación, cada uno neutralizado por
-una etapa distinta de la cadena:
+**RF-10 no se alcanza.** La cifra de 31 puntos que figuraba anteriormente
+corresponde a señales sintéticas de vocales sostenidas, donde el fonema alterado
+representa un tercio de la señal. Con voz real:
 
-| Factor que varía | Puntuación | Etapa responsable |
-|---|---:|---|
-| Ninguno (señal idéntica) | 100 | — |
-| Volumen (+50 %) | > 95 | Normalización por valor eficaz y descarte del coeficiente cero |
-| Velocidad (+50 % de duración) | > 90 | Alineamiento temporal dinámico |
-| Voz del hablante (120 → 180 Hz) | > 70 | Normalización cepstral |
+| Escenario | Detecta el error | Δ de puntuación |
+|---|---|---|
+| Referencia de la **misma voz** | 9 de 10 frases | 2.4 a 10.6 |
+| Referencia de **otra voz** — el caso de la aplicación | **6 de 10** | **−3.0 a +11.0** |
+
+En la aplicación la referencia la sintetiza el conversor de texto a voz, de modo
+que el escenario aplicable es el segundo: en cuatro de cada diez casos la
+pronunciación incorrecta obtiene mejor puntuación que la correcta.
+
+### Invariancias de la puntuación
+
+Tres factores que no deben influir en la evaluación, cada uno atendido por una
+etapa distinta de la cadena. Se distingue lo verificado sobre señales sintéticas
+de lo comprobado con voz real:
+
+| Factor que varía | Señales sintéticas | Voz real | Etapa responsable |
+|---|---:|---|---|
+| Ninguno (señal idéntica) | 100 | — | — |
+| Volumen (+50 %) | > 95 | Se mantiene | Normalización por valor eficaz y descarte del coeficiente cero |
+| Velocidad (+50 % de duración) | > 90 | **Parcial**: hablar deprisa aleja más que pronunciar mal en 1 de 5 frases | Alineamiento temporal dinámico |
+| Voz del hablante | > 70 (120 → 180 Hz) | **No se cumple**: 37 frente a 49 | Normalización cepstral |
+
+La invariancia a la velocidad se degrada porque al hablar deprisa las vocales se
+reducen y el espectro cambia efectivamente; el alineamiento temporal corrige la
+compresión del tiempo, pero no una diferencia que no es temporal. Se comprobó que
+no se trata de un alineamiento forzado: suprimir la banda de Sakoe–Chiba deja la
+distancia idéntica en catorce de quince pares.
 
 ### Costo computacional
 
@@ -335,13 +402,18 @@ continúan superándose sin modificación alguna.
 
 ### Estrategia de verificación
 
-La totalidad de las pruebas del módulo emplea señales generadas por
-procedimiento —senoides, barridos, ruido determinista y vocales sintéticas con
-formantes controlados— de parámetros conocidos. Ninguna requiere micrófono,
-grabaciones ni intervención manual, y todas se ejecutan en la integración
-continua.
+Las pruebas que se ejecutan en la integración continua emplean señales generadas
+por procedimiento —senoides, barridos, ruido determinista y vocales sintéticas
+con formantes controlados— de parámetros conocidos. Ninguna requiere micrófono ni
+intervención manual.
 
-La validación se organiza en cuatro niveles, en orden de solidez decreciente:
+Se añadió un conjunto de **mediciones sobre grabaciones reales** que se omite
+automáticamente cuando los archivos no están presentes, de modo que la
+integración continua no dependa de material que no se versiona. Las grabaciones
+quedan fuera del repositorio por acuerdo del equipo: se versiona el resultado de
+las mediciones, no el audio.
+
+La validación se organiza en cinco niveles, en orden de solidez decreciente:
 
 1. **Casos de solución analítica cerrada.** Señales cuya transformada se deduce
    sobre el papel: una senoide centrada en un bin debe producir magnitud $N/2$
@@ -354,21 +426,38 @@ La validación se organiza en cuatro niveles, en orden de solidez decreciente:
    (Parseval), reversibilidad y simetría conjugada.
 4. **Señales sintéticas de parámetros conocidos**, para filtros, detección de voz
    y comparador.
+5. **Grabaciones reales**, únicamente para la calibración: son el único material
+   que revela el comportamiento del sistema ante voz humana, pero no permiten
+   verificar corrección porque no existe un valor esperado con el que contrastar.
 
 Esta estrategia responde a una decisión registrada en la bitácora: contrastar una
 implementación contra otra biblioteca demuestra únicamente que ambas coinciden,
 mientras que contrastarla contra resultados deducibles de la teoría demuestra que
-es correcta.
+es correcta. La verificación contra librosa se ejecutó como comprobación
+adicional una única vez, exportando el resultado, y **encontró un defecto que los
+cuatro primeros niveles no habían detectado**: la escala con que se encadenaban
+dos etapas correctas por separado.
 
-**Cobertura resultante: 284 pruebas del módulo**, sobre un total de 335 en el
-proyecto.
+La experiencia del período matiza esa decisión sin invalidarla. Los cuatro
+primeros niveles verifican que cada etapa cumple su definición; no verifican que
+el sistema completo sirva para el propósito. Las dos únicas incidencias de fondo
+—el defecto de escala de los coeficientes cepstrales y la dependencia del
+hablante— aparecieron al contrastar contra una referencia externa y contra voz
+real respectivamente.
+
+**Cobertura resultante: 300 pruebas del módulo**, sobre un total de 490 en el
+proyecto. De ellas, ocho dependen de material externo —siete de las grabaciones
+de calibración y una del contraste con librosa— y se omiten automáticamente
+cuando no está disponible.
 
 ### Incidencias del período
 
 | Incidencia | Resolución |
 |---|---|
-| La detección de voz por energía clasificaba como habla cualquier ruido estacionario, a cualquier nivel | Se incorporó un criterio de periodicidad: el ruido de banda ancha presenta 0 % de tramas con frecuencia fundamental detectable frente al 49 % de la voz real |
-| El comparador penalizaba la diferencia de voz casi tanto como la diferencia de fonema | Normalización cepstral por media, que separa las clases por un factor de 2.8 |
+| La detección de voz por energía clasificaba como habla cualquier ruido estacionario, a cualquier nivel | Se incorporó un criterio de periodicidad: el ruido de banda ancha presenta 0 % de tramas con frecuencia fundamental detectable frente al 49 % de la voz sintética |
+| El comparador penalizaba la diferencia de voz casi tanto como la diferencia de fonema | Normalización cepstral por media: separa las clases por un factor de 2.8 sobre señales sintéticas, pero **con voz real solo atenúa el efecto** (véase 5.9 y 7.y) |
+| Los umbrales de detección de voz, fijados sobre señales sintéticas, rechazaban por completo el habla de dos de las primeras cuatro grabaciones reales | Se separaron los dos umbrales que estaban unificados: uno flojo para decidir *si hay periodicidad* y otro estricto para determinar *qué frecuencia es*. Aflojar el primero no tiene costo: el ruido presenta 0 % de tramas sonoras a cualquier umbral entre 0.02 y 0.30 |
+| Los coeficientes cepstrales aplicaban una corrección de amplitud que fijaba 24 de las 26 bandas mel contra el valor mínimo del logaritmo | Retirada. El error frente a librosa desciende de 5.02 % a 0.009 % |
 | La interpolación parabólica presentaba el signo invertido en la determinación del vértice | Corregido; el error máximo desciende de 4.315 Hz a 0.008 Hz |
 | La selección del máximo absoluto de la autocorrelación producía errores de sub-armónico | Se selecciona el primer máximo local que alcanza el 90 % del máximo global |
 | El espectro emitido por la integración presentaba un déficit de amplitud del 20 % | Diagnosticado desde el módulo de audio y corregido por integración: el tamaño de bloque del worklet no divide en tramas de análisis, y se rellenaba con ceros un tercio de cada trama |
@@ -392,10 +481,47 @@ memoria constituye el límite antes que el tiempo: una comparación de treinta
 segundos requiere 28 MB. Para el uso conversacional previsto no representa un
 problema.
 
-**La calibración de las constantes se realizó con señales sintéticas.** Los
-valores absolutos de distancia con voz real diferirán, y la constante de escala de
-la puntuación podría requerir ajuste. Corresponde a la tarea de afinado
-programada con datos de prueba reales.
+**La puntuación depende más de quién habla que de cómo pronuncia.** Es la
+limitación principal del módulo y corresponde al riesgo R03 del proyecto, que
+queda **confirmado**. Medido sobre cuarenta grabaciones de dos hablantes:
+cambiar de voz cuesta 7.08 unidades de distancia y pronunciar mal, 1.20.
+
+Su origen no es un defecto de implementación —los coeficientes cepstrales están
+verificados contra librosa con 0.009 % de error— sino el límite del método
+elegido. Comparar coeficientes cepstrales mediante alineamiento temporal mide
+parecido acústico, y la longitud del tracto vocal escala las frecuencias de los
+formantes en los mismos coeficientes que distinguen una vocal de otra: no es
+posible suprimir uno sin suprimir el otro. Se ensayaron ocho procedimientos y se
+documenta la medición de cada uno.
+
+Los sistemas que puntúan pronunciación de forma independiente del hablante no
+comparan contra una grabación, sino contra un **modelo acústico de fonemas**
+entrenado con miles de voces, y evalúan la probabilidad de que lo emitido
+corresponda al fonema esperado. Ese enfoque requiere entrenamiento y excede el
+alcance del curso.
+
+**Existe una vía abierta**, medida y no descartada: el reconocedor de voz que el
+proyecto ya integra es precisamente un modelo acústico entrenado con miles de
+hablantes. Comparando la **transcripción** contra una frase objetivo, el error se
+detecta en el texto y la identidad del hablante deja de intervenir. Sobre las
+mismas cuarenta grabaciones detecta 6 de 10 errores con 4 falsas alarmas: no
+resulta suficiente por sí sola, pero constituye una señal independiente de la
+acústica y ambas pueden combinarse. Requiere una modalidad de práctica con frase
+objetivo, que hoy la aplicación no contempla.
+
+**Un error de un solo fonema se diluye en la puntuación global de la frase.** El
+procedimiento promedia el costo de todo el alineamiento, y en una frase de cinco
+palabras la vocal alterada representa unas pocas tramas de un centenar. Que el
+margen observado sea del orden del 10 % no es casual: coincide con la fracción de
+la frase que cambió. Por ese motivo el requisito prevé también una puntuación
+**por palabra**, que se encuentra implementada y cuya evaluación requiere las
+marcas temporales del reconocedor.
+
+**La detección de habla es frágil sobre voz real.** La fracción de tramas sonoras
+de las grabaciones se sitúa entre 0.11 y 0.41 frente a un umbral de 0.10, de modo
+que la aceptación de un segmento llega a depender del ruido de la medición y no
+de su contenido. Sobre material ya recortado, aplicarla empeora la discriminación
+de 5 de 5 frases a 4 de 5.
 
 ---
 
@@ -409,6 +535,7 @@ Documentos nuevos de este período, todos con procedimiento reproducible:
 - `docs/evidencias/s6/s6-t1-t2-comparador.md` — Comparador acústico: alineamiento temporal, normalización cepstral y calibración de la puntuación.
 - `docs/evidencias/s7/s7-t4-latencia-dsp.md` — Costo computacional por etapa y optimizaciones aplicadas.
 - `docs/evidencias/s8/s8-t2-t3-casos-limite.md` — Casos límite: ruido ambiental, frases largas, silencios y cobertura de pruebas.
+- `docs/evidencias/s9/s9-t3-calibracion-voz-real.md` — **Calibración con cuarenta grabaciones de dos hablantes**: dependencia del hablante, ocho procedimientos ensayados para corregirla, y la vía abierta por el reconocedor de voz.
 
 El desarrollo teórico completo, con todas las ecuaciones, se encuentra en
 `docs/09-marco-teorico.md`, secciones 4 a 7.
@@ -424,12 +551,29 @@ El desarrollo teórico completo, con todas las ecuaciones, se encuentra en
 2. **La sección 7 lleva letras en lugar de números** porque se desconoce cuántas
    subsecciones tendrá el apartado en el documento final.
 
-3. **Verificación cruzada de los coeficientes cepstrales.** La métrica de RF-09
-   es "error < 5 % frente a librosa" y esa comparación no se ha ejecutado. El
-   generador del fixture está preparado y el asunto queda registrado como
-   incidencia abierta. Se ha redactado como pendiente y no como cumplido.
-
-4. **Duplicación con el marco teórico.** Las secciones 5.6 a 5.9 resumen lo que
+3. **Duplicación con el marco teórico.** Las secciones 5.6 a 5.9 resumen lo que
    `docs/09-marco-teorico.md` desarrolla en extenso. Si se prefiere evitar la
    repetición, pueden reducirse a un párrafo por tema con remisión al documento,
    aunque conviene que el documento de entrega sea autocontenido.
+
+4. **RF-10 figura como no alcanzado, y esa redacción es deliberada.** La
+   alternativa —conservar los 31 puntos obtenidos sobre señales sintéticas— sería
+   defendible solo mientras nadie probara la aplicación con su propia voz. La
+   limitación está identificada, cuantificada, explicada en su causa y acompañada
+   de ocho procedimientos ensayados para corregirla; entendemos que ese conjunto
+   sostiene mejor una defensa que una cifra favorable obtenida en el caso más
+   benigno.
+
+5. **Hay una decisión de producto pendiente que excede al módulo de audio.** La
+   referencia contra la que se puntúa se sintetiza hoy a partir de la
+   transcripción del propio usuario, de modo que un error de palabra resulta
+   invisible por construcción. Revisarlo, y decidir si se incorpora una modalidad
+   de práctica con frase objetivo, corresponde a integración e interfaz. La parte
+   de audio de cualquiera de las dos opciones está disponible.
+
+6. **Sugerencia de presentación de la puntuación.** Mientras la dependencia del
+   hablante persista, la lectura defendible es **relativa**: mostrar la evolución
+   del usuario frente a sus propias emisiones anteriores, donde el comparador sí
+   discrimina —10 de 10 frases—, en lugar de una cifra absoluta frente a la
+   referencia sintetizada. Coincide con la mitigación prevista para el riesgo R03
+   y con la extensión de seguimiento del progreso (RF-23).
