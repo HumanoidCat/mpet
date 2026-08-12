@@ -94,6 +94,77 @@ consistente en esta tarea (3 de 8 reescrituras genuinas, formato limpio).
 El escenario B es el único que mejora el peso, y depende de resolver la calidad de
 `suggest()` — que hoy no está resuelta (§2.4).
 
+## 3.5 Lo que encontró el usuario probando a mano: repetición literal, y peor de lo que parece
+
+Isaac conversó a mano con el modelo (no con mis botones de prueba, con sus propias
+frases, tipeadas directo en la consola) y encontró un fallo que mis pruebas guionadas
+no habían visto:
+
+| Turno | Estudiante | Tutor |
+|---|---|---|
+| 1 | Hi, how are you today? | I'm glad you're having a great day! I'm here to help with any questions or concerns you might have about your English. |
+| 2 | Great, my name is manuel and i'm a chef | **la misma frase exacta que el turno 1**, palabra por palabra |
+| 3 | Can you tell me, how to pronounce Spoon? | The spoon is pronounced as "spoon" in English. |
+| 4 | And Fork? | The fork is pronounced as "fork" in English. |
+| 5 | …you remember what is my name? | **la misma frase exacta que el turno 1, otra vez** |
+| 6 | You remember what is my profession? | **la misma frase exacta que el turno 1, otra vez** |
+
+Cuatro de seis respuestas fueron **carácter por carácter idénticas**, y solo ante
+frases que mencionaban un dato personal o pedían recordarlo — las preguntas de
+pronunciación (turnos 3 y 4) se contestaron bien. Reproducido de forma exacta,
+verificado en esta sesión con la misma conversación palabra por palabra: idéntico
+resultado.
+
+### Investigación de la causa
+
+Con decodificación voraz (`do_sample: false`), una frase ya generada dentro del
+historial actúa como un imán: si el contexto crece y esa frase encaja con lo más
+probable de nuevo, el modelo la repite entera. Es un modo de fallo conocido de la
+decodificación voraz en modelos pequeños, no un error de nuestro código.
+
+**Primer intento — `repetition_penalty: 1.3`:** deja de repetirse, pero la generación
+se volvió tan lenta que no se pudo completar la prueba en un tiempo razonable (se
+cortó pasados varios minutos). Penalizar la repetición empuja al modelo lejos de sus
+tokens de parada naturales, así que probablemente generó los 60 tokens completos en
+cada uno de los seis turnos en vez de cortar antes. **Descartado por costo.**
+
+**Segundo intento — solo `no_repeat_ngram_size: 4`** (prohíbe repetir una secuencia de
+4 palabras, sin penalizar todo el vocabulario):
+
+| Turno | Tutor |
+|---|---|
+| Hi, how are you today? | I'm glad you're having a great day!… (4.1 s) |
+| Great, my name is manuel and i'm a chef | **Nice to meet you, manuel.** I'm glad you enjoyed your day… (4.0 s) |
+| Can you tell me, how to pronounce Spoon? | *"Pronouncing a spoon is quite simple, but it's important to remember the tongue is not the only part of the tongue…"* (8.3 s) |
+| And Fork? | *"The fork is a fork, not a spoon. The fork is used for food, not for eating a meal."* (6.3 s) |
+| …you remember what is my name? | "You're a chef, I'm glad to hear that…" — **no contesta el nombre, lo esquiva** (6.9 s) |
+| You remember what is my profession? | "Yes… **I'm a chef**, and I'm very passionate about food." — **se atribuye la profesión del estudiante a sí mismo** (7.9 s) |
+
+**Se arregló la repetición literal.** Pero a cambio:
+
+- **Empeoró la calidad de las respuestas que antes funcionaban bien.** Las preguntas
+  de pronunciación, que sin este parámetro salían limpias ("The spoon is pronounced as
+  'spoon'"), ahora salen incoherentes ("the tongue is not the only part of the
+  tongue").
+- **Sigue sin responder la pregunta directa del nombre**, la esquiva.
+- **El defecto de confundir quién es quién sigue ahí** ("I'm a chef" — el estudiante
+  dijo que él era el chef, no el tutor). Es el mismo patrón de la sección 2.1.
+- **La latencia empeoró**, 4-8 s por turno, más lejos todavía del presupuesto de 2 s.
+
+### Lo que esto cambia
+
+El resultado optimista de la §2.1 (recordó nombre y profesión) fue con una
+conversación corta y limpia, escrita por mí. La conversación real, escrita por una
+persona con su forma natural de hablar, encontró un fallo que ninguna de mis pruebas
+guionadas tenía: **la calidad depende mucho de la forma exacta de la frase de
+entrada**, y el modelo es frágil ante variaciones normales del lenguaje. Arreglar la
+repetición con parámetros de generación cambia un defecto por otro, no lo elimina.
+
+**Esto no descarta SmolLM2-135M, pero baja la confianza en él.** Antes de recomendar
+adoptarlo hace falta, como mínimo, probar el modelo más grande de la misma familia
+(SmolLM2-360M-Instruct) con esta misma conversación exacta, para ver si el problema es
+de tamaño (se resuelve con más parámetros) o de familia (seguiría en el 360M también).
+
 ## 4. Conclusión y lo que falta antes de decidir
 
 **El usuario tiene razón: sin un modelo de chat real, `reply()` no vale la pena.**
@@ -116,17 +187,27 @@ bloqueantes son:
    de `suggest()` a cambio de más peso — pendiente si el 135M no alcanza tras iterar el
    prompt.
 
-## 5. Recomendación
+## 5. Recomendación (revisada tras §3.5)
 
-Migrar `reply()` a **SmolLM2-135M-Instruct** — el salto de calidad es real y medido, y
-el modelo pesa menos que LaMini. Pero antes de tocar el worker de producción:
+**Se retira la recomendación de la primera versión de este documento.** La conversación
+real del usuario bajó la confianza en SmolLM2-135M: repite frases enteras ante
+variaciones normales del lenguaje, y el intento de arreglarlo con parámetros de
+generación cambia ese defecto por incoherencia y más latencia. El salto de calidad de
+la §2 (memoria, respuestas directas) sigue siendo real, pero no es gratis ni estable.
 
-- Iterar el prompt de `suggest()` sobre este mismo modelo (una tarde más de spike) antes
-  de resignarse al escenario A (dos modelos, peor peso).
-- Si `suggest()` no mejora, decidir explícitamente entre A (peor peso, se mantienen las
-  dos tareas con calidad conocida) y una tercera opción no explorada aquí.
-- Cualquiera de los dos casos necesita nuevos filtros en `cleanup.ts` para los defectos
-  de §2.1 y §2.3, siguiendo el mismo patrón que `esEco`.
+**Antes de decidir nada sobre `reply()`**, hace falta:
 
-No se toca `createAIPipeline.ts` ni `suggestionsWorker.ts` todavía: es una decisión de
-producto (peso contra calidad) tanto como técnica, y falta cerrar `suggest()`.
+1. Repetir esta misma conversación exacta (la de Isaac, palabra por palabra) contra
+   **SmolLM2-360M-Instruct** (349.7 MiB estimado), para saber si el problema es de
+   tamaño o de familia de modelo.
+2. Si el 360M tampoco resuelve la repetición sin sacrificar coherencia, revisar si el
+   límite es la decodificación voraz en sí (`do_sample: false`) más que el modelo —
+   se eligió por ser reproducible, pero un muestreo con temperatura baja y semilla fija
+   podría evitar el imán de repetición sin la incoherencia de `no_repeat_ngram_size`.
+   Habría que medir si sigue siendo reproducible lo suficiente para el proyecto.
+3. Seguir sin resolver: `suggest()`, la latencia (4-12 s medidos, contra el
+   presupuesto de 2 s de D-15), y el peso total si se mantienen dos modelos.
+
+No se toca `createAIPipeline.ts` ni `suggestionsWorker.ts`. Dado el volumen de
+preguntas abiertas, conviene decidir con el equipo si vale la pena seguir esta línea
+ahora o dejarla para después de cerrar lo que ya está listo (R03, Kokoro).
