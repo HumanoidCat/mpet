@@ -48,6 +48,10 @@
       → Mismo worker que S6-T4: un solo modelo con dos instrucciones. Verificado en
         ejecución (suggest y reply a la vez, sin cruzarse).
 - [ ] S7-T4 · Optimizar latencia: pipeline en paralelo, medir por etapa (con Fabrizio)
+- [x] D-12 · Evaluar Kokoro con el banco acordado, medido y cerrado (12-ago)
+      -> 1 fallo de 14 (MMS-TTS: 7), 0 de 5 en control, determinista (resuelve el suelo
+         de R03), 88.1 MiB cuantizado (menos que los 109 de MMS-TTS). Se recomienda
+         pedir el shared-change: docs/evidencias/s7/d12-kokoro-decision-final.md
 - [ ] Mi sección del documento Avance 2
 
 ## Semana 8
