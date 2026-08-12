@@ -193,12 +193,21 @@ export function esEco(preguntaDelTutor: string, fraseDelEstudiante: string): boo
  * siempre por el mismo texto reintroduce el defecto que se está corrigiendo (la
  * respuesta que no cambia). `RESPUESTA_DE_RESERVA` (I-09) se mantiene aparte porque
  * sus pruebas ya comprueban ese valor exacto; estas cubren los casos nuevos.
+ *
+ * ⚠️ NINGUNA PUEDE ASUMIR QUÉ TIPO DE FRASE DIJO EL ESTUDIANTE. La primera versión
+ * incluía *"Nice, why do you think that is?"*, que presupone que el estudiante acaba
+ * de dar una opinión. Verificado en vivo (11-ago): ante *"Tell me your name."* —una
+ * orden, no una opinión— esa pregunta salió como respuesta y no tenía ningún sentido
+ * en la conversación. `esEco` no distingue el tipo de frase, así que cualquiera de
+ * las cuatro puede caer después de un saludo, una orden, una pregunta o un relato.
+ * Por eso todas son continuadores neutros: piden que seguir hablando sin presuponer
+ * que hubo una afirmación, un hecho narrado o una razón que explicar.
  */
 export const PREGUNTAS_DE_SEGUIMIENTO = [
-  'Interesting! Can you tell me more about that?',
-  'Nice, why do you think that is?',
-  'I see. How do you feel about it?',
-  'Good to know. What happened next?',
+  'That sounds interesting — could you tell me more?',
+  "I'd like to hear more about that.",
+  'What else would you like to talk about?',
+  'Got it. What else is on your mind?',
 ] as const;
 
 function preguntaDeSeguimiento(turno: number): string {

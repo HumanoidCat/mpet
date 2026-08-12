@@ -87,21 +87,56 @@ correr el algoritmo contra los datos reales, y quedó así en el test.
 audio que no están en el repo). Incluye 47 casos en `cleanup.test.ts` y 14 en
 `suggestionsProtocol.test.ts`, reescritos donde el diseño del prompt cambió.
 
-### 3.3 Limitación declarada: no se pudo re-verificar el ciclo completo en vivo
+### 3.3 Verificación en vivo, y un segundo defecto que solo apareció ahí
 
-El plan era repetir la conversación de diez turnos con el arreglo puesto, a través del
-worker real (`AIPipeline` → `suggestionsClient` → `suggestionsWorker`). Se intentó tres
-veces en esta sesión y las tres se quedaron sin completar la descarga del modelo
-(265 MB), dos de ellas con error de red — la conexión de esta sesión ya había bajado
-TTS, ASR, gramática, Kokoro (por CDN) y este mismo modelo varias veces en las horas
-previas.
+La primera vez que se escribió este documento, la descarga del modelo (265 MB) había
+fallado tres veces por red y quedó pendiente re-verificar el ciclo completo. Isaac
+probó la aplicación real en su máquina (`http://localhost:5174/`, capturas de pantalla
+del 11-ago) con una red más estable, y **encontró un defecto que ninguna de las dos
+piezas por separado dejaba ver**:
 
-Lo que sí queda verificado con el modelo real, en esta misma sesión, son las dos partes
-por separado: el prompt nuevo (§2.1, ejecutado contra el modelo, incluidas entradas
-adversariales) y la lógica de `esEco` (§3.1, contra una transcripción real, no
-inventada). Falta la composición de ambas en una corrida en vivo. Se recomienda
-correrla antes del Avance 2, con `src/ai/spike-s6-t4/index.html` o directamente sobre
-la aplicación desplegada, y anotar el resultado aquí.
+| Estudiante | Tutor (con el arreglo de §2, sin el de esta sección) |
+|---|---|
+| Tell me your name. | *Nice, why do you think that is?* |
+
+La pregunta de reserva no tenía nada que ver con lo que se dijo. Reproducido en el
+mismo navegador y máquina, contra el worker real:
+
+```
+buildTutorPrompt(...) → 'Write one friendly follow-up question about this sentence: "Tell me your name."'
+el modelo devolvió    → "What is your name?"
+esEco(...)            → true   (comparte la palabra "name")
+```
+
+`esEco` funcionaba como estaba diseñado: la salida del modelo repite "name" sin
+aportar nada, así que la sustituye. **El defecto estaba en el conjunto de preguntas de
+reserva**, no en el detector: *"Nice, why do you think that is?"* presupone que el
+estudiante acaba de dar una opinión o una razón. Ante una orden (*"Tell me your
+name."*), esa suposición no se sostiene y la respuesta suena a que el tutor no entendió
+nada.
+
+**Arreglo:** las cuatro preguntas de reserva se reescribieron para no presuponer qué
+tipo de frase dijo el estudiante — ni opinión, ni relato, ni pregunta, ni orden.
+Verificado en vivo, con el worker real y el modelo real, en el mismo entorno donde
+apareció el fallo:
+
+| Estudiante | Tutor (arreglo final) |
+|---|---|
+| Hello, hello, hello. | What is the next step? |
+| Tell me your name. | I'd like to hear more about that. |
+| Hi, how are you? | How are you doing? |
+| I'm doing fine and new. | What's your current status? |
+| My name is Anna | That sounds interesting — could you tell me more? |
+
+Y la conversación de diez turnos completa, con el arreglo final: **0 negativas, 0
+repeticiones literales, ninguna pregunta de reserva fuera de lugar.**
+
+**Lección para la evidencia, no solo para el código:** las dos piezas se habían medido
+por separado (el prompt contra el modelo, `esEco` contra una transcripción) y las dos
+pasaban. El defecto solo apareció al componerlas en una conversación real con una
+entrada que ninguna de las pruebas anteriores incluía — una orden dirigida al tutor en
+vez de una frase para practicar. Confirma, otra vez, que compilar y pasar los tests no
+es lo mismo que funcionar.
 
 ## 4. Lo que queda flojo, declarado
 
