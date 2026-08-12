@@ -134,16 +134,44 @@ export function buildSuggestionPrompt(prompt: SuggestionPrompt, text: string): s
 /**
  * Instrucción para `reply(history)`, la respuesta conversacional del tutor (S7-T2).
  *
- * Pide explícitamente una sola frase y una pregunta de vuelta. Sin lo primero el
- * modelo se enrolla y el chat deja de parecer una conversación; sin lo segundo el
- * intercambio se muere y el estudiante deja de hablar, que es justo lo contrario de
- * lo que busca la aplicación.
+ * ⚠️ NO LE PIDAS AL MODELO QUE ACTÚE COMO TUTOR, Y NO LE DES LÍNEAS `Tutor:` PARA
+ * COPIAR. Dos incidentes en producción, los dos con la misma raíz — pedirle un papel
+ * en vez de una tarea — llevaron hasta aquí:
+ *
+ * **I-09.** Con `"You are a friendly English tutor talking with a student…"`, ante
+ * un simple "Hi, how are you?" el modelo devolvió una negativa memorizada de su
+ * destilado: *"I'm sorry, but I cannot respond to this prompt as it goes against
+ * OpenAI's use case policy…"*. En un proyecto 100 % offline, esa frase en pantalla
+ * contradice la premisa del proyecto. Queda además un filtro en `cleanup.ts` por si
+ * un modelo futuro repite el patrón.
+ *
+ * **I-10.** Con el prompt intercalando turnos `Student:` / `Tutor:`, el modelo
+ * empezó a **copiar la última línea `Tutor:` que ya tenía delante** en vez de
+ * generar una nueva — tres turnos seguidos de una conversación real recibieron
+ * exactamente la misma respuesta. Diagnosticado así por Alejandro; el arreglo aquí
+ * quita el problema de raíz por otra vía: si el prompt no contiene ninguna línea
+ * `Tutor:`, no hay nada que copiar.
+ *
+ * **Medido, no solo intuido:** tres formulaciones sobre las mismas frases (ver
+ * `docs/evidencias/s7/s7-t2-respuestas-del-tutor.md`). Cuanto más se le pide adoptar
+ * un papel, más se activa el reflejo de negarse; el formato de diálogo es el peor de
+ * los tres. Pidiéndole una **tarea concreta sobre la última frase del estudiante**,
+ * responde al contenido:
+ *
+ *   "Well, I need to talk about signs." → "What do you think about the signs you mentioned?"
+ *
+ * **Lo que esto NO arregla — y por qué la solución sigue en `cleanup.ts`.** Incluso
+ * con este prompt, el modelo no *conversa*: convierte la frase del estudiante en una
+ * pregunta sobre lo mismo ("My name is Ana" → "What is your name?"). No es un fallo
+ * de instrucción — se probaron prompts que se lo prohíben explícitamente y los
+ * ignoró — es el límite de un T5 de instrucciones de este tamaño, entrenado para
+ * parafrasear. `cleanTutorReply` detecta ese eco y lo sustituye. Esa capa es la que
+ * sigue funcionando **si el modelo cambia**: filtra la salida, no depende de cómo se
+ * construyó.
  */
-export const TUTOR_INSTRUCTION =
-  'You are a friendly English tutor talking with a student. ' +
-  'Reply in one short sentence and end with a question to keep the conversation going.';
+export const TUTOR_INSTRUCTION = 'Write one friendly follow-up question about this sentence:';
 
-/** Cuántos turnos de historia se le pasan al modelo. */
+/** Cuántos turnos de historia se recorren para encontrar el último del estudiante. */
 export const HISTORY_TURNS = 4;
 
 export interface HistoryTurn {
@@ -154,19 +182,24 @@ export interface HistoryTurn {
 /**
  * Arma el prompt del tutor a partir del historial.
  *
- * POR QUÉ SE RECORTA: el T5 tiene una ventana de contexto limitada y la latencia
- * crece con la entrada. Cuatro turnos bastan para que la respuesta tenga sentido sin
- * que el prompt se vuelva enorme en una conversación larga.
+ * SOLO USA EL ÚLTIMO TURNO DEL ESTUDIANTE, nada del tutor. Se probó pasarle la
+ * conversación entera con etiquetas `Student:` / `Tutor:` (I-10): fue la variante que
+ * más negativas produjo, y la que dejaba una línea `Tutor:` para que el modelo la
+ * copiara en vez de generar. Este modelo no mantiene hilo conversacional de todos
+ * modos —es un T5 de instrucciones, no de chat— así que dialogar con "historial" no
+ * mejora la respuesta, solo abre estas dos formas de romperse.
+ *
+ * `HISTORY_TURNS` acota cuánto hay que mirar hacia atrás para encontrar ese último
+ * turno del estudiante en una conversación larga.
  */
 export function buildTutorPrompt(
   history: readonly HistoryTurn[],
   turns: number = HISTORY_TURNS
 ): string {
-  const recent = history.slice(-turns);
-  const conversation = recent
-    .map((m) => `${m.role === 'user' ? 'Student' : 'Tutor'}: ${m.text}`)
-    .join('\n');
-  return `${TUTOR_INSTRUCTION}\n\n${conversation}\nTutor:`;
+  const recientes = history.slice(-turns);
+  const ultimoDelEstudiante = [...recientes].reverse().find((m) => m.role === 'user');
+  const frase = ultimoDelEstudiante?.text ?? '';
+  return `${TUTOR_INSTRUCTION} "${frase}"`;
 }
 
 // ── Mensajes entre el hilo principal y el worker ─────────────────────────────

@@ -39,6 +39,14 @@ type Generator = (
 
 let generator: Generator | null = null;
 
+/**
+ * Última respuesta dada y número de turno, para los chequeos de `cleanTutorReply`
+ * (I-10: repetición; ver ese archivo). Vive en el worker porque es aquí donde se
+ * decide si la respuesta sirve, antes de mandarla al hilo principal.
+ */
+let ultimaRespuesta: string | undefined;
+let turno = 0;
+
 const post = (msg: SuggestionsResponse) =>
   (self as DedicatedWorkerGlobalScope).postMessage(msg);
 
@@ -106,8 +114,21 @@ self.onmessage = async (event: MessageEvent<SuggestionsRequest>) => {
     }
 
     if (msg.type === 'reply') {
-      const text = await generate(buildTutorPrompt(msg.history), MAX_TOKENS_REPLY);
-      post({ type: 'reply', id: msg.id, text: cleanTutorReply(text) });
+      const crudo = await generate(buildTutorPrompt(msg.history), MAX_TOKENS_REPLY);
+
+      // El último turno del estudiante hace falta dos veces: para armar el prompt
+      // (buildTutorPrompt) y para que cleanTutorReply pueda detectar si la respuesta
+      // es un eco de esa misma frase (I-10 / el defecto de "no conversa").
+      const ultimoDelEstudiante = [...msg.history].reverse().find((m) => m.role === 'user');
+
+      const text = cleanTutorReply(crudo, {
+        studentUtterance: ultimoDelEstudiante?.text,
+        previousReply: ultimaRespuesta,
+        turno: turno++,
+      });
+      ultimaRespuesta = text;
+
+      post({ type: 'reply', id: msg.id, text });
     }
   } catch (err) {
     post({

@@ -138,16 +138,112 @@ export function esRechazoMemorizado(text: string): boolean {
 }
 
 /**
- * Limpia la respuesta conversacional del tutor.
+ * Palabras que no cuentan como "contenido" al comparar dos frases: aparecen en
+ * cualquiera y no dicen nada sobre el tema.
+ */
+const PALABRAS_VACIAS = new Set([
+  'a', 'an', 'the', 'is', 'are', 'am', 'was', 'were', 'be', 'do', 'does', 'did',
+  'you', 'your', 'yours', 'i', 'my', 'me', 'we', 'our', 'it', 'its', 'this', 'that',
+  'of', 'in', 'on', 'at', 'to', 'for', 'and', 'or', 'but', 'with', 'what', 'where',
+  'when', 'who', 'how', 'why', 'can', 'could', 'would', 'like', 'about', 'tell',
+  'more', 'think', 'some', 'very', 'yes', 'no', 'please', 'so', 'well', 'just',
+]);
+
+const palabrasConContenido = (texto: string): string[] =>
+  normalizeSentence(texto)
+    .split(/[\s,;:"'-]+/)
+    .filter((palabra) => palabra.length > 0 && !PALABRAS_VACIAS.has(palabra));
+
+/**
+ * ¿La respuesta del tutor solo repite, en forma de pregunta, lo que el estudiante
+ * acaba de decir?
+ *
+ * ESTE ES EL DEFECTO QUE HACE QUE NO SE PUEDA CONVERSAR, y no lo arregla ningún ajuste
+ * de prompt: es lo único que sabe hacer un T5 de instrucciones de este tamaño, que fue
+ * entrenado para parafrasear, no para dialogar. Medido con una conversación simulada
+ * de diez turnos:
+ *
+ *   "Hi! My name is Ana."                    → "What is your name?"
+ *   "My favorite beach is Manuel Antonio."   → "What is your favorite beach?"
+ *   "Do you like the beach?"                 → "Do you like the beach?"  (la repite tal cual)
+ *
+ * Se probaron dos formulaciones de prompt que se lo prohíben explícitamente
+ * ("Do not ask for information the student already gave") y el modelo las ignoró: no
+ * es un problema de instrucciones, es el límite del modelo. Por eso el filtro va aquí,
+ * después de generar, y no en el prompt — y por eso sirve **sin importar qué modelo
+ * se use** para `reply()`: si el modelo cambia y sí conversa de verdad, esta función
+ * simplemente no encuentra nada que sustituir.
+ *
+ * El criterio: si todas las palabras con contenido de la pregunta ya estaban en la
+ * frase del estudiante, la pregunta no añade nada. "What is your name?" contra
+ * "My name is Ana" comparte `name` y no aporta ninguna palabra nueva → eco.
+ * "What is your profession?" contra "I work as a nurse" aporta `profession` → no es eco.
+ */
+export function esEco(preguntaDelTutor: string, fraseDelEstudiante: string): boolean {
+  const dichas = new Set(palabrasConContenido(fraseDelEstudiante));
+  const preguntadas = palabrasConContenido(preguntaDelTutor);
+  if (preguntadas.length === 0) return true; // solo palabras vacías: no pregunta nada
+  return preguntadas.every((palabra) => dichas.has(palabra));
+}
+
+/**
+ * Preguntas de reserva para cuando la respuesta del tutor no sirve.
+ *
+ * Un conjunto y no una sola frase, y elegida por turno en vez de al azar: sustituir
+ * siempre por el mismo texto reintroduce el defecto que se está corrigiendo (la
+ * respuesta que no cambia). `RESPUESTA_DE_RESERVA` (I-09) se mantiene aparte porque
+ * sus pruebas ya comprueban ese valor exacto; estas cubren los casos nuevos.
+ */
+export const PREGUNTAS_DE_SEGUIMIENTO = [
+  'Interesting! Can you tell me more about that?',
+  'Nice, why do you think that is?',
+  'I see. How do you feel about it?',
+  'Good to know. What happened next?',
+] as const;
+
+function preguntaDeSeguimiento(turno: number): string {
+  const i = Math.abs(Math.trunc(turno)) % PREGUNTAS_DE_SEGUIMIENTO.length;
+  return PREGUNTAS_DE_SEGUIMIENTO[i];
+}
+
+/**
+ * Limpia la respuesta conversacional del tutor, y la sustituye cuando no sirve.
  *
  * Además de las comillas, junta los saltos de línea: el chat muestra el mensaje en un
  * solo bloque y un salto suelto se ve como un hueco raro en medio de la burbuja.
  *
- * Y descarta las negativas memorizadas (ver `HUELLAS_DE_RECHAZO`), que es el unico
- * caso en que esta funcion sustituye el texto del modelo en lugar de solo limpiarlo.
+ * Cuatro motivos para sustituir el texto del modelo, comprobados en este orden:
+ *   1. viene vacío,
+ *   2. es una negativa memorizada (I-09, `esRechazoMemorizado`),
+ *   3. es idéntica a la respuesta anterior — I-10 lo diagnosticó como una copia
+ *      literal de una línea `Tutor:` que quedaba en el prompt; al quitar esas líneas
+ *      del prompt (ver `buildTutorPrompt`) la causa desaparece, pero el chequeo se
+ *      conserva como red de seguridad, porque no cuesta nada y cubre una repetición
+ *      que viniera de cualquier otra causa,
+ *   4. **es un eco de la frase del estudiante** (`esEco`) — el defecto que de verdad
+ *      impedía conversar, y el único de los cuatro que no depende de este modelo en
+ *      particular.
+ *
+ * `studentUtterance` y `previousReply` son opcionales para no romper el uso existente
+ * (incluidas las pruebas de I-09, que llaman con un solo argumento): sin ellos, los
+ * chequeos 3 y 4 simplemente no se aplican.
  */
-export function cleanTutorReply(text: string): string {
+export function cleanTutorReply(
+  text: string,
+  context: { studentUtterance?: string; previousReply?: string; turno?: number } = {}
+): string {
   const limpio = stripWrappingQuotes(text).replace(/\s*\n\s*/g, ' ').trim();
-  if (limpio.length === 0 || esRechazoMemorizado(limpio)) return RESPUESTA_DE_RESERVA;
+  const turno = context.turno ?? 0;
+
+  if (limpio.length === 0 || esRechazoMemorizado(limpio)) {
+    return RESPUESTA_DE_RESERVA;
+  }
+  if (context.previousReply && isSameSentence(limpio, context.previousReply)) {
+    return preguntaDeSeguimiento(turno);
+  }
+  if (context.studentUtterance && esEco(limpio, context.studentUtterance)) {
+    return preguntaDeSeguimiento(turno);
+  }
+
   return limpio;
 }
