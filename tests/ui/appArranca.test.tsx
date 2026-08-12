@@ -42,7 +42,7 @@ describe('Arranque de la aplicacion', () => {
     // Si cualquier fabrica del `useMemo` de composicion lanzara, esto explota
     // aqui, que es exactamente lo que queremos detectar antes de desplegar.
     expect(() => render(<App />)).not.toThrow();
-    expect(screen.getByText(/Preparing AI models/i)).toBeTruthy();
+    expect(screen.getByText(/Preparando los modelos de IA/i)).toBeTruthy();
   });
 
   it('termina de cargar y ofrece entrar', async () => {
@@ -52,7 +52,7 @@ describe('Arranque de la aplicacion', () => {
     // El pipeline simulado reporta progreso y resuelve. Cuando termina, la
     // pantalla de carga muestra el boton de entrada.
     await waitFor(
-      () => expect(screen.getByRole('button', { name: /Start Learning/i })).toBeTruthy(),
+      () => expect(screen.getByRole('button', { name: /Empezar a practicar/i })).toBeTruthy(),
       { timeout: 5000 }
     );
   });
@@ -62,7 +62,7 @@ describe('Arranque de la aplicacion', () => {
     render(<App />);
 
     await waitFor(() =>
-      expect(screen.getByRole('button', { name: /Start Learning/i })).toBeTruthy()
+      expect(screen.getByRole('button', { name: /Empezar a practicar/i })).toBeTruthy()
     );
     expect(screen.queryByText(/No se pudieron cargar los modelos/i)).toBeNull();
   });

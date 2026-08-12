@@ -3,6 +3,7 @@ import { useState } from 'react';
 import type { ChatMessage, Edit } from '@shared/contracts';
 import { buildSegments } from '../chat/highlight';
 import { computeGrammarStats } from './grammarStats';
+import { TYPE_LABEL } from './editTypeLabel';
 
 /**
  * Pantalla standalone de Grammar (S3-T4 shell). Dueño: Monestel (UI).
@@ -22,12 +23,6 @@ import { computeGrammarStats } from './grammarStats';
 interface Props {
   messages?: ChatMessage[];
 }
-
-const TYPE_LABEL: Record<Edit['type'], string> = {
-  grammar: 'Grammar',
-  spelling: 'Spelling',
-  'word-choice': 'Word Choice',
-};
 
 const TYPE_COLOR: Record<Edit['type'], string> = {
   grammar: '#DC2626',
@@ -116,7 +111,7 @@ export default function GrammarScreen({ messages = [] }: Props) {
     <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-50">
       <div className="max-w-4xl mx-auto flex flex-col gap-4 sm:gap-5">
         <div>
-          <h2 className="font-[var(--font-display)] font-bold text-base sm:text-lg text-slate-900">Grammar Correction</h2>
+          <h2 className="font-[var(--font-display)] font-bold text-base sm:text-lg text-slate-900">Corrección de gramática</h2>
           <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
             {corrected.length} {corrected.length === 1 ? 'frase con corrección' : 'frases con corrección'} en esta sesión
           </p>
@@ -138,14 +133,14 @@ export default function GrammarScreen({ messages = [] }: Props) {
                   <div className="bg-white rounded-2xl border border-red-200 p-4 sm:p-5 shadow-sm">
                     <div className="flex items-center gap-2 mb-3">
                       <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
-                      <p className="text-xs font-semibold text-red-600 uppercase tracking-wider">Original</p>
+                      <p className="text-xs font-semibold text-red-600 uppercase tracking-wider">Dijiste</p>
                     </div>
                     <OriginalText text={last.text} edits={last.correction!.edits} />
                   </div>
                   <div className="bg-white rounded-2xl border border-green-200 p-4 sm:p-5 shadow-sm">
                     <div className="flex items-center gap-2 mb-3">
                       <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0" />
-                      <p className="text-xs font-semibold text-green-600 uppercase tracking-wider">Corrected</p>
+                      <p className="text-xs font-semibold text-green-600 uppercase tracking-wider">Corregido</p>
                     </div>
                     <CorrectedText text={last.text} edits={last.correction!.edits} />
                   </div>
@@ -157,7 +152,7 @@ export default function GrammarScreen({ messages = [] }: Props) {
             <div className="flex flex-col gap-3">
               <div className="flex items-center gap-2">
                 <BookOpen className="w-4 h-4 text-slate-500" />
-                <h3 className="font-[var(--font-display)] font-bold text-sm text-slate-700">Detailed Corrections</h3>
+                <h3 className="font-[var(--font-display)] font-bold text-sm text-slate-700">Correcciones detalladas</h3>
                 <span className="ml-1 bg-slate-200 text-slate-600 text-xs font-semibold px-2 py-0.5 rounded-full">
                   {totalEdits}
                 </span>
@@ -170,11 +165,11 @@ export default function GrammarScreen({ messages = [] }: Props) {
 
             {/* Assessment: SOLO metricas calculables de datos reales */}
             <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm">
-              <h3 className="font-[var(--font-display)] font-bold text-sm text-slate-700 mb-4">Grammar Assessment</h3>
+              <h3 className="font-[var(--font-display)] font-bold text-sm text-slate-700 mb-4">Evaluación de gramática</h3>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                <Metric label="Grammar Score" value={score != null ? `${score}%` : '—'} color="#2563EB" />
-                <Metric label="Errors Found" value={String(totalEdits)} color="#DC2626" />
-                <Metric label="Clean Sentences" value={`${cleanMsgs}/${totalUserMsgs}`} color="#16A34A" />
+                <Metric label="Puntaje" value={score != null ? `${score}%` : '—'} color="#2563EB" />
+                <Metric label="Errores encontrados" value={String(totalEdits)} color="#DC2626" />
+                <Metric label="Frases sin errores" value={`${cleanMsgs}/${totalUserMsgs}`} color="#16A34A" />
               </div>
             </div>
           </>

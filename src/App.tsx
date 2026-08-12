@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createOrchestrator, type OrchestratorState } from '@core/orchestrator';
 import { createEventBus } from '@core/eventBus';
 import { createMockAudioEngine } from '@mocks/mockAudioEngine';
@@ -7,8 +7,9 @@ import { createAIPipeline } from '@ai/createAIPipeline';
 import { createDspAudioEngine } from '@core/audioEngineAdapter';
 import { createPronunciationScorer } from '@audio/comparator/scorer';
 import { createMockScorer } from '@mocks/mockScorer';
-import { createSessionStore, createMemorySessionStore } from '@core/sessionStore';
+import { createSessionStore, createMemorySessionStore, type SessionSummary } from '@core/sessionStore';
 import { descargarWav } from '@core/wavExport';
+import { siguienteFrase, type FrasePractica } from '@core/bancoFrases';
 import { Chat } from '@ui/chat/Chat';
 import { VisualizerScreen } from '@ui/visualizer/VisualizerScreen';
 import SplashScreen, { type ModelStatus } from '@ui/shell/Splash';
@@ -20,6 +21,8 @@ import GrammarScreen from '@ui/feedback/Grammar';
 import SuggestionsScreen from '@ui/chat/Suggestions';
 import SummaryScreen from '@ui/progress/Progress';
 import ModelsScreen from '@ui/shell/Models';
+import { micErrorMessage } from '@ui/shell/micErrorMessage';
+import { computeStreak, countMasteredPhrases } from '@ui/progress/gamification';
 import { SAMPLE_RATE } from '@shared/constants';
 import type { AIPipeline, ChatMessage } from '@shared/contracts';
 
@@ -75,8 +78,9 @@ export type Screen =
 export function App() {
   const mockMode = useMockMode();
   const modoGrabacion = useModoGrabacion();
+  const medirTiempos = new URLSearchParams(window.location.search).get('medir') === '1';
 
-  const { bus, orch, audio, ai, store, sessionId } = useMemo(() => {
+  const { bus, orch, audio, ai, store } = useMemo(() => {
     const bus = createEventBus();
     const audio = mockMode ? createMockAudioEngine() : createDspAudioEngine();
     const ai: AIPipeline = mockMode ? createMockAIPipeline() : createAIPipeline();
@@ -85,9 +89,12 @@ export function App() {
     // En modo demostracion el historial va en memoria: no tiene sentido dejar
     // sesiones de ejemplo en el disco de quien solo esta viendo la aplicacion.
     const store = mockMode ? createMemorySessionStore() : createSessionStore();
-    const sessionId = `sesion-${Date.now()}`;
-    return { bus, orch, audio, ai, store, sessionId };
+    return { bus, orch, audio, ai, store };
   }, [mockMode]);
+  // Aparte del useMemo de arriba: "Nueva conversacion" necesita poder generar
+  // un id nuevo sin recrear el orquestador ni el motor de audio, que son caros
+  // y no deben reconstruirse en cada turno.
+  const [sessionId, setSessionId] = useState(() => `sesion-${Date.now()}`);
 
   // ── Carga de modelos (Splash) ──────────────────────────────────
   const [models, setModels] = useState<Record<string, number>>({});
@@ -113,6 +120,28 @@ export function App() {
     return off;
   }, [bus, orch]);
 
+  /**
+   * Progreso de las descargas que ocurren DESPUES del arranque (S7-T4).
+   *
+   * Desde que el sintetizador se carga bajo demanda, sus 109 MiB bajan cuando ya
+   * no existe la pantalla de carga. Y bajan siempre: el orquestador llama a
+   * `speak()` en cada turno para sintetizar la referencia del puntaje, aunque el
+   * estudiante no pulse "escuchar" nunca. Sin este aviso, el usuario habla y la
+   * aplicacion se queda callada varios minutos sin explicar por que.
+   */
+  const [cargaEnCurso, setCargaEnCurso] = useState<{
+    model: string;
+    progress: number;
+  } | null>(null);
+
+  useEffect(() => {
+    return bus.on('model-progress', (e) => {
+      // Mientras la pantalla de carga esta visible ya muestra el progreso ella.
+      if (!modelsReady) return;
+      setCargaEnCurso(e.progress >= 1 ? null : { model: e.model, progress: e.progress });
+    });
+  }, [bus, modelsReady]);
+
   const modelList: ModelStatus[] = Object.entries(models).map(([name, progress]) => ({
     name,
     size: '', // el AIPipeline real (Isaac) todavía no reporta tamaño; se agrega cuando exista
@@ -128,6 +157,9 @@ export function App() {
   const [micError, setMicError] = useState<string | null>(null);
   const [playError, setPlayError] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  // Para el boton "Reintentar" del banner de error (S7-T3): guarda la ultima
+  // frase pedida, ya que onPlay no la recibe de vuelta si falla.
+  const lastPlayRef = useRef<{ text: string; slow: boolean } | null>(null);
 
   useEffect(() => {
     // El puntaje de pronunciacion llega despues del turno y vuelve a emitir el
@@ -164,6 +196,51 @@ export function App() {
       .catch((err: unknown) => console.error('[sesion] no se pudo guardar', err));
   }, [messages, store, sessionId]);
 
+  // ── Historial de sesiones para la pantalla de progreso (S9-T1) ──
+  // Se relee despues de cada guardado (mismo disparador que el efecto de
+  // arriba) para que la sesion en curso aparezca en la lista apenas se
+  // persiste, sin esperar a que el usuario recargue la pantalla.
+  const [sessionHistory, setSessionHistory] = useState<SessionSummary[]>([]);
+  useEffect(() => {
+    if (messages.length === 0) return;
+    void store
+      .list()
+      .then(setSessionHistory)
+      .catch((err: unknown) => console.error('[sesion] no se pudo leer el historial', err));
+  }, [messages, store]);
+
+  // ── Gamificacion ligera (S9-T2, opcional) ────────────────────────
+  // La racha sale directo de sessionHistory (ya en memoria). Las frases
+  // dominadas de SESIONES ANTERIORES piden los mensajes completos, que
+  // list() no trae (S9-T1 los omite a proposito por peso); se buscan uno por
+  // uno con store.get() solo cuando la pantalla de progreso esta visible, no
+  // en cada turno del chat, para que siga siendo "ligera". La sesion actual
+  // se cuenta aparte, en vivo, desde `messages` (ver Progress.tsx) para no
+  // depender de que el guardado ya haya terminado.
+  const [masteredPrevias, setMasteredPrevias] = useState(0);
+  useEffect(() => {
+    if (screen !== 'summary') return;
+    const previas = sessionHistory.filter((s) => s.id !== sessionId);
+    if (previas.length === 0) {
+      setMasteredPrevias(0);
+      return;
+    }
+    let cancelado = false;
+    void Promise.all(previas.map((s) => store.get(s.id)))
+      .then((sesiones) => {
+        if (cancelado) return;
+        const total = sesiones.reduce(
+          (acc, s) => acc + (s ? countMasteredPhrases(s.messages) : 0),
+          0
+        );
+        setMasteredPrevias(total);
+      })
+      .catch((err: unknown) => console.error('[gamificacion] no se pudo contar frases dominadas', err));
+    return () => {
+      cancelado = true;
+    };
+  }, [screen, sessionHistory, sessionId, store]);
+
   // ── Captura de tomas para la calibracion (S9-T3) ────────────────
   useEffect(() => {
     if (!modoGrabacion) return;
@@ -176,14 +253,63 @@ export function App() {
     });
   }, [bus, modoGrabacion]);
 
+  // ── Modo practica con frase objetivo (S9-T3) ────────────────────
+  //
+  // Es lo unico que permite puntuar pronunciacion: hace falta una frase correcta
+  // contra la que comparar. En conversacion libre no existe, y por eso el
+  // orquestador no puntua sin objetivo (ver `orchestrator.ts`).
+  //
+  // No es una pantalla aparte a proposito: se monta sobre el chat que ya existe,
+  // y el color por palabra que ya pinta `Chat.tsx` sirve igual.
+  const [practica, setPractica] = useState<FrasePractica | null>(null);
+  const [hechas, setHechas] = useState<string[]>([]);
+
+  function empezarPractica() {
+    const frase = siguienteFrase(hechas);
+    setPractica(frase);
+    orch.setFraseObjetivo(frase.texto);
+    setScreen('chat');
+    setSidebarOpen(false);
+  }
+
+  function siguientePractica() {
+    if (practica) setHechas((h) => (h.includes(practica.id) ? h : [...h, practica.id]));
+    const frase = siguienteFrase(practica ? [...hechas, practica.id] : hechas);
+    setPractica(frase);
+    orch.setFraseObjetivo(frase.texto);
+  }
+
+  function salirDePractica() {
+    setPractica(null);
+    orch.setFraseObjetivo(null);
+  }
+
   async function onMicClick() {
     setMicError(null);
     try {
       const turn = orch.toggleMic();
       setState(orch.getState() === 'idle' ? 'processing' : orch.getState());
       await turn;
-    } catch {
-      setMicError('No se pudo acceder al microfono. Revisa los permisos del navegador.');
+
+      // Con `?medir=1` se vuelca el reparto de tiempos del turno (R06, S8-T7).
+      // Se mide con la aplicacion real en vez de estimarlo desde un spike: los
+      // numeros del spike se tomaron con la pestania en segundo plano, donde el
+      // navegador limita el procesamiento.
+      if (medirTiempos) {
+        const t = orch.getTiempos();
+        if (t) {
+          const seg = (t.muestras / SAMPLE_RATE).toFixed(1);
+          console.log(
+            `[turno ${seg}s] ASR ${t.asr} · gramatica ${t.gramatica} · ` +
+              `RETROALIMENTACION ${t.retroalimentacion} · tutor ${t.tutor} · total ${t.total} (ms)`
+          );
+        }
+      }
+    } catch (err) {
+      // Mensaje segun la causa real (permiso, sin dispositivo, en uso por
+      // otra app) en vez de uno generico: el usuario necesita saber que
+      // accion tomar, no solo que algo fallo (S7-T3).
+      setMicError(micErrorMessage(err));
     } finally {
       setState(orch.getState());
     }
@@ -203,6 +329,7 @@ export function App() {
    */
   async function onPlay(text: string, slow: boolean) {
     setPlayError(null);
+    lastPlayRef.current = { text, slow };
     try {
       const pcm = await ai.speak(text);
       if (pcm.length === 0) return;
@@ -229,6 +356,22 @@ export function App() {
 
   function handleNavigate(s: Screen) {
     setScreen(s);
+    setSidebarOpen(false);
+  }
+
+  /**
+   * "Nueva conversacion": antes solo navegaba a Chat sin vaciar nada, asi que
+   * si ya estabas en Chat el boton no hacia nada visible. Vacia el historial
+   * en memoria (la sesion anterior ya quedo guardada en sessionStore, no se
+   * pierde) y arranca un id de sesion nuevo para que la proxima se guarde
+   * aparte en vez de seguir acumulandose sobre la misma.
+   */
+  function handleNewConversation() {
+    setMessages([]);
+    setSessionId(`sesion-${Date.now()}`);
+    setMicError(null);
+    setPlayError(null);
+    setScreen('chat');
     setSidebarOpen(false);
   }
 
@@ -290,7 +433,13 @@ export function App() {
             sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
           }`}
         >
-          <Sidebar active={screen} onNavigate={handleNavigate} />
+          <Sidebar
+            active={screen}
+            onNavigate={handleNavigate}
+            onNewConversation={handleNewConversation}
+            suggestionsCount={messages.reduce((n, m) => n + (m.suggestions?.length ?? 0), 0)}
+            recentSessions={sessionHistory}
+          />
         </div>
         {sidebarOpen && (
           <div
@@ -301,9 +450,102 @@ export function App() {
 
         <main className="flex-1 flex flex-col overflow-hidden">
           {(micError || playError) && (
-            <p className="text-[var(--color-danger)] text-xs px-4 py-2 bg-[var(--color-danger-light)]">
-              {micError ?? playError}
-            </p>
+            <div className="flex items-center justify-between gap-3 text-[var(--color-danger)] text-xs px-4 py-2 bg-[var(--color-danger-light)]">
+              <span className="flex-1">{micError ?? playError}</span>
+              <div className="flex items-center gap-3 flex-shrink-0">
+                {micError && (
+                  <button onClick={() => void onMicClick()} className="font-semibold underline underline-offset-2">
+                    Reintentar
+                  </button>
+                )}
+                {playError && lastPlayRef.current && (
+                  <button
+                    onClick={() => void onPlay(lastPlayRef.current!.text, lastPlayRef.current!.slow)}
+                    className="font-semibold underline underline-offset-2"
+                  >
+                    Reintentar
+                  </button>
+                )}
+                <button
+                  onClick={() => {
+                    setMicError(null);
+                    setPlayError(null);
+                  }}
+                  aria-label="Cerrar aviso"
+                  className="text-[var(--color-danger)]"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+          )}
+
+          {cargaEnCurso && (
+            <div className="px-4 py-2 bg-blue-50 border-b border-blue-100">
+              <div className="flex items-center justify-between text-xs text-blue-700">
+                <span>
+                  Descargando <span className="font-medium">{cargaEnCurso.model}</span>{' '}
+                  — solo la primera vez
+                </span>
+                <span className="font-mono">{Math.round(cargaEnCurso.progress * 100)}%</span>
+              </div>
+              <div className="mt-1 h-1 bg-blue-100 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-blue-500 rounded-full transition-[width] duration-200"
+                  style={{ width: `${Math.round(cargaEnCurso.progress * 100)}%` }}
+                />
+              </div>
+            </div>
+          )}
+
+          {screen === 'chat' && practica && (
+            <div className="px-4 py-3 bg-amber-50 border-b border-amber-200">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-[11px] font-semibold text-amber-700 uppercase tracking-wider">
+                    Repetí esta frase · {practica.contraste}
+                  </p>
+                  <p className="text-base font-medium text-slate-900 mt-0.5">
+                    {practica.texto}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <button
+                    onClick={() => void onPlay(practica.texto, true)}
+                    className="text-xs font-medium text-amber-800 underline underline-offset-2"
+                  >
+                    Escuchar despacio
+                  </button>
+                  <button
+                    onClick={siguientePractica}
+                    className="text-xs font-medium text-amber-800 underline underline-offset-2"
+                  >
+                    Siguiente
+                  </button>
+                  <button
+                    onClick={salirDePractica}
+                    className="text-xs text-slate-500 underline underline-offset-2"
+                  >
+                    Salir
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {screen === 'chat' && !practica && (
+            <div className="px-4 py-2 border-b border-[var(--color-border)] flex items-center justify-between gap-3">
+              <p className="text-xs text-[var(--color-muted)]">
+                En conversación libre no se puntúa la pronunciación: hace falta una
+                frase de referencia para poder compararla.
+              </p>
+              <button
+                onClick={empezarPractica}
+                className="text-xs font-semibold text-blue-700 underline underline-offset-2 flex-shrink-0"
+              >
+                Practicar pronunciación
+              </button>
+            </div>
           )}
 
           {screen === 'chat' && (
@@ -316,15 +558,23 @@ export function App() {
             />
           )}
           {screen === 'visualizer' && <VisualizerScreen audio={audio} />}
-          {screen === 'pronunciation' && <PronunciationScreen />}
+          {screen === 'pronunciation' && <PronunciationScreen messages={messages} onPlay={onPlay} />}
           {screen === 'grammar' && <GrammarScreen messages={messages} />}
-          {screen === 'suggestions' && <SuggestionsScreen />}
-          {screen === 'summary' && <SummaryScreen />}
-          {screen === 'models' && <ModelsScreen />}
+          {screen === 'suggestions' && <SuggestionsScreen messages={messages} />}
+          {screen === 'summary' && (
+            <SummaryScreen
+              messages={messages}
+              history={sessionHistory}
+              sessionId={sessionId}
+              streak={computeStreak(sessionHistory)}
+              masteredTotal={countMasteredPhrases(messages) + masteredPrevias}
+            />
+          )}
+          {screen === 'models' && <ModelsScreen models={modelList} modelsReady={modelsReady} />}
         </main>
       </div>
 
-      <Footer currentScreen={screen} onNavigate={handleNavigate} />
+      <Footer currentScreen={screen} onNavigate={handleNavigate} modelsReady={modelsReady} />
     </div>
   );
 }

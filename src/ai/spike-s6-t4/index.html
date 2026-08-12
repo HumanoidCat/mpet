@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Spike S6-T4 · Sugerencias y respuesta del tutor</title>
+  <style>
+    :root { color-scheme: light dark; }
+    body { font-family: system-ui, sans-serif; max-width: 1050px; margin: 2rem auto; padding: 0 1rem; line-height: 1.5; }
+    h1 { font-size: 1.35rem; } h2 { font-size: 1.05rem; margin-top: 1.6rem; }
+    button { padding: .5rem .9rem; margin: .2rem .3rem .2rem 0; cursor: pointer; border-radius: 6px; border: 1px solid #8888; background: #8881; }
+    button:disabled { opacity: .45; cursor: not-allowed; }
+    textarea { width: 100%; min-height: 110px; font-family: ui-monospace, monospace; font-size: .85rem; padding: .6rem; border-radius: 6px; border: 1px solid #8886; background: transparent; color: inherit; }
+    table { border-collapse: collapse; width: 100%; margin-top: .6rem; font-size: .85rem; }
+    th, td { border: 1px solid #8886; padding: .45rem .55rem; text-align: left; vertical-align: top; }
+    #log { white-space: pre-wrap; font-family: ui-monospace, monospace; font-size: .8rem; background: #8881; padding: .7rem; border-radius: 8px; max-height: 240px; overflow: auto; }
+    #markdown { width: 100%; min-height: 180px; font-family: ui-monospace, monospace; font-size: .75rem; }
+    .muted { opacity: .7; font-size: .85rem; }
+    .ok { color: #2e7d32; font-weight: 600; }
+    .bad { color: #c62828; font-weight: 600; }
+    .warn { border-left: 3px solid #ed6c02; padding-left: .7rem; }
+    progress { width: 100%; height: 14px; }
+  </style>
+</head>
+<body>
+  <h1>🗣️ Spike S6-T4 / S7-T2 — Sugerencias y respuesta del tutor</h1>
+  <p class="muted">
+    Decide con qué modelo se construye el worker que alimenta <code>suggest()</code> y
+    <code>reply()</code>. Las dos tareas comparten modelo: son el mismo T5 con
+    instrucciones distintas. Usa las constantes y los prompts reales de
+    <code>suggestions/suggestionsProtocol.ts</code>.
+  </p>
+  <p class="muted warn">
+    Lo que está en juego es peso contra calidad. Tras la carga bajo demanda (S7-T4), la
+    primera descarga de la app son ~303 MiB. El modelo grande añade <strong>+278 MB</strong>
+    (casi el doble); el pequeño, <strong>+98 MB</strong>. Si el pequeño responde bien,
+    la diferencia no se justifica.
+  </p>
+
+  <h2>1) Modelo</h2>
+  <div class="row">
+    <label>Configuración: <select id="config"></select></label>
+    <button id="btnLoad">Cargar + medir</button>
+    <progress id="bar" value="0" max="1"></progress>
+  </div>
+  <p id="configInfo" class="muted"></p>
+
+  <h2>2) Frases del estudiante</h2>
+  <p class="muted">
+    Una por línea. Ya vienen corregidas por la etapa de gramática, que es como llegan
+    a esta parte del pipeline en la aplicación real.
+  </p>
+  <textarea id="frases">I went to the beach yesterday with my family.
+I want to improve my English for my job.
+My favorite food is rice with chicken.
+I do not like horror movies because they scare me.</textarea>
+
+  <div class="row">
+    <button id="btnRun" disabled>Generar sugerencias + respuestas del tutor</button>
+  </div>
+
+  <h2>Resultados</h2>
+  <p class="muted">
+    Lo que hay que juzgar: ¿la sugerencia mejora de verdad la frase o la deja igual?
+    ¿La respuesta del tutor tiene sentido y termina en una pregunta?
+  </p>
+  <div id="results"></div>
+
+  <h2>Resumen</h2>
+  <table id="summary">
+    <thead><tr><th>Medida</th><th>Valor</th></tr></thead>
+    <tbody></tbody>
+  </table>
+
+  <h2>Archivos descargados</h2>
+  <div id="files"></div>
+
+  <h2>Evidencia lista para pegar</h2>
+  <textarea id="markdown" readonly placeholder="Se rellena al terminar."></textarea>
+
+  <h2>Registro</h2>
+  <div id="log"></div>
+
+  <script type="module" src="./spike.ts"></script>
+</body>
+</html>

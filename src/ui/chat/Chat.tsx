@@ -2,7 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import { Mic, Square, Clock, AlertCircle, Play, Gauge, ChevronDown } from 'lucide-react';
 import type { AudioEngine, ChatMessage } from '@shared/contracts';
 import type { OrchestratorState } from '@core/orchestrator';
-import { buildSegments } from './highlight';
+import { buildSegments, buildPronunciationSegments } from './highlight';
+import { scoreColor } from '@ui/feedback/pronunciationColor';
+import { TYPE_LABEL } from '@ui/feedback/editTypeLabel';
 import { Waveform } from '@ui/visualizer/Waveform';
 
 /**
@@ -57,6 +59,13 @@ export function Chat({ messages, state, onMicClick, audio, onPlay }: Props) {
         {messages.map((m) => {
           const isUser = m.role === 'user';
           const hasCorrection = isUser && !!m.correction && m.correction.edits.length > 0;
+          // El puntaje colorea palabra por palabra, pero solo cuando no hay
+          // correccion de gramatica que mostrar: los segmentos de correccion
+          // pueden reemplazar palabras (largo distinto al original), y mezclar
+          // los dos esquemas de color en la misma burbuja confundiria mas de lo
+          // que informa.
+          const hasPronunciation =
+            isUser && !hasCorrection && !!m.pronunciation && m.pronunciation.words.length > 0;
           const explanationOpen = openExplanation === m.id;
 
           return (
@@ -90,8 +99,69 @@ export function Chat({ messages, state, onMicClick, audio, onPlay }: Props) {
                           );
                         return <span key={i}>{s.text} </span>;
                       })
-                    : m.text}
+                    : hasPronunciation
+                      ? /* Puntaje de pronunciacion (S6-T3): subrayado por palabra,
+                           verde/amarillo/rojo segun WordScore.score. */
+                        buildPronunciationSegments(m.text, m.pronunciation!.words).map((s, i) => (
+                          <span
+                            key={i}
+                            className="underline decoration-2 underline-offset-2"
+                            style={{
+                              textDecorationColor: s.score != null ? scoreColor(s.score) : 'transparent',
+                            }}
+                          >
+                            {s.text}{' '}
+                          </span>
+                        ))
+                      : m.text}
                 </div>
+
+                {/*
+                  En un turno de practica manda la comparacion contra la frase
+                  objetivo, no el puntaje acustico. El puntaje resulto medir mas
+                  QUIEN habla que COMO pronuncia: cambiar de voz cuesta +7.08 de
+                  distancia y pronunciar mal solo +1.20 (S9-T3, riesgo R03). La
+                  comparacion contra el objetivo pasa por el reconocedor, que esta
+                  entrenado con miles de voces, asi que el timbre deja de influir.
+
+                  La redaccion no es negociable: esa senal tiene 4 falsas alarmas
+                  de cada 10 aciertos, asi que dice "no te entendi" y nunca "lo
+                  dijiste mal". Acusar a quien pronuncio bien desmotiva y ademas
+                  es falso.
+                */}
+                {m.targetMatch && (
+                  <div
+                    className={`text-xs px-2 py-1 rounded-lg border ${
+                      m.targetMatch.noReconocidas === 0
+                        ? 'text-emerald-700 bg-emerald-50 border-emerald-200'
+                        : 'text-amber-800 bg-amber-50 border-amber-200'
+                    }`}
+                  >
+                    {m.targetMatch.noReconocidas === 0
+                      ? 'Se entendió completa'
+                      : `No entendí bien: ${m.targetMatch.palabras
+                          .filter((p) => p.noReconocida)
+                          .map((p) => p.palabra)
+                          .join(', ')}`}
+                  </div>
+                )}
+
+                {hasPronunciation && (
+                  <div
+                    className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg border"
+                    style={{
+                      // En practica el puntaje es dato secundario, asi que va en
+                      // gris: darle color de semaforo lo pondria al mismo nivel
+                      // que la senal fiable.
+                      color: m.targetMatch ? '#64748B' : scoreColor(m.pronunciation!.overall),
+                      background: m.targetMatch ? '#F8FAFC' : scoreColor(m.pronunciation!.overall) + '15',
+                      borderColor: m.targetMatch ? '#E2E8F0' : scoreColor(m.pronunciation!.overall) + '40',
+                    }}
+                  >
+                    {m.targetMatch ? 'Parecido acústico' : 'Puntaje de pronunciación'}:{' '}
+                    {Math.round(m.pronunciation!.overall)}
+                  </div>
+                )}
 
                 {/* Play / Slow: llaman a AIPipeline.speak() real via onPlay. Si no hay
                     onPlay (TTS aun no integrado a la UI), quedan deshabilitados en vez
@@ -102,14 +172,14 @@ export function Chat({ messages, state, onMicClick, audio, onPlay }: Props) {
                     disabled={!onPlay}
                     className="flex items-center gap-1 text-xs text-slate-500 hover:text-blue-600 disabled:opacity-40 disabled:hover:text-slate-500"
                   >
-                    <Play className="w-3 h-3" /> Play
+                    <Play className="w-3 h-3" /> Escuchar
                   </button>
                   <button
                     onClick={() => onPlay?.(m.text, true)}
                     disabled={!onPlay}
                     className="flex items-center gap-1 text-xs text-slate-500 hover:text-blue-600 disabled:opacity-40 disabled:hover:text-slate-500"
                   >
-                    <Gauge className="w-3 h-3" /> Slow
+                    <Gauge className="w-3 h-3" /> Despacio
                   </button>
 
                   {hasCorrection && (
@@ -117,7 +187,7 @@ export function Chat({ messages, state, onMicClick, audio, onPlay }: Props) {
                       onClick={() => setOpenExplanation(explanationOpen ? null : m.id)}
                       className="flex items-center gap-1 text-xs text-blue-600 font-medium"
                     >
-                      Explanation
+                      Ver explicación
                       <ChevronDown className={`w-3 h-3 transition-transform ${explanationOpen ? 'rotate-180' : ''}`} />
                     </button>
                   )}
@@ -139,13 +209,17 @@ export function Chat({ messages, state, onMicClick, audio, onPlay }: Props) {
                         <span className="line-through text-red-500">{e.original}</span>
                         {' → '}
                         <span className="font-medium text-emerald-600">{e.corrected}</span>
-                        <span className="text-slate-400"> ({e.type})</span>
+                        <span className="text-slate-400"> ({TYPE_LABEL[e.type]})</span>
                       </p>
                     ))}
                   </div>
                 )}
 
-                {!isUser && Array.isArray(m.suggestions) && m.suggestions.length > 0 && (
+                {/* Las sugerencias las adjunta el orquestador al mensaje del
+                    ESTUDIANTE (userMsg en orchestrator.ts), no al del tutor:
+                    son sobre lo que el estudiante dijo. Antes este chip
+                    comprobaba !isUser y nunca se mostraba con datos reales. */}
+                {isUser && Array.isArray(m.suggestions) && m.suggestions.length > 0 && (
                   <div className="flex items-center gap-1.5 flex-wrap">
                     {m.suggestions.map((s, i) => (
                       <span key={i} className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded-lg">

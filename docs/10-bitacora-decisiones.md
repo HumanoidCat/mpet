@@ -199,10 +199,22 @@ previo obligatorio a toda solicitud de integración.
 
 ## Riesgo abierto · Volumen de la descarga inicial
 
-El conjunto necesario para operar sin conexión ascendía a unos 300 MB (41 MB del
-reconocedor, 238 MB del corrector, 21.6 MB del runtime). **Con la incorporación
-del sintetizador de voz en la Semana 5 la cifra sube a unos 388 MB**, pendiente
-de confirmar el desglose exacto medido.
+**Cifra cerrada el 7 de agosto, con el desglose medido por Isaac.** Circulaban
+tres números distintos, y media confusión venía de las unidades: los «21.6 MB»
+del runtime y los «20.6 MiB» eran el mismo archivo contado de dos formas.
+**Convención adoptada para todo el proyecto: MiB.**
+
+| Pieza | Bytes | MiB |
+|---|---:|---:|
+| ASR `whisper-tiny.en` q8 | 42 985 755 | 41.0 |
+| Gramática `t5-base-grammar-correction` q8 | 252 557 916 | 240.9 |
+| TTS `mms-tts-eng` fp32 | 114 263 006 | 109.0 |
+| Runtime ONNX/WASM | ≈21 600 000 | 20.6 |
+| **Total** | | **≈411** |
+
+El desglose del reconocedor y del sintetizador está verificado leyendo la caché
+del navegador tras una descarga real. El del corrector está calculado con el
+mismo método, que acertó en los otros dos, pero no verificado empíricamente.
 
 Se descartó la reducción de cuantización como solución (D-05). Medidas adoptadas:
 carga bajo demanda del corrector, de modo que la primera interacción dependa
@@ -328,11 +340,28 @@ monótona por diseño, se quedaba en el 100 % durante toda la descarga real. Con
 MMS-TTS eran 109 MB de espera con la barra llena. Afectaba a los tres modelos, no
 solo al TTS.
 
-**Acción.** Los archivos que llegan completos en un solo evento dejan de contar
-para el agregado, en `src/ai/model-cache/progress.ts`.
+**Acción.** En `createProgressAggregator.handle`
+(`src/ai/model-cache/progress.ts`), un archivo cuyo **primer** evento ya viene
+completo se descarta y no se registra, de modo que su cierre posterior tampoco
+cuenta:
 
-**Resultado.** De **1 reporte de progreso a 1690 graduales**, verificado con
-descarga real.
+```ts
+const known = files.get(event.file);
+if (!known && event.loaded >= event.total) return;
+```
+
+La regla no depende de ningún tamaño umbral, solo de cómo llega el archivo: uno
+que se descarga de verdad llega troceado, así que su primer evento siempre trae
+`loaded < total`.
+
+**Resultado**, medido con `Xenova/mms-tts-eng` fp32, caché fría, a través del
+worker y el cliente reales:
+
+- Antes: 1928 eventos recibidos → **1 reporte emitido**.
+- Después: **1690 reportes graduales**.
+
+El número de eventos varía entre corridas porque el troceado de la descarga
+varía; el «1 reporte» no.
 
 **Aprendizaje.** Un indicador de progreso no se puede validar con datos
 simulados: el patrón de llegada de los eventos es el problema, no el cálculo.
@@ -412,3 +441,252 @@ comentario, y hace falta una prueba que lo obligue.
 Las tres pruebas que la suite omitía correspondían al fixture de librosa de
 RF-09. Se generaron y se ejecutaron en la Semana 6, y destaparon I-05. **La suite
 ya no omite ninguna prueba.**
+
+---
+
+## D-11 · Carga bajo demanda del sintetizador (Semana 7)
+
+**Contexto.** S7-T4 buscaba reducir la descarga inicial de unos 411 MiB. La
+cuantización quedó descartada por medición (D-05), así que la vía abierta era
+diferir modelos.
+
+**Decisión.** El sintetizador deja de cargarse en `init()` y se carga la primera
+vez que se pide audio. La primera descarga baja de **411.5 a 302.6 MiB, un 26 %**,
+sin tocar ningún modelo ni ninguna cuantización.
+
+**Justificación.** Un turno empieza con el estudiante hablando: el reconocedor y
+el corrector hacen falta desde el primer instante, el sintetizador no.
+
+**Lo que la implementación resuelve y no se ve leyendo el código.** «Cargar la
+primera vez que se use» tiene tres trampas, y `src/ai/lazy.ts` las cubre con
+pruebas: dos llamadas simultáneas descargarían el modelo dos veces si no
+comparten la misma promesa; una promesa rechazada guardada dejaría la función
+inutilizable durante toda la sesión tras un corte de red momentáneo; y el
+callback de progreso solo llega en `init()`, así que hay que conservarlo o la
+descarga tardía ocurre sin que la interfaz pueda avisar.
+
+**Verificado en ejecución**, no compilando: `speak()` sin `init()` previo devolvió
+27 904 muestras de audio correcto.
+
+**Corrección posterior, del lado del núcleo.** La justificación original decía que
+hay usuarios que nunca pulsan «escuchar». Dejó de ser cierto al conectar el
+comparador: el orquestador llama a `speak()` en cada turno para sintetizar la
+referencia del puntaje. Los 109 MiB se descargan igual en el primer turno, y el
+progreso se reportaba a una pantalla de carga que ya no existe. Se añadió en
+`App.tsx` un indicador de descarga visible fuera del arranque.
+
+La decisión sigue siendo correcta: la espera inicial baja de verdad y la descarga
+se solapa con el estudiante hablando, en vez de bloquear el arranque. Pero el
+beneficio es ese y no el que se enunció.
+
+---
+
+## D-12 · Kokoro aprobado y diferido a la entrega final (Semana 7)
+
+**Contexto.** El umbral se cerró antes de medir: *«1 o 2 fallos, se queda MMS-TTS;
+3 o 4, se curan las frases de práctica; 5 o más, se abre el `shared-change`, y
+siempre junto con la carga bajo demanda del TTS»*.
+
+**Medición.** **7 fallos de 14**, cruzando la vía automática y la escucha a
+ciegas. La carga bajo demanda está entregada (D-11).
+
+**El dato que decidió no está en las 14.** Fallan también `water` y `book`, que
+eran palabras de **control** —triviales, sin trampas de escritura, incluidas para
+detectar si los fallos venían del reconocedor— y fallan en las dos vías. Eso
+desarma la mitigación barata: se puede curar un conjunto de frases que evite
+*vegetables*, no se puede enseñar inglés con un tutor que no sabe decir *water*.
+
+**Decisión.** El umbral se disparó y se honra: **Kokoro queda aprobado**. Pero se
+programa **después del Avance 2**, para la entrega final del 8 de septiembre.
+
+**Justificación de la fecha, que es distinta de la justificación de la decisión.**
+La entrega se adelantó del 18 al 11 de agosto. Incorporar 216 MiB y una
+dependencia nueva a seis días de una entrega es imprudente; hacerlo con un mes es
+razonable. Se deja escrita la distinción para que quede claro que no se movió el
+criterio al ver el resultado, que es exactamente lo que cerrarlo de antemano
+pretendía evitar.
+
+**Condición previa a fijarlo.** Kokoro no está medido, está leído: hay ficha del
+modelo, no mediciones propias. Antes de incorporarlo hay que pasarle **el mismo
+banco de 14 palabras trampa y 5 de control** y comparar los conteos. Si no mejora,
+no se adopta. Lo que se aprueba es evaluar el modelo, no el modelo.
+
+**Pendiente para cerrar formalmente el conteo.** Falta el segundo oyente que exige
+el protocolo; el 7 es de una sola persona.
+
+---
+
+## I-07 · El sintetizador no sabe decir cifras (Semana 7)
+
+**Detección.** Isaac, durante el conteo de pronunciación de S7-T4.
+
+**Síntoma.** Con `$25` el reconocedor no oyó un número equivocado: no oyó **nada**
+donde iba la cifra, en las tres repeticiones («sake is», «sait as», «say this»).
+
+**Causa.** MMS-TTS trabaja carácter a carácter y nunca aprendió a convertir
+dígitos en palabras.
+
+**Por qué importa más de lo que parece.** Precios, horas y fechas son contenido
+básico de una clase de inglés conversacional. Un tutor que enmudece ante un número
+falla en el uso más corriente del idioma.
+
+**Acción.** Normalizar los números a letras antes de sintetizar («$25» → «twenty
+five dollars»). Cabe entero en `src/ai/`, no depende de Kokoro y **se prioriza por
+delante de él**: es una tarde de trabajo con efecto visible, frente a 216 MiB con
+efecto por medir.
+
+---
+
+## D-13 · Interfaz en español, contenido en inglés (Semana 7)
+
+**Contexto.** La interfaz mezclaba jerga técnica en inglés —«Synthesizing
+Speech…» en cada turno— con instrucciones en español.
+
+**Decisión.** Se traduce y simplifica todo el texto de navegación y de proceso.
+Queda en inglés solo lo que es material de aprendizaje: lo que dice el
+estudiante, la respuesta del tutor, las correcciones y las sugerencias.
+
+**Justificación.** El usuario es un estudiante hispanohablante que está
+aprendiendo inglés. Obligarle a descifrar la interfaz añade una dificultad que no
+es la que vino a practicar, y en un principiante compite con el contenido. La
+frontera queda clara: el envoltorio en su idioma, el ejercicio en el que
+practica.
+
+**Añadido.** Una línea de ánimo por nivel de puntaje (`TIER_ENCOURAGEMENT`), para
+que un puntaje bajo se lea como retroalimentación y no como un veredicto. Es
+coherente con la mitigación prevista para R03.
+
+**Registro.** La decisión la tomó el módulo de interfaz durante S7-T3. Se anota
+aquí porque afecta al producto entero, no solo a `src/ui/`.
+
+---
+
+## D-14 · Un solo modelo para las sugerencias y la respuesta del tutor (Semana 7)
+
+**Contexto.** S6-T4 y S7-T2 piden dos cosas distintas —sugerir mejoras y responder
+como tutor— que podrían salir de dos modelos. Cargar dos T5 duplicaría cientos de
+MB sin ganar nada, así que se decide con una sola elección.
+
+**Alternativas medidas.** Un modelo pequeño de 77M (93 MiB) y uno de 248M
+(265 MiB), los dos cuantizados a 8 bits.
+
+**El pequeño no es la opción barata: es inservible.** No ejecuta la instrucción,
+la parafrasea. Pedirle reescribir «My favorite food is rice with chicken» devuelve
+«The native English speaker would say it is a favorite food». Y dos de las cuatro
+respuestas de tutor fueron negativas del tipo «I cannot provide a response… it goes
+against my programming to provide inappropriate or offensive content», ante frases
+sobre arroz con pollo y sobre películas de terror. Es ruido heredado de la
+destilación, no una decisión sobre el contenido.
+
+**Decisión.** LaMini-Flan-T5-248M q8. La comparación de peso no llega a plantearse:
+93 MiB no valen nada si lo que devuelven no se puede enseñar a un estudiante.
+
+**Consecuencia declarada.** Una sesión completa pasa a descargar **676.4 MiB**:
+302.6 al arrancar, 264.8 del tutor en el primer turno y 109 del sintetizador la
+primera vez que se pide audio. La carga bajo demanda evita que la pantalla inicial
+espere por ellos, no los ahorra. La vía que queda para adelgazar es el **corrector
+de gramática (241 MiB)**, el único de los cuatro modelos que nunca se comparó
+contra alternativas.
+
+**Evidencia.** `docs/evidencias/s6/s6-t4-modelo-tutor.md`
+
+---
+
+## D-15 · Qué cubre el presupuesto de 2 segundos (Semana 7)
+
+**Contexto.** El modelo del tutor tiene una latencia mediana de 1751 ms y máxima de
+2285 ms. Leído sin contexto parece que rompe el compromiso de responder en menos de
+dos segundos, y el riesgo R06 quedaría materializado.
+
+**Aclaración.** No lo rompe, porque el turno no es una sola espera. El orquestador
+emite el mensaje del estudiante **con su transcripción y su corrección antes** de
+pedir la respuesta del tutor, y calcula el puntaje de pronunciación y las
+sugerencias **fuera del turno**.
+
+Reparto real de un turno:
+
+| Qué | Cuándo llega |
+|---|---|
+| Transcripción y corrección gramatical | dentro del presupuesto de 2 s |
+| Respuesta del tutor | ~1.75 s después |
+| Puntaje de pronunciación y sugerencias | asíncronos, sin bloquear |
+
+**Decisión.** El presupuesto de dos segundos se aplica a la **retroalimentación**,
+que es lo que pierde valor si tarda: una corrección que llega tarde ya no se
+conecta con lo que el estudiante acaba de decir. La respuesta conversacional del
+tutor admite más, porque una pausa de un segundo y medio antes de contestar es lo
+normal en una conversación humana.
+
+**Pendiente.** La medición de punta a punta con todo integrado. Los 1751 ms vienen
+del spike, medidos además con la pestaña en segundo plano, donde el navegador
+limita el procesamiento: son pesimistas.
+
+---
+
+## D-16 · Modo práctica con frase objetivo (Semana 7)
+
+**Contexto.** La calibración con voz real (S9-T3) demostró que el puntaje acústico
+no puede cumplir RF-10, por dos causas encadenadas. La primera, en el comparador:
+el efecto del hablante pesa unas seis veces más que el error de pronunciación. La
+segunda, en la integración: el orquestador sintetizaba la transcripción, es decir
+**la propia equivocación del estudiante**, así que el puntaje no podía detectar
+una palabra mal dicha por construcción.
+
+**Decisión.** El puntaje solo se calcula contra una **frase objetivo**, y en
+conversación libre no se calcula. La razón de fondo es que en conversación libre
+no existe una pronunciación correcta contra la que comparar: no sabemos qué quiso
+decir el estudiante. Mejor ningún número que uno que en realidad mide cuánto se
+parece su voz a la del sintetizador.
+
+**Cómo se implementa, y por qué así.** Sobre el chat que ya existe, sin pantalla
+nueva: la aplicación propone una frase, el estudiante la repite con el mismo botón
+de micrófono, y el color por palabra que ya pintaba la interfaz sirve igual. La
+alternativa —una pantalla de práctica aparte— habría duplicado el flujo de captura
+para no aportar nada que el chat no hiciera ya.
+
+**La señal que decide.** `targetMatch` compara lo transcrito contra el objetivo. Es
+la única señal independiente del hablante que tiene el proyecto: el reconocedor
+está entrenado con miles de voces, así que el error aparece en el texto, donde el
+timbre no influye. El puntaje acústico pasa a dato secundario.
+
+**Limitación declarada.** Esa señal detecta 6 de cada 10 errores y produce 4 falsas
+alarmas. Por eso se redacta como «no entendí bien» y **nunca** como «lo dijiste
+mal»: acusar a quien pronunció bien desmotiva y además es falso. El campo se llama
+`noReconocida` y no `incorrecta` por lo mismo.
+
+**Efecto secundario buscado.** Un banco cerrado de frases resuelve también **R16**:
+cada referencia se sintetiza una sola vez, así que deja de cambiar entre sesiones.
+Y permite curar el conjunto para esquivar las palabras que el sintetizador
+pronuncia mal (S7-T4) y las cifras que no sabe decir (I-07). `cumpleCriterio()` lo
+verifica sobre todo el banco en la suite.
+
+**Pendiente.** Medir si la combinación de las dos señales supera los 6 de 10 de la
+señal sola. Es lo que decide cómo queda RF-10 en la entrega final.
+
+---
+
+## I-08 · Un cambio de contrato entró sin revisión (Semana 7)
+
+**Incidencia.** Los campos `target` y `targetMatch` de `ChatMessage`, más los tipos
+`PalabraObjetivo` y `ComparacionObjetivo`, entraron a `dev` en los commits
+`08a64ee` y `3a8e94b` **sin solicitud de incorporación y sin revisión**, pese a que
+el proceso exige ambas para `src/shared/`.
+
+**Causa.** Se indicó abrir la solicitud con la etiqueta `shared-change` y acto
+seguido se entregó una secuencia de comandos que confirmaba y empujaba
+directamente a `dev`. La instrucción contradecía a la regla y se siguió la
+instrucción.
+
+**Efecto real.** Ninguno técnico: los dos campos son opcionales, ningún campo
+existente cambió y la integración continua quedó en verde. Pero la regla no existe
+para evitar daño técnico, sino para que quien consume el contrato se entere, y el
+módulo de interfaz consume `ChatMessage`.
+
+**Acción.** No se revierte: revertir y rehacer por solicitud no añadiría revisión
+sobre un cambio ya integrado y probado. Se declara la etiqueta `shared-change` en
+la siguiente incorporación a `main`, de modo que quede el registro aunque el
+cambio ya esté dentro.
+
+**Aprendizaje.** Una regla de proceso no sobrevive a una instrucción que la
+contradice, por muy explicada que esté la regla. Al indicar los pasos hay que
+mirar si coinciden con lo que se acaba de exigir.

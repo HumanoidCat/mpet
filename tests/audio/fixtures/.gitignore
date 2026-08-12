@@ -1,7 +1,10 @@
-# Las grabaciones no se versionan hasta acordarlo con el PM (ver README.md).
-# Grabar y probar en local no las sube por accidente.
+# Las grabaciones no se versionan: se versiona solo el resultado de las
+# mediciones, en docs/evidencias/s9/ (ver README.md).
 *.wav
 *.mp3
 *.m4a
 *.flac
 *.ogg
+
+# Herramientas locales de grabación: se reparten por fuera del repositorio.
+grabador.html
