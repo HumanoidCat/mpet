@@ -690,3 +690,94 @@ cambio ya esté dentro.
 **Aprendizaje.** Una regla de proceso no sobrevive a una instrucción que la
 contradice, por muy explicada que esté la regla. Al indicar los pasos hay que
 mirar si coinciden con lo que se acaba de exigir.
+
+---
+
+## I-09 · El tutor devolvía una negativa memorizada de otro sistema (Semana 7)
+
+**Detección.** Probando la aplicación desplegada el 11 de agosto. Ante la entrada
+más trivial posible —«Hi, how are you?»— el tutor respondió:
+
+> I'm sorry, but I cannot respond to this prompt as it goes against OpenAI's use
+> case policy on generating inappropriate or offensive content.
+
+**Causa.** LaMini-Flan-T5-248M se destiló a partir de salidas de GPT-3.5, así que
+las negativas de ese sistema quedaron dentro de su corpus de entrenamiento. Ante
+una entrada que no sabe continuar, el modelo devuelve una de esas negativas
+memorizadas en vez de generar una respuesta propia. No es un fallo del prompt ni
+del código: es texto copiado del entrenamiento, y lo delata que se dispare con un
+saludo.
+
+D-14 ya había registrado el mismo fenómeno en el modelo pequeño de 77M durante el
+spike S6-T4 —dos de cuatro respuestas fueron negativas de ese tipo, ante frases
+sobre arroz con pollo y películas de terror— y fue parte de por qué se descartó.
+Lo que no se anticipó es que el modelo grande, el elegido, también lo hiciera,
+con una entrada mucho más simple que las del spike.
+
+**Acción.** `cleanTutorReply` (`src/ai/suggestions/cleanup.ts`) ya limpiaba
+comillas y saltos de línea de la salida del modelo. Se le añadió
+`esRechazoMemorizado(texto)`, que reconoce las huellas de una negativa
+memorizada —mención a otro proveedor, «as an AI language model», «I cannot
+respond», «content policy» y variantes— y la sustituye por
+`RESPUESTA_DE_RESERVA`, una frase que cumple el mismo contrato que le pide
+`TUTOR_INSTRUCTION` al modelo: una oración corta terminada en pregunta, para que
+la conversación no se muera.
+
+**Resultado.** `tests/ai/cleanup.test.ts` sube a 27 casos, con la salida literal
+del modelo como caso de regresión. Verificado en `dev` y en `main`
+(PR #74, commit `0813cb3`).
+
+**Aprendizaje.** Un spike que descarta una opción por un defecto no garantiza que
+la opción elegida esté libre de ese mismo defecto en otras condiciones. D-14 midió
+el fenómeno con frases de vocabulario cotidiano; el defecto reapareció en el
+modelo ganador ante un saludo, la entrada más simple posible.
+
+---
+
+## I-10 · El tutor repetía siempre la misma respuesta (Semana 7)
+
+**Detección.** Al probar I-09 ya corregido: tres turnos seguidos de una
+conversación real recibieron la **misma respuesta exacta**, sin importar lo que
+dijera el estudiante.
+
+| El estudiante dice | El tutor responde |
+|---|---|
+| How are you doing? | I'm doing well, thanks for asking. |
+| Well, I need to practice my English. | I'm doing well, thanks for asking. |
+| Can you help me please? | I'm doing well, thanks for asking. |
+
+**Causa.** `buildTutorPrompt` armaba el prompt intercalando los turnos del
+estudiante y del tutor, terminando en una línea `Tutor:` vacía para que el modelo
+la completara:
+
+```
+Student: How are you doing?
+Tutor: I'm doing well, thanks for asking.
+Student: Well, I need to practice my English.
+Tutor:
+```
+
+A partir del segundo turno, el modelo **copiaba la línea `Tutor:` que ya tenía
+delante** en vez de generar una nueva. La evidencia de que copiaba y no razonaba:
+la respuesta dejó de terminar en pregunta, que es justo lo que exige
+`TUTOR_INSTRUCTION`. Es comportamiento conocido de un T5 pequeño ante un
+transcript multi-turno: LaMini-Flan está afinado para instrucciones sueltas
+(D-14), y darle sus propias respuestas anteriores como parte del prompt le da
+algo que copiar en vez de algo que continuar.
+
+**Acción.** `buildTutorPrompt` deja de incluir las líneas `Tutor:` en el prompt.
+Se conservan los turnos del estudiante dentro de la ventana de `HISTORY_TURNS`,
+sin ninguna respuesta previa del tutor de por medio, así que no queda nada que
+copiar.
+
+**Resultado.** `tests/ai/suggestionsProtocol.test.ts` gana un caso de regresión
+que falla si alguien vuelve a incluir las líneas del tutor en el prompt, y otro
+que comprueba que dos preguntas distintas producen prompts distintos. Verificado
+con `tsc --noEmit` y con la lógica ejecutada directamente (`vitest` no corre en
+el entorno donde se escribió el arreglo); falta la corrida de la suite completa y
+el PR — ver `docs/pendiente-tutor-repite.md`.
+
+**Aprendizaje.** El contexto conversacional que parecía una mejora —darle al
+modelo sus propias respuestas anteriores— era la causa del defecto. Un modelo
+afinado para instrucciones sueltas no necesariamente se comporta mejor con más
+contexto; a veces se comporta peor.

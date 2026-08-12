@@ -157,16 +157,36 @@ export interface HistoryTurn {
  * POR QUÉ SE RECORTA: el T5 tiene una ventana de contexto limitada y la latencia
  * crece con la entrada. Cuatro turnos bastan para que la respuesta tenga sentido sin
  * que el prompt se vuelva enorme en una conversación larga.
+ *
+ * POR QUÉ SOLO SE INCLUYEN LOS TURNOS DEL ESTUDIANTE (11-ago-2026): la versión
+ * anterior intercalaba "Student: ..." y "Tutor: ...", terminando en una línea
+ * "Tutor:" vacía para que el modelo la completara. En producción, con dos turnos
+ * o más, el modelo dejó de generar y empezó a **copiar la última línea "Tutor:"
+ * que ya tenía delante**, devolviendo la misma respuesta sin importar lo que
+ * dijera el estudiante ("I'm doing well, thanks for asking." ante "Can you help
+ * me please?"). La prueba de que copiaba y no razonaba: la salida dejó de
+ * terminar en pregunta, que es justo lo que pide `TUTOR_INSTRUCTION`.
+ *
+ * Es comportamiento conocido de un T5 pequeño ante un transcript multi-turno:
+ * LaMini-Flan está afinado para instrucciones sueltas (ver la nota de arriba
+ * sobre qué modelo es), y darle sus propias respuestas anteriores como parte del
+ * prompt le da algo que copiar en vez de algo que continuar.
+ *
+ * Quitar las líneas "Tutor:" del prompt elimina la fuente de la copia. Se pierde
+ * que el modelo "recuerde" literalmente sus turnos anteriores, pero no se pierde
+ * nada útil: los estaba usando para repetirse, no para responder mejor.
+ * Evidencia: docs/incidencias/i-09-tutor-repite-respuesta.md
  */
 export function buildTutorPrompt(
   history: readonly HistoryTurn[],
   turns: number = HISTORY_TURNS
 ): string {
   const recent = history.slice(-turns);
-  const conversation = recent
-    .map((m) => `${m.role === 'user' ? 'Student' : 'Tutor'}: ${m.text}`)
+  const turnosDelEstudiante = recent
+    .filter((m) => m.role === 'user')
+    .map((m) => `Student: ${m.text}`)
     .join('\n');
-  return `${TUTOR_INSTRUCTION}\n\n${conversation}\nTutor:`;
+  return `${TUTOR_INSTRUCTION}\n\n${turnosDelEstudiante}\nTutor:`;
 }
 
 // ── Mensajes entre el hilo principal y el worker ─────────────────────────────

@@ -50,10 +50,25 @@ describe('buildTutorPrompt', () => {
     { role: 'user' as const, text: 'I am fine.' },
   ];
 
-  it('traduce los roles a etiquetas que el modelo entiende', () => {
+  it('traduce los turnos del estudiante a la etiqueta que el modelo entiende', () => {
     const out = buildTutorPrompt(historia);
     expect(out).toContain('Student: Hello.');
-    expect(out).toContain('Tutor: Hi! How are you?');
+    expect(out).toContain('Student: I am fine.');
+  });
+
+  // Regresión de incidencia I-09 (11-ago-2026): en producción, con dos turnos o
+  // más, el modelo copiaba la última línea "Tutor: ..." del prompt en vez de
+  // generar una respuesta nueva, y devolvía siempre la misma frase sin importar
+  // lo que dijera el estudiante. La causa era que el prompt incluía las
+  // respuestas anteriores del propio tutor. Este caso falla si alguien vuelve a
+  // incluirlas.
+  it('no incluye las respuestas anteriores del tutor en el prompt', () => {
+    const out = buildTutorPrompt(historia);
+    expect(out).not.toContain('Tutor: Hi! How are you?');
+    // La única aparición de "Tutor:" debe ser el corte final donde el modelo
+    // tiene que completar, no una línea con contenido detrás.
+    const apariciones = out.split('Tutor:').length - 1;
+    expect(apariciones).toBe(1);
   });
 
   it('empieza con la instrucción y termina invitando a hablar al tutor', () => {
@@ -64,24 +79,46 @@ describe('buildTutorPrompt', () => {
     expect(out.endsWith('\nTutor:')).toBe(true);
   });
 
-  it('recorta el historial a los últimos turnos', () => {
+  it('recorta el historial a los últimos turnos antes de filtrar por rol', () => {
     // La latencia crece con la entrada, y una conversación larga haría el prompt
-    // enorme sin mejorar la respuesta.
+    // enorme sin mejorar la respuesta. El recorte se aplica sobre el historial
+    // completo (con ambos roles) y después se descartan los turnos del tutor,
+    // así que un mensaje del estudiante fuera de la ventana no debe aparecer
+    // aunque haya turnos de tutor de por medio dentro de la ventana.
     const larga = Array.from({ length: 20 }, (_, i) => ({
       role: (i % 2 === 0 ? 'user' : 'tutor') as 'user' | 'tutor',
       text: `mensaje ${i}`,
     }));
+    // Los últimos 4 turnos son los índices 16 (user), 17 (tutor), 18 (user), 19 (tutor).
     const out = buildTutorPrompt(larga, 4);
 
-    expect(out).toContain('mensaje 19');
-    expect(out).toContain('mensaje 16');
-    expect(out).not.toContain('mensaje 15');
+    expect(out).toContain('mensaje 18'); // último turno del estudiante, dentro de la ventana
+    expect(out).toContain('mensaje 16'); // turno del estudiante, dentro de la ventana
+    expect(out).not.toContain('mensaje 19'); // es del tutor: nunca debe aparecer
+    expect(out).not.toContain('mensaje 14'); // turno del estudiante, fuera de la ventana
   });
 
   it('aguanta un historial vacío sin romperse', () => {
     const out = buildTutorPrompt([]);
     expect(out).toContain(TUTOR_INSTRUCTION);
     expect(out.endsWith('Tutor:')).toBe(true);
+  });
+
+  it('aguanta un historial de un solo turno del estudiante', () => {
+    // Caso real: el primer mensaje de una conversación, sin respuestas previas
+    // del tutor que puedan servir de fuente de copia.
+    const out = buildTutorPrompt([{ role: 'user', text: 'Hi, how are you?' }]);
+    expect(out).toContain('Student: Hi, how are you?');
+    expect(out.endsWith('\nTutor:')).toBe(true);
+  });
+
+  it('turnos del estudiante distintos producen prompts distintos', () => {
+    // No es una prueba de que el modelo responda distinto (eso requiere el
+    // modelo cargado), pero si el prompt de entrada es idéntico para preguntas
+    // distintas, el modelo no tiene ninguna posibilidad de variar la salida.
+    const a = buildTutorPrompt([{ role: 'user', text: 'How are you doing?' }]);
+    const b = buildTutorPrompt([{ role: 'user', text: 'Can you help me please?' }]);
+    expect(a).not.toBe(b);
   });
 
   it('usa 4 turnos por defecto', () => {
