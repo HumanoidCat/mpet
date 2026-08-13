@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Spike · ¿Un modelo de chat de verdad para el tutor?</title>
+  <style>
+    :root { color-scheme: light dark; }
+    body { font-family: system-ui, sans-serif; max-width: 1050px; margin: 2rem auto; padding: 0 1rem; line-height: 1.5; }
+    h1 { font-size: 1.3rem; } h2 { font-size: 1.05rem; margin-top: 1.6rem; }
+    button { padding: .5rem .9rem; margin: .2rem .3rem .2rem 0; cursor: pointer; border-radius: 6px; border: 1px solid #8888; background: #8881; }
+    button:disabled { opacity: .45; cursor: not-allowed; }
+    table { border-collapse: collapse; width: 100%; margin-top: .6rem; font-size: .85rem; }
+    th, td { border: 1px solid #8886; padding: .45rem .55rem; text-align: left; vertical-align: top; }
+    #log { white-space: pre-wrap; font-family: ui-monospace, monospace; font-size: .8rem; background: #8881; padding: .7rem; border-radius: 8px; max-height: 340px; overflow: auto; }
+    #markdown { width: 100%; min-height: 220px; font-family: ui-monospace, monospace; font-size: .75rem; }
+    .muted { opacity: .7; font-size: .85rem; }
+    .ok { color: #2e7d32; font-weight: 600; }
+    .bad { color: #c62828; font-weight: 600; }
+    .warn { border-left: 3px solid #ed6c02; padding-left: .7rem; }
+  </style>
+</head>
+<body>
+  <h1>💬 Spike — ¿Un modelo de chat real reemplaza a LaMini?</h1>
+  <p class="muted">
+    Después del arreglo de I-09/I-10/eco, el tutor dejó de romperse pero sigue sin
+    <strong>conversar de verdad</strong>: no responde preguntas ni recuerda nada de
+    turnos anteriores, porque LaMini-Flan-T5 es un T5 de instrucciones, no un modelo
+    de chat. Este spike mide si un modelo de chat real —con historial y plantilla de
+    chat nativa de <code>@huggingface/transformers</code>— resuelve el problema de
+    fondo en vez de parchearlo.
+  </p>
+  <p class="muted warn">
+    La prueba que decide: <strong>¿el modelo recuerda un dato dado dos turnos
+    antes?</strong> Es algo que LaMini no podía hacer estructuralmente (el prompt solo
+    lleva la última frase) y que un modelo de chat con historial real sí debería poder.
+  </p>
+
+  <h2>1) Modelo</h2>
+  <div class="row">
+    <label>Candidato:
+      <select id="modelo">
+        <option value="HuggingFaceTB/SmolLM2-135M-Instruct" data-mb="137">SmolLM2-135M-Instruct (~137 MB)</option>
+        <option value="HuggingFaceTB/SmolLM2-360M-Instruct" data-mb="365">SmolLM2-360M-Instruct (~365 MB)</option>
+      </select>
+    </label>
+    <button id="btnLoad">Cargar + medir</button>
+  </div>
+  <p id="info" class="muted"></p>
+
+  <h2>2) Prueba de memoria conversacional</h2>
+  <p class="muted">El acid test. Con historial real, no solo la última frase.</p>
+  <div class="row"><button id="btnMemoria" disabled>Ejecutar</button></div>
+  <div id="memoria"></div>
+
+  <h2>3) Preguntas directas — ¿contesta o solo pregunta de vuelta?</h2>
+  <div class="row"><button id="btnPreguntas" disabled>Ejecutar</button></div>
+  <div id="preguntas"></div>
+
+  <h2>4) Entradas adversariales — ¿se niega como LaMini?</h2>
+  <div class="row"><button id="btnAdversarial" disabled>Ejecutar</button></div>
+  <div id="adversarial"></div>
+
+  <h2>5) ¿Sirve también para sugerencias (suggest)?</h2>
+  <p class="muted">D-14: un solo modelo para las dos tareas. Si este no reescribe bien, hacen falta dos modelos.</p>
+  <div class="row"><button id="btnSugerencias" disabled>Ejecutar</button></div>
+  <div id="sugerencias"></div>
+
+  <h2>Resumen</h2>
+  <table id="resumen"><thead><tr><th>Medida</th><th>Valor</th></tr></thead><tbody></tbody></table>
+
+  <h2>Evidencia lista para pegar</h2>
+  <textarea id="markdown" readonly></textarea>
+
+  <h2>Registro</h2>
+  <div id="log"></div>
+
+  <script type="module" src="./spike.ts"></script>
+</body>
+</html>

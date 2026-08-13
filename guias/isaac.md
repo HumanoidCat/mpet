@@ -47,8 +47,24 @@
 - [x] S7-T2 · Respuesta conversacional (prompt de tutor)
       → Mismo worker que S6-T4: un solo modelo con dos instrucciones. Verificado en
         ejecución (suggest y reply a la vez, sin cruzarse).
+      → **11-ago, fix I-09/I-10 + defecto de fondo:** el tutor no conversaba, convertía
+        la frase del estudiante en pregunta sobre lo mismo ("My name is Ana" → "What
+        is your name?"). Prompt reescrito (tarea sobre la última frase, sin rol, sin
+        líneas Tutor: que copiar) + `esEco()` en `cleanup.ts` como red de seguridad
+        que funciona aunque cambie el modelo. Evidencia:
+        `docs/evidencias/s7/s7-t2-respuestas-del-tutor.md`. Falta re-verificar el
+        ciclo completo en vivo (la red se cayó tres veces bajando el modelo).
 - [ ] S7-T4 · Optimizar latencia: pipeline en paralelo, medir por etapa (con Fabrizio)
+- [x] D-12 · Evaluar Kokoro con el banco acordado, medido y cerrado (12-ago)
+      -> 1 fallo de 14 (MMS-TTS: 7), 0 de 5 en control, determinista (resuelve el suelo
+         de R03), 88.1 MiB cuantizado (menos que los 109 de MMS-TTS). Se recomienda
+         pedir el shared-change: docs/evidencias/s7/d12-kokoro-decision-final.md
 - [ ] Mi sección del documento Avance 2
+
+## Extra — incidencias
+- [x] I-07 · Números a letras antes de sintetizar
+      → `src/ai/tts/textNormalization.ts`. El reconocedor ya recupera $25, 8:30 y 1998
+        donde antes no oía nada. Evidencia: `docs/evidencias/s7/i07-numeros-a-letras.md`
 
 ## Semana 8
 - [ ] S8-T1 · Medir WER: set de 50 frases, 4 hablantes
