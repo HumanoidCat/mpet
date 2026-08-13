@@ -47,6 +47,13 @@
 - [x] S7-T2 · Respuesta conversacional (prompt de tutor)
       → Mismo worker que S6-T4: un solo modelo con dos instrucciones. Verificado en
         ejecución (suggest y reply a la vez, sin cruzarse).
+      → **11-ago, fix I-09/I-10 + defecto de fondo:** el tutor no conversaba, convertía
+        la frase del estudiante en pregunta sobre lo mismo ("My name is Ana" → "What
+        is your name?"). Prompt reescrito (tarea sobre la última frase, sin rol, sin
+        líneas Tutor: que copiar) + `esEco()` en `cleanup.ts` como red de seguridad
+        que funciona aunque cambie el modelo. Evidencia:
+        `docs/evidencias/s7/s7-t2-respuestas-del-tutor.md`. Falta re-verificar el
+        ciclo completo en vivo (la red se cayó tres veces bajando el modelo).
 - [ ] S7-T4 · Optimizar latencia: pipeline en paralelo, medir por etapa (con Fabrizio)
 - [ ] Mi sección del documento Avance 2
 
