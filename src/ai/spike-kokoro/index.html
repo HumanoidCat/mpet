@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>D-12 · Evaluar Kokoro con el mismo banco</title>
+  <style>
+    :root { color-scheme: light dark; }
+    body { font-family: system-ui, sans-serif; max-width: 1050px; margin: 2rem auto; padding: 0 1rem; line-height: 1.5; }
+    h1 { font-size: 1.3rem; } h2 { font-size: 1.05rem; margin-top: 1.6rem; }
+    button { padding: .5rem .9rem; margin: .2rem .3rem .2rem 0; cursor: pointer; border-radius: 6px; border: 1px solid #8888; background: #8881; }
+    button:disabled { opacity: .45; cursor: not-allowed; }
+    table { border-collapse: collapse; width: 100%; margin-top: .6rem; font-size: .85rem; }
+    th, td { border: 1px solid #8886; padding: .45rem .55rem; text-align: left; }
+    #log { white-space: pre-wrap; font-family: ui-monospace, monospace; font-size: .8rem; background: #8881; padding: .7rem; border-radius: 8px; max-height: 320px; overflow: auto; }
+    #markdown { width: 100%; min-height: 200px; font-family: ui-monospace, monospace; font-size: .75rem; }
+    .muted { opacity: .7; font-size: .85rem; }
+    .ok { color: #2e7d32; font-weight: 600; }
+    .bad { color: #c62828; font-weight: 600; }
+    .warn { border-left: 3px solid #ed6c02; padding-left: .7rem; }
+    audio { height: 30px; }
+  </style>
+</head>
+<body>
+  <h1>🎙️ D-12 — Evaluar Kokoro con el mismo banco</h1>
+
+  <p class="muted">
+    Alejandro aprobó la medición y difirió la dependencia: hay que evaluar Kokoro
+    <strong>con el mismo banco</strong> antes de adoptarlo. Este spike pasa las mismas
+    14 palabras trampa y 5 de control que se usaron con MMS-TTS, por el mismo ciclo
+    TTS → ASR, para que los dos números sean comparables.
+  </p>
+
+  <p class="muted warn">
+    <strong>Sin tocar <code>package.json</code>.</strong> <code>kokoro-js</code> se carga
+    desde un CDN, igual que se hizo con transformers.js en el spike S1-T7 cuando la
+    dependencia todavía no estaba aprobada. Si el resultado justifica adoptarlo,
+    entonces sí se pide el <code>shared-change</code>.
+  </p>
+
+  <h2>1) Cargar</h2>
+  <div class="row">
+    <label>Cuantización:
+      <select id="dtype">
+        <option value="q8" selected>q8 (~92 MiB)</option>
+        <option value="fp32">fp32 (~325 MiB)</option>
+      </select>
+    </label>
+    <label>Voz: <select id="voice"></select></label>
+    <button id="btnLoad">Cargar Kokoro + ASR</button>
+  </div>
+
+  <h2>2) ¿Es determinista?</h2>
+  <p class="muted">
+    Pregunta heredada de <strong>R03</strong>: MMS-TTS muestrea ruido, así que dos
+    síntesis del mismo texto difieren y eso consume la mitad de la escala del puntaje
+    de pronunciación (suelo de 49.5 sobre 100). Si Kokoro devuelve el mismo audio,
+    ese suelo desaparece.
+  </p>
+  <div class="row"><button id="btnDeterminismo" disabled>Sintetizar dos veces y comparar</button></div>
+  <div id="determinismo"></div>
+
+  <h2>3) El banco de palabras</h2>
+  <div class="row"><button id="btnBanco" disabled>Pasar las 14 + 5 por TTS → ASR</button></div>
+  <div id="resultados"></div>
+
+  <h2>Veredicto</h2>
+  <div id="verdict"></div>
+
+  <h2>Evidencia lista para pegar</h2>
+  <textarea id="markdown" readonly placeholder="Se rellena al terminar."></textarea>
+
+  <h2>Registro</h2>
+  <div id="log"></div>
+
+  <script type="module" src="./spike.ts"></script>
+</body>
+</html>
