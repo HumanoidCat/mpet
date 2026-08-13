@@ -781,3 +781,53 @@ el PR — ver `docs/pendiente-tutor-repite.md`.
 modelo sus propias respuestas anteriores— era la causa del defecto. Un modelo
 afinado para instrucciones sueltas no necesariamente se comporta mejor con más
 contexto; a veces se comporta peor.
+
+**Nota de cierre (12-ago).** Isaac llegó a un arreglo distinto para el mismo
+incidente, en paralelo y sin ver este (su rama partió de antes de que este PR
+llegara a `dev`). El suyo está medido contra el modelo real —tres formulaciones
+de prompt comparadas— y encontró además que el problema no era solo la copia:
+el modelo, al ser un T5 de instrucciones, convertía cualquier frase del
+estudiante en una pregunta sobre lo mismo, incluso con el prompt ya arreglado.
+Su solución (reescribir la instrucción, sacar el rol de "tutor", y `esEco()` en
+`cleanup.ts` como red que funciona sin importar el modelo) reemplazó a la de
+este registro al mergear PR #81. Queda esta entrada por el diagnóstico y el
+aprendizaje, que siguen siendo válidos; el código descrito en **Acción** ya no
+está en `dev`.
+
+---
+
+## D-17 · Kokoro medido y aprobado para adopción (Semana 8)
+
+**Contexto.** D-12 dejó el umbral cruzado (7/14 con MMS-TTS) pero la adopción
+diferida a después del Avance 2, por prudencia de calendario, no por duda sobre
+el resultado. Condición previa declarada: medir Kokoro con el mismo banco antes
+de adoptarlo, no adoptar la ficha del modelo sin medir.
+
+**Medición.** Isaac corrió el banco de 14 palabras trampa + 5 de control sobre
+Kokoro-82M cuantizado, con la misma frase portadora y el mismo criterio que se
+usó para MMS-TTS.
+
+| | MMS-TTS (producción) | Kokoro-82M q8 |
+|---|---|---|
+| Fallos, palabras trampa | 7 de 14 | **1 de 14** |
+| Fallos, palabras de control | 2 de 5 | **0 de 5** |
+| Determinista | No (suelo de 49.5 en R03) | **Sí**, verificado bit a bit |
+| Descarga cuantizada | 109.0 MiB | **88.1 MiB** |
+| Convierte cifras | No (necesitaba I-07) | **Sí, integrado** |
+
+Evidencia: `docs/evidencias/s7/d12-kokoro-decision-final.md`.
+
+**Decisión.** Se aprueba el `shared-change`: agregar `kokoro-js` y `phonemizer`
+a `package.json`, y reemplazar MMS-TTS por Kokoro en `ttsWorker.ts`. La
+condición de calendario de D-12 ya se cumplió —el Avance 2 se entregó— y la
+diferencia entre modelos es demasiado grande para que quede en duda.
+
+**Limitación declarada, no resuelta.** El 7/14 de MMS-TTS que disparó todo el
+proceso nunca tuvo el segundo oyente que exige el protocolo (ya señalado en
+D-12, sigue así). No se exige cerrarlo antes de aprobar: la distancia a 1/14 es
+mayor que cualquier sesgo razonable de un solo oyente. Pero debe quedar escrita
+en el PR del `shared-change`, no solo aquí.
+
+**Registro.** `package.json` y `src/shared/` los aprueba Alejandro (regla
+existente desde S1). Isaac abre el PR con la etiqueta `shared-change`;
+mensaje de contexto en `docs/MENSAJE-isaac-kokoro-aprobado.md`.
