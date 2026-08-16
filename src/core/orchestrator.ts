@@ -4,9 +4,11 @@ import type {
   ChatMessage,
   EventBus,
   PronunciationScorer,
+  SupportedLanguage,
   Transcription,
 } from '@shared/contracts';
 import { compararConObjetivo } from './fraseObjetivo';
+import { detectarIdiomaEscrito } from './idiomaEscrito';
 
 /**
  * Orquestador (S2-T7 + S6). Duenio: Alejandro.
@@ -99,6 +101,20 @@ export interface Orchestrator {
   getState(): OrchestratorState;
   /** Alterna el microfono: idle -> grabando -> procesando -> idle. */
   toggleMic(): Promise<void>;
+  /**
+   * Turno escrito: el estudiante teclea en vez de hablar.
+   *
+   * POR QUE EXISTE: practicar gramatica y vocabulario no necesita el microfono, y
+   * exigirlo deja fuera tres situaciones normales — estar en un sitio donde no se
+   * puede hablar, no tener microfono, o simplemente querer trabajar la escritura.
+   * La correccion gramatical, las sugerencias y el tutor operan sobre TEXTO: el
+   * reconocedor solo estaba ahi para producirlo.
+   *
+   * QUE NO HACE, y es deliberado: **no puntua pronunciacion**. No hay audio que
+   * comparar. Es la misma regla que ya rige la conversacion libre (ver cabecera):
+   * sin algo contra que comparar, no se inventa un numero.
+   */
+  submitText(text: string): Promise<void>;
   /** Carga los modelos de IA (reporta progreso via event bus). */
   init(): Promise<void>;
   /**
@@ -238,6 +254,119 @@ export function createOrchestrator({ audio, ai, bus, scorer }: Deps): Orchestrat
     }
   }
 
+  /**
+   * Lo que ocurre despues de tener el texto del estudiante, venga de donde venga.
+   *
+   * POR QUE ESTA EXTRAIDO: el turno hablado y el escrito solo se diferencian en
+   * COMO se obtiene el texto y en si hay audio que puntuar. Todo lo demas
+   * —correccion, comparacion con la frase objetivo, respuesta del tutor,
+   * sugerencias, orden de las llamadas— es identico, y duplicarlo garantizaria
+   * que los dos caminos se separen en cuanto alguien toque uno solo.
+   *
+   * `audio` ausente significa turno escrito: sin puntaje de pronunciacion, porque
+   * no hay nada que comparar.
+   */
+  async function completarTurno(
+    texto: string,
+    idioma: SupportedLanguage,
+    audio: { pcm: Float32Array; transcription: Transcription } | null,
+    marcas: { t0: number; tAsr: number }
+  ): Promise<void> {
+    // LA CORRECCION GRAMATICAL SE SALTA EN ESPANOL. El corrector es un T5
+    // entrenado solo en ingles: pasarle una frase en espanol no da una
+    // correccion mala, da basura, y el chat la resaltaria como si fuera un
+    // error real del estudiante. Un turno sin correccion es un resultado
+    // valido: significa que no habia nada que corregir en ingles.
+    const correction =
+      idioma === 'es'
+        ? { corrected: texto, edits: [] }
+        : await ai.correctGrammar(texto);
+    const tGramatica = Date.now();
+
+    // En un turno de practica se compara lo dicho contra la frase que se pidio
+    // repetir. Es la unica senal que depende de la pronunciacion y no de la voz,
+    // y se calcula DENTRO del turno porque es texto contra texto: no cuesta nada
+    // y llega junto con la correccion.
+    const objetivo = fraseObjetivo;
+    const userMsg: ChatMessage = {
+      id: newId(),
+      role: 'user',
+      text: texto,
+      correction,
+      ...(objetivo ? { target: objetivo, targetMatch: compararConObjetivo(objetivo, texto) } : {}),
+      ts: Date.now(),
+    };
+    history.push(userMsg);
+    bus.emit({ type: 'message', message: userMsg });
+
+    // El puntaje corre en otro worker y no compite con nada: se lanza ya. Solo
+    // existe si hubo audio: en un turno escrito no hay pronunciacion que medir.
+    if (audio) void scorePronunciation(userMsg, audio.pcm, audio.transcription);
+
+    // LA RESPUESTA DEL TUTOR VA ANTES QUE LAS SUGERENCIAS, Y EL ORDEN IMPORTA.
+    // Las dos salen del MISMO worker y del MISMO modelo, asi que se atienden
+    // una detras de otra. Lanzando primero las sugerencias, la respuesta que el
+    // estudiante esta esperando quedaba detras de DOS generaciones que nadie
+    // espera —una por cada instruccion de `SUGGESTION_PROMPTS`—, y con un modelo
+    // que genera token a token eso se nota de inmediato en el turno.
+    //
+    // Invertido, la respuesta sale primero y las sugerencias se calculan despues,
+    // en segundo plano, actualizando el mismo mensaje cuando terminan. El
+    // contrato no cambia: siguen llegando tarde y siguen siendo opcionales.
+    const replyText = await ai.reply(history, idioma);
+    const tTutor = Date.now();
+
+    // Las sugerencias son reescrituras en ingles: sobre una frase en espanol no
+    // tienen sentido, por la misma razon que la correccion gramatical.
+    if (idioma !== 'es') void suggest(userMsg, texto);
+
+    tiempos = {
+      asr: marcas.tAsr - marcas.t0,
+      gramatica: tGramatica - marcas.tAsr,
+      retroalimentacion: tGramatica - marcas.t0,
+      tutor: tTutor - tGramatica,
+      total: tTutor - marcas.t0,
+      muestras: audio ? audio.pcm.length : 0,
+    };
+    const tutorMsg: ChatMessage = {
+      id: newId(),
+      role: 'tutor',
+      text: replyText,
+      ts: Date.now(),
+    };
+    history.push(tutorMsg);
+    bus.emit({ type: 'message', message: tutorMsg });
+  }
+
+  /**
+   * Turno escrito. Mismo flujo que el hablado, sin reconocedor y sin puntaje.
+   *
+   * El idioma se detecta sobre el texto en vez de sobre el audio, con la misma
+   * consecuencia: en espanol no se corrige gramatica ni se sugiere, y el tutor
+   * ayuda a decirlo en ingles.
+   */
+  async function processTextTurn(texto: string): Promise<void> {
+    const limpio = texto.trim();
+    if (limpio.length === 0) return;
+
+    state = 'processing';
+    try {
+      const t0 = Date.now();
+      // No hay etapa de reconocimiento: `tAsr` coincide con el inicio para que el
+      // reparto de `tiempos` siga siendo valido y la etapa figure en cero, que es
+      // lo que realmente costo.
+      await completarTurno(limpio, detectarIdiomaEscrito(limpio), null, { t0, tAsr: t0 });
+    } catch (err) {
+      bus.emit({
+        type: 'error',
+        stage: 'pipeline',
+        error: err instanceof Error ? err.message : String(err),
+      });
+    } finally {
+      state = 'idle';
+    }
+  }
+
   async function processTurn(pcm: Float32Array): Promise<void> {
     state = 'processing';
     try {
@@ -250,7 +379,11 @@ export function createOrchestrator({ audio, ai, bus, scorer }: Deps): Orchestrat
       // resolucion de milisegundos sobra para etapas de cientos de ms, y asi el
       // nucleo no depende de una API que no existe en el entorno de pruebas.
       const t0 = Date.now();
-      const transcription = await ai.transcribe(pcm);
+      // En modo practica se fuerza ingles: se sabe que la frase objetivo esta en
+      // ingles, y dejar que el detector dude ante una palabra mal pronunciada solo
+      // anade una forma de fallar. En conversacion libre se deja detectar, que es
+      // lo que hace posible responder al estudiante cuando recurre al espanol.
+      const transcription = await ai.transcribe(pcm, fraseObjetivo ? 'en' : undefined);
       const tAsr = Date.now();
       bus.emit({ type: 'transcription', result: transcription });
 
@@ -258,51 +391,16 @@ export function createOrchestrator({ audio, ai, bus, scorer }: Deps): Orchestrat
       // mensaje vacio al chat ni pedirle al tutor que responda a nada.
       if (transcription.text.trim().length === 0) return;
 
-      const correction = await ai.correctGrammar(transcription.text);
-      const tGramatica = Date.now();
+      // El idioma decide dos cosas en este turno. Ausente se trata como ingles,
+      // que es lo que hacian los modelos de solo ingles antes del bilingue.
+      const idioma = transcription.language ?? 'en';
 
-      // En un turno de practica se compara lo transcrito contra la frase que se
-      // pidio repetir. Es la unica senal que depende de la pronunciacion y no de
-      // la voz, y se calcula DENTRO del turno porque es texto contra texto: no
-      // cuesta nada y llega junto con la correccion.
-      const objetivo = fraseObjetivo;
-      const userMsg: ChatMessage = {
-        id: newId(),
-        role: 'user',
-        text: transcription.text,
-        correction,
-        ...(objetivo
-          ? { target: objetivo, targetMatch: compararConObjetivo(objetivo, transcription.text) }
-          : {}),
-        ts: Date.now(),
-      };
-      history.push(userMsg);
-      bus.emit({ type: 'message', message: userMsg });
-
-      // Sin `await`: el turno no espera ni al puntaje ni a las sugerencias, y
-      // los dos actualizan el mismo mensaje cuando terminan (ver cabecera).
-      void scorePronunciation(userMsg, pcm, transcription);
-      void suggest(userMsg, transcription.text);
-
-      const replyText = await ai.reply(history);
-      const tTutor = Date.now();
-
-      tiempos = {
-        asr: tAsr - t0,
-        gramatica: tGramatica - tAsr,
-        retroalimentacion: tGramatica - t0,
-        tutor: tTutor - tGramatica,
-        total: tTutor - t0,
-        muestras: pcm.length,
-      };
-      const tutorMsg: ChatMessage = {
-        id: newId(),
-        role: 'tutor',
-        text: replyText,
-        ts: Date.now(),
-      };
-      history.push(tutorMsg);
-      bus.emit({ type: 'message', message: tutorMsg });
+      await completarTurno(
+        transcription.text,
+        idioma,
+        { pcm, transcription },
+        { t0, tAsr }
+      );
     } catch (err) {
       bus.emit({
         type: 'error',
@@ -330,6 +428,13 @@ export function createOrchestrator({ audio, ai, bus, scorer }: Deps): Orchestrat
       await ai.init((model, progress) => {
         bus.emit({ type: 'model-progress', model, progress });
       });
+    },
+
+    async submitText(text) {
+      // Misma guarda que el microfono: dos turnos a la vez competirian por los
+      // mismos workers y el segundo saldria peor, ademas de desordenar el chat.
+      if (state !== 'idle') return;
+      await processTextTurn(text);
     },
 
     async toggleMic() {

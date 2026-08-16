@@ -22,8 +22,20 @@ function setup(extra: { scorer?: PronunciationScorer; ai?: AIPipeline } = {}) {
   return { bus, orch };
 }
 
-/** Espera a que terminen los calculos que corren fuera del turno. */
-const dejarCorrerElPuntaje = () => new Promise((r) => setTimeout(r, 50));
+/**
+ * Espera a que terminen los calculos que corren fuera del turno: el puntaje de
+ * pronunciacion y las sugerencias.
+ *
+ * POR QUE 400 ms Y NO 50: hasta el 16 de agosto las sugerencias se pedian ANTES
+ * del `await` de la respuesta del tutor, asi que se solapaban con esos 400 ms y ya
+ * habian terminado cuando el turno cerraba; 50 ms bastaban. Al invertir el orden
+ * (I-11: la respuesta del tutor va primero porque comparten worker) las
+ * sugerencias arrancan al final del turno y necesitan sus propios 300 ms del mock.
+ *
+ * El numero sale del mock, no del aire: `mockAIPipeline.suggest` espera 300 ms.
+ * Se deja margen para no volver la suite sensible a la carga de la maquina.
+ */
+const dejarCorrerElPuntaje = () => new Promise((r) => setTimeout(r, 400));
 
 /**
  * Reduce los eventos `message` a la conversacion resultante, colapsando por `id`
@@ -265,7 +277,11 @@ describe('Orchestrator v0 (S2-T7)', () => {
     orch.setFraseObjetivo('I need a new ship');
     await orch.toggleMic();
     await orch.toggleMic();
-    await new Promise((r) => setTimeout(r, 500));
+    // Las sugerencias de esta prueba tardan 500 ms a proposito (200 propios + 300
+    // del mock) y, desde I-11, arrancan cuando el turno ya termino en vez de
+    // solaparse con la respuesta del tutor. Esperar 500 dejaba la prueba empatada
+    // consigo misma: pasaba o fallaba segun la carga de la maquina.
+    await new Promise((r) => setTimeout(r, 900));
 
     const final = eventos.filter((m) => m.role === 'user').at(-1)!;
     expect(final.pronunciation).toBeDefined();
@@ -460,5 +476,256 @@ describe('Orchestrator v0 (S2-T7)', () => {
 
     expect(progress.length).toBeGreaterThan(0);
     expect(progress[progress.length - 1]).toBe(1);
+  });
+});
+
+/**
+ * Tutor bilingue.
+ *
+ * QUE PROTEGEN: un turno en espanol recorre tres ramas distintas del orquestador, y
+ * las tres existen porque los modelos de abajo son de solo ingles. Si alguna se cae,
+ * el fallo no da error: produce basura en pantalla (una "correccion" de una frase en
+ * espanol) o una respuesta que ignora que el estudiante no supo decirlo en ingles.
+ */
+describe('orquestador · turno en espanol', () => {
+  it('NO corrige la gramatica de una frase en espanol', async () => {
+    // El corrector es un T5 entrenado solo en ingles. Aplicarselo a una frase en
+    // espanol no da una correccion mala, da basura, y el chat la resaltaria como si
+    // fuera un error real del estudiante.
+    const bus = createEventBus();
+    const orch = createOrchestrator({
+      audio: createMockAudioEngine(),
+      ai: createMockAIPipeline({ language: 'es' }),
+      bus,
+    });
+
+    const mensajes: ChatMessage[] = [];
+    bus.on('message', (e) => mensajes.push(e.message));
+
+    await orch.toggleMic();
+    await orch.toggleMic();
+    await dejarCorrerElPuntaje();
+
+    const usuario = conversacion(mensajes).find((m) => m.role === 'user');
+    expect(usuario).toBeDefined();
+    // Sin ediciones: no se llamo al corrector, y el texto queda tal cual se dijo.
+    expect(usuario!.correction?.edits).toEqual([]);
+    expect(usuario!.correction?.corrected).toBe(usuario!.text);
+  });
+
+  it('NO pide sugerencias sobre una frase en espanol', async () => {
+    // Las sugerencias son reescrituras en ingles: sobre una frase en espanol no
+    // significan nada, por la misma razon que la correccion.
+    const bus = createEventBus();
+    const orch = createOrchestrator({
+      audio: createMockAudioEngine(),
+      ai: createMockAIPipeline({ language: 'es' }),
+      bus,
+    });
+
+    const mensajes: ChatMessage[] = [];
+    bus.on('message', (e) => mensajes.push(e.message));
+
+    await orch.toggleMic();
+    await orch.toggleMic();
+    await dejarCorrerElPuntaje();
+
+    const usuario = conversacion(mensajes).find((m) => m.role === 'user');
+    expect(usuario!.suggestions).toBeUndefined();
+  });
+
+  it('le pasa el idioma al tutor, que responde ayudando a decirlo en ingles', async () => {
+    const bus = createEventBus();
+    const orch = createOrchestrator({
+      audio: createMockAudioEngine(),
+      ai: createMockAIPipeline({ language: 'es' }),
+      bus,
+    });
+
+    const mensajes: ChatMessage[] = [];
+    bus.on('message', (e) => mensajes.push(e.message));
+
+    await orch.toggleMic();
+    await orch.toggleMic();
+    await dejarCorrerElPuntaje();
+
+    const tutor = conversacion(mensajes).find((m) => m.role === 'tutor');
+    expect(tutor).toBeDefined();
+    // El mock solo devuelve esta frase cuando recibe language: 'es'. Si el
+    // orquestador no le pasara el idioma, responderia la de ingles.
+    expect(tutor!.text).toContain('In English:');
+  });
+
+  it('en ingles se sigue corrigiendo y sugiriendo, como antes', async () => {
+    // La contraparte: el camino bilingue no debe apagar nada del camino normal.
+    const { bus, orch } = setup();
+    const mensajes: ChatMessage[] = [];
+    bus.on('message', (e) => mensajes.push(e.message));
+
+    await orch.toggleMic();
+    await orch.toggleMic();
+    await dejarCorrerElPuntaje();
+
+    const usuario = conversacion(mensajes).find((m) => m.role === 'user');
+    expect(usuario!.correction?.edits.length).toBeGreaterThan(0);
+    expect(usuario!.suggestions?.length).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * Orden de las llamadas dentro del turno.
+ *
+ * QUE PROTEGE: las sugerencias y la respuesta del tutor salen del MISMO worker y
+ * del MISMO modelo, asi que se atienden una detras de otra. Si las sugerencias se
+ * piden primero, la respuesta que el estudiante esta esperando queda detras de dos
+ * generaciones que nadie espera. No da error: solo hace el turno mas lento, que es
+ * la clase de defecto que no se ve en una prueba de contenido.
+ */
+describe('orquestador · orden del turno', () => {
+  it('pide la respuesta del tutor ANTES que las sugerencias', async () => {
+    const orden: string[] = [];
+    const base = createMockAIPipeline();
+    const ai: AIPipeline = {
+      ...base,
+      async suggest(text) {
+        orden.push('suggest');
+        return base.suggest(text);
+      },
+      async reply(history, language) {
+        orden.push('reply');
+        return base.reply(history, language);
+      },
+    };
+
+    const { orch } = setup({ ai });
+    await orch.toggleMic();
+    await orch.toggleMic();
+    await dejarCorrerElPuntaje();
+
+    expect(orden).toContain('reply');
+    expect(orden).toContain('suggest');
+    expect(orden.indexOf('reply')).toBeLessThan(orden.indexOf('suggest'));
+  });
+});
+
+/**
+ * Turno escrito.
+ *
+ * QUE PROTEGE: escribir es una via alternativa para practicar gramatica, no un
+ * reemplazo del microfono. Las dos diferencias con el turno hablado —no pasa por el
+ * reconocedor y no puntua pronunciacion— son deliberadas, y si alguna se pierde el
+ * fallo es silencioso: o se gasta el reconocedor sin motivo, o aparece un puntaje
+ * de pronunciacion calculado sobre un audio que no existe.
+ */
+describe('orquestador · turno escrito', () => {
+  it('NO llama al reconocedor: el texto ya viene escrito', async () => {
+    let transcribeLlamado = false;
+    const base = createMockAIPipeline();
+    const ai: AIPipeline = {
+      ...base,
+      async transcribe(pcm, language) {
+        transcribeLlamado = true;
+        return base.transcribe(pcm, language);
+      },
+    };
+
+    const { orch } = setup({ ai });
+    await orch.submitText('I want to practice my English');
+    await dejarCorrerElPuntaje();
+
+    expect(transcribeLlamado).toBe(false);
+  });
+
+  it('NO puntua pronunciacion: no hay audio que comparar', async () => {
+    let scorerLlamado = false;
+    const scorer: PronunciationScorer = {
+      async score(...args) {
+        scorerLlamado = true;
+        return createMockScorer().score(...args);
+      },
+    };
+
+    const { orch } = setup({ scorer });
+    await orch.submitText('I want to practice my English');
+    await dejarCorrerElPuntaje();
+
+    expect(scorerLlamado).toBe(false);
+  });
+
+  it('SI corrige la gramatica y pide sugerencias, que es para lo que sirve', async () => {
+    const { bus, orch } = setup();
+    const mensajes: ChatMessage[] = [];
+    bus.on('message', (e) => mensajes.push(e.message));
+
+    await orch.submitText('I goed to the store yesterday');
+    await dejarCorrerElPuntaje();
+
+    const usuario = conversacion(mensajes).find((m) => m.role === 'user');
+    expect(usuario).toBeDefined();
+    expect(usuario!.correction?.edits.length).toBeGreaterThan(0);
+    expect(usuario!.suggestions?.length).toBeGreaterThan(0);
+  });
+
+  it('el tutor responde igual que en un turno hablado', async () => {
+    const { bus, orch } = setup();
+    const mensajes: ChatMessage[] = [];
+    bus.on('message', (e) => mensajes.push(e.message));
+
+    await orch.submitText('Hello there');
+    await dejarCorrerElPuntaje();
+
+    const tutor = conversacion(mensajes).find((m) => m.role === 'tutor');
+    expect(tutor).toBeDefined();
+    expect(tutor!.text.length).toBeGreaterThan(0);
+  });
+
+  it('ignora texto vacio o solo espacios', async () => {
+    const { bus, orch } = setup();
+    const mensajes: ChatMessage[] = [];
+    bus.on('message', (e) => mensajes.push(e.message));
+
+    await orch.submitText('   ');
+    await orch.submitText('');
+    await dejarCorrerElPuntaje();
+
+    expect(mensajes).toHaveLength(0);
+  });
+
+  it('detecta el espanol escrito y se salta la correccion', async () => {
+    // Misma regla que en el turno hablado: el corrector es de solo ingles.
+    const { bus, orch } = setup();
+    const mensajes: ChatMessage[] = [];
+    bus.on('message', (e) => mensajes.push(e.message));
+
+    await orch.submitText('Quiero hablar sobre mi trabajo');
+    await dejarCorrerElPuntaje();
+
+    const usuario = conversacion(mensajes).find((m) => m.role === 'user');
+    expect(usuario!.correction?.edits).toEqual([]);
+    expect(usuario!.suggestions).toBeUndefined();
+  });
+
+  it('el texto queda en el historial para el turno siguiente', async () => {
+    // Sin esto el tutor no tendria memoria de lo escrito y la conversacion se
+    // partiria en dos segun se hable o se escriba.
+    const historias: number[] = [];
+    const base = createMockAIPipeline();
+    const ai: AIPipeline = {
+      ...base,
+      async reply(history, language) {
+        historias.push(history.length);
+        return base.reply(history, language);
+      },
+    };
+
+    const { orch } = setup({ ai });
+    await orch.submitText('Hello there');
+    await dejarCorrerElPuntaje();
+    await orch.submitText('How are you');
+    await dejarCorrerElPuntaje();
+
+    // El segundo turno ve mas historial que el primero.
+    expect(historias).toHaveLength(2);
+    expect(historias[1]).toBeGreaterThan(historias[0]);
   });
 });

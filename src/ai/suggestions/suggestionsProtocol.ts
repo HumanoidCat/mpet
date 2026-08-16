@@ -15,10 +15,30 @@
  * constantes reales, no una copia parecida.
  */
 
-/** Los dos tamaños que compara el spike S6-T4. */
+/**
+ * Modelos admitidos para las dos tareas.
+ *
+ * Dos familias distintas, y la diferencia no es de tamaño sino de naturaleza:
+ *
+ * - **LaMini-Flan-T5** (`seq2seq`): recibe una cadena y devuelve una cadena. Es un T5
+ *   de instrucciones — reescribe bien, dialoga mal. No tiene forma de recibir un
+ *   historial: por construcción no puede recordar nada entre turnos.
+ * - **Qwen2.5-Instruct** (`chat`): recibe un array de mensajes con papeles y devuelve
+ *   otro mensaje. Está entrenado para conversar y es **multilingüe**, que es lo que
+ *   hace posible el tutor bilingüe.
+ */
 export type SuggestionsModelId =
   | 'Xenova/LaMini-Flan-T5-248M'
-  | 'Xenova/LaMini-Flan-T5-77M';
+  | 'Xenova/LaMini-Flan-T5-77M'
+  | 'onnx-community/Qwen2.5-0.5B-Instruct';
+
+/**
+ * Cómo se le habla al modelo.
+ *
+ * Decide qué `pipeline` se carga y cómo se arma la entrada, así que no es un detalle
+ * de configuración: los dos caminos son código distinto en el worker.
+ */
+export type SuggestionsModelKind = 'seq2seq' | 'chat';
 
 /**
  * Cuantización.
@@ -28,19 +48,20 @@ export type SuggestionsModelId =
  * q8 funciona — el corrector de gramática corre en q8 en producción y acierta 6 de 8
  * frases. Además fp32 aquí serían 1.1 GB, que no es una opción.
  */
-export type SuggestionsDType = 'q8' | 'fp32';
+export type SuggestionsDType = 'q8' | 'q4' | 'fp32';
 
 export interface SuggestionsConfig {
   id: SuggestionsConfigId;
   label: string;
   model: SuggestionsModelId;
+  kind: SuggestionsModelKind;
   dtype: SuggestionsDType;
   /** Descarga esperada en MB, sumando los archivos ONNX del Hub. */
   expectedMB: number;
   rationale: string;
 }
 
-export type SuggestionsConfigId = 'grande-248m' | 'pequeno-77m';
+export type SuggestionsConfigId = 'grande-248m' | 'pequeno-77m' | 'chat-qwen-05b';
 
 /**
  * Tamaños tomados de los archivos del Hub (consultados el 4-ago-2026):
@@ -56,6 +77,7 @@ export const SUGGESTIONS_CONFIGS: readonly SuggestionsConfig[] = [
     id: 'grande-248m',
     label: 'Grande · LaMini-Flan-T5-248M q8',
     model: 'Xenova/LaMini-Flan-T5-248M',
+    kind: 'seq2seq',
     dtype: 'q8',
     expectedMB: 278,
     rationale:
@@ -67,11 +89,39 @@ export const SUGGESTIONS_CONFIGS: readonly SuggestionsConfig[] = [
     id: 'pequeno-77m',
     label: 'Pequeño · LaMini-Flan-T5-77M q8',
     model: 'Xenova/LaMini-Flan-T5-77M',
+    kind: 'seq2seq',
     dtype: 'q8',
     expectedMB: 98,
     rationale:
       'Casi tres veces más liviano. La duda es si con 77M de parámetros las ' +
       'respuestas salen genéricas o incoherentes: eso es lo que el spike mide.',
+  },
+  {
+    id: 'chat-qwen-05b',
+    label: 'Chat bilingüe · Qwen2.5-0.5B-Instruct q8',
+    model: 'onnx-community/Qwen2.5-0.5B-Instruct',
+    kind: 'chat',
+    // ⚠️ q8 Y NO q4, aunque q4 pesaría menos. **D-05 lo midió en este mismo motor**:
+    // la variante de 4 bits resultó 3.8 veces más lenta Y más pesada en caché,
+    // porque ONNX Runtime sobre WebAssembly no tiene núcleos para enteros de 4 bits
+    // y descuantiza en cada inferencia.
+    //
+    // En un modelo de chat el castigo es mucho peor que en el corrector donde se
+    // midió: aquel descuantizaba una vez por frase, este genera **token a token**,
+    // así que paga esa penalización en cada uno de los hasta 96 tokens de la
+    // respuesta. Se probó q4 el 16-ago y el turno se volvió notoriamente lento.
+    dtype: 'q8',
+    // Sin medir todavía: la cifra sale de la ficha del Hub, no de una descarga
+    // propia. El propio proyecto ya se llevó un susto con esto en D-12 (Kokoro se
+    // estimó en 325 MB y medido cuantizado pesaba 88), así que este número es una
+    // referencia para decidir si vale la pena medir, no un dato.
+    expectedMB: 500,
+    rationale:
+      'Modelo de chat de verdad y multilingüe: recibe el historial con papeles y ' +
+      'está entrenado para usarlo, así que puede recordar entre turnos y responder ' +
+      'preguntas de contenido — dos cosas que un T5 de instrucciones no puede hacer ' +
+      'ni en principio. Es además lo que hace posible el tutor bilingüe: LaMini solo ' +
+      'sabe inglés. En 8 bits por D-05: en este motor, 4 bits es más lento y más pesado.',
   },
 ] as const;
 
@@ -90,7 +140,18 @@ export function getSuggestionsConfig(id: SuggestionsConfigId): SuggestionsConfig
  * Cuando la salida no se le puede enseñar a un estudiante, ahorrar 172 MiB no es un
  * ahorro. Evidencia: docs/evidencias/s6/s6-t4-modelo-tutor.md
  */
-export const DEFAULT_SUGGESTIONS_CONFIG: SuggestionsConfigId = 'grande-248m';
+export const DEFAULT_SUGGESTIONS_CONFIG: SuggestionsConfigId = 'chat-qwen-05b';
+
+/**
+ * Config anterior, que se mantiene seleccionable a propósito.
+ *
+ * Si al medir el modelo de chat en la aplicación real la latencia o el peso no
+ * salen, se vuelve cambiando la constante de arriba a `'grande-248m'`: el worker
+ * soporta las dos familias y el resto de la cadena no se entera. Tener la vuelta
+ * atrás a una línea de distancia es lo que permite probar el cambio grande sin
+ * arriesgar la entrega.
+ */
+export const FALLBACK_SUGGESTIONS_CONFIG: SuggestionsConfigId = 'grande-248m';
 
 // ── Prompts fijos ────────────────────────────────────────────────────────────
 
@@ -179,6 +240,91 @@ export interface HistoryTurn {
   text: string;
 }
 
+// ── Tutor bilingüe con modelo de chat ────────────────────────────────────────
+
+/**
+ * Un mensaje tal como lo espera un modelo de chat.
+ *
+ * `assistant` y no `tutor`: es el papel que entiende la plantilla de chat del modelo.
+ * Traducir de `HistoryTurn` a esto es justamente el trabajo de `buildTutorMessages`.
+ */
+export interface ChatTurn {
+  role: 'system' | 'user' | 'assistant';
+  content: string;
+}
+
+/**
+ * Instrucción de sistema del tutor bilingüe.
+ *
+ * POR QUÉ AQUÍ SÍ SE LE DA UN PAPEL, cuando `TUTOR_INSTRUCTION` advierte de no
+ * hacerlo: aquella advertencia vale para LaMini-Flan-T5, donde pedir un papel
+ * disparaba negativas memorizadas (I-09). Un modelo de chat tiene un lugar
+ * *previsto* para la instrucción de sistema y está entrenado para recibirla ahí; es
+ * al revés, no dársela es lo que produce respuestas erráticas. Se conservan las dos
+ * porque el proyecto admite las dos familias de modelo.
+ *
+ * QUÉ HACE BILINGÜE AL TUTOR: la regla del español. Un principiante que todavía no
+ * consigue armar la frase en inglés se queda mudo si la aplicación no lo entiende, y
+ * esa es exactamente la barrera que el proyecto existe para bajar. Cuando el
+ * estudiante recurre al español, el tutor no lo corrige por hacerlo: le da la frase
+ * en inglés y sigue conversando.
+ *
+ * El límite de una o dos frases no es estético. La respuesta se sintetiza con voz y
+ * se escucha entera: un párrafo se vuelve un audio largo que el estudiante no espera.
+ */
+export const TUTOR_SYSTEM_EN =
+  'You are a warm, patient English conversation tutor for a Spanish-speaking learner. ' +
+  'Reply in one or two short sentences, and end with a question to keep the conversation going. ' +
+  'Talk about what the student actually said; never repeat their sentence back as a question. ' +
+  'If the student writes in Spanish, reply in English but first give them the English words ' +
+  'they needed, like this: «You can say: ...». Never mention being an AI or a model.';
+
+/**
+ * Variante para cuando el turno del estudiante vino en español.
+ *
+ * Se cambia la instrucción entera en vez de añadir una línea porque el modelo es
+ * pequeño: cuanto más corta y directa la orden, más la sigue. Aquí lo importante es
+ * que la ayuda en inglés vaya **primero** — es lo que el estudiante necesita para
+ * poder seguir— y que no se le regañe por haber usado el español.
+ */
+export const TUTOR_SYSTEM_ES =
+  'You are a warm, patient English conversation tutor. The student just wrote in Spanish ' +
+  'because they could not say it in English yet. Do not scold them for it. ' +
+  'First give them the English sentence they were trying to say, introduced by «In English: ». ' +
+  'Then ask them one short question in English to continue the conversation. ' +
+  'Keep the whole reply under three sentences. Never mention being an AI or a model.';
+
+/**
+ * Arma la conversación para un modelo de chat.
+ *
+ * A DIFERENCIA DE `buildTutorPrompt`, AQUÍ SÍ SE PASA EL HISTORIAL COMPLETO. La
+ * prohibición que impuso I-10 —no darle al modelo sus propias respuestas— era una
+ * mitigación para un modelo que copiaba lo que tuviera delante. Un modelo de chat
+ * está entrenado para recibir sus turnos anteriores con el papel `assistant`, y sin
+ * ellos no puede recordar nada: perdería justamente la capacidad por la que se lo
+ * trae. La protección contra la repetición no desaparece, se mueve a donde
+ * corresponde: `cleanTutorReply` sigue comparando contra la respuesta anterior.
+ *
+ * El recorte a `turns` se mantiene por la razón de siempre: la latencia crece con la
+ * entrada, y el modelo tiene una ventana de contexto finita.
+ */
+export function buildTutorMessages(
+  history: readonly HistoryTurn[],
+  language: 'en' | 'es' = 'en',
+  turns: number = HISTORY_TURNS
+): ChatTurn[] {
+  const recientes = history.slice(-turns);
+  return [
+    { role: 'system', content: language === 'es' ? TUTOR_SYSTEM_ES : TUTOR_SYSTEM_EN },
+    ...recientes.map(
+      (m): ChatTurn => ({
+        role: m.role === 'user' ? 'user' : 'assistant',
+        content: m.text,
+      })
+    ),
+  ];
+}
+
 /**
  * Arma el prompt del tutor a partir del historial.
  *
@@ -202,12 +348,55 @@ export function buildTutorPrompt(
   return `${TUTOR_INSTRUCTION} "${frase}"`;
 }
 
+// ── Parámetros de generación ─────────────────────────────────────────────────
+
+/**
+ * Cómo genera cada tarea, y por qué **no** son iguales.
+ *
+ * Hasta ahora las dos usaban decodificación voraz (`do_sample: false`). Para las
+ * sugerencias es lo correcto y se mantiene: con muestreo, la misma frase daría una
+ * sugerencia distinta en cada intento y el estudiante no entendería por qué cambia.
+ * Reproducible es mejor que variado cuando lo que se muestra es una corrección.
+ *
+ * **Para conversar es justo al revés, y es la causa que faltaba probar.** La
+ * decodificación voraz toma siempre el token más probable, así que ante entradas
+ * parecidas produce salidas idénticas — es determinista por definición. Eso explica
+ * las respuestas repetidas que se vieron en producción con LaMini y también las que
+ * Isaac encontró al medir SmolLM2, donde 4 de 6 respuestas salieron iguales carácter
+ * por carácter. Él lo dejó anotado como sospecha —*«reconsiderar si el límite es la
+ * decodificación voraz en sí y no el modelo»*— y probó `repetition_penalty` y
+ * `no_repeat_ngram_size`, que son parches sobre el síntoma: penalizan repetir sin
+ * quitar el determinismo. Muestrear sí lo quita.
+ *
+ * Los valores son los habituales para diálogo corto: `temperature` 0.7 da variedad
+ * sin incoherencia, y `top_p` 0.9 corta la cola de tokens improbables, que es de
+ * donde sale el disparate cuando se muestrea sin límite.
+ *
+ * Queda por medir en la aplicación real si esto basta por sí solo. Es barato de
+ * comprobar: hablar tres veces seguidas y ver si las respuestas difieren.
+ */
+export const GEN_SUGGEST = {
+  do_sample: false,
+} as const;
+
+export const GEN_REPLY = {
+  do_sample: true,
+  temperature: 0.7,
+  top_p: 0.9,
+} as const;
+
 // ── Mensajes entre el hilo principal y el worker ─────────────────────────────
 
 export type SuggestionsRequest =
   | { type: 'init'; config: SuggestionsConfigId }
   | { type: 'suggest'; id: number; text: string }
-  | { type: 'reply'; id: number; history: HistoryTurn[] };
+  | {
+      type: 'reply';
+      id: number;
+      history: HistoryTurn[];
+      /** Idioma del último turno del estudiante; decide qué instrucción se usa. */
+      language?: 'en' | 'es';
+    };
 
 export type SuggestionsResponse =
   | { type: 'progress'; model: string; progress: number }

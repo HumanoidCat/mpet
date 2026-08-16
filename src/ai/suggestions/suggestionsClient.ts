@@ -24,8 +24,14 @@ export interface SuggestionsClient {
   init(onProgress?: (model: string, progress: number) => void): Promise<void>;
   /** Sugerencias de mejora para la frase. Puede devolver lista vacía. */
   suggest(text: string): Promise<string[]>;
-  /** Respuesta conversacional del tutor. */
-  reply(history: readonly HistoryTurn[]): Promise<string>;
+  /**
+   * Respuesta conversacional del tutor.
+   *
+   * `language` es el idioma del último turno del estudiante. En español el tutor
+   * cambia de tarea: en vez de conversar, le da la frase en inglés que no supo decir
+   * y sigue desde ahí.
+   */
+  reply(history: readonly HistoryTurn[], language?: 'en' | 'es'): Promise<string>;
   dispose(): void;
 }
 
@@ -126,13 +132,13 @@ export function createSuggestionsClient(
       });
     },
 
-    reply(history) {
+    reply(history, language) {
       return new Promise<string>((resolve, reject) => {
         const id = nextId++;
         pending.set(id, { kind: 'reply', resolve, reject });
         // Se copia el historial a un array plano: lo que llega puede ser readonly y
         // `postMessage` necesita algo clonable.
-        send({ type: 'reply', id, history: [...history] });
+        send({ type: 'reply', id, history: [...history], ...(language ? { language } : {}) });
       });
     },
 

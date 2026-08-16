@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Mic, Square, Clock, AlertCircle, Play, Gauge, ChevronDown } from 'lucide-react';
+import { Mic, Square, Clock, AlertCircle, Play, Gauge, ChevronDown, Send } from 'lucide-react';
 import type { AudioEngine, ChatMessage } from '@shared/contracts';
 import type { OrchestratorState } from '@core/orchestrator';
 import { buildSegments, buildPronunciationSegments } from './highlight';
@@ -36,11 +36,29 @@ interface Props {
    * de simular audio falso.
    */
   onPlay?: (text: string, slow: boolean) => void;
+  /**
+   * Envia un turno escrito. Opcional: sin esto el campo de texto no se
+   * muestra y el chat queda como estaba, solo con microfono.
+   *
+   * El microfono sigue siendo la via principal — es lo que permite puntuar
+   * pronunciacion. Escribir es una alternativa para practicar gramatica y
+   * vocabulario cuando no se puede o no se quiere hablar.
+   */
+  onSubmitText?: (text: string) => void;
 }
 
-export function Chat({ messages, state, onMicClick, audio, onPlay }: Props) {
+export function Chat({ messages, state, onMicClick, audio, onPlay, onSubmitText }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [openExplanation, setOpenExplanation] = useState<string | null>(null);
+  const [borrador, setBorrador] = useState('');
+
+  const puedeEnviar = borrador.trim().length > 0 && state === 'idle';
+
+  function enviarTexto() {
+    if (!puedeEnviar || !onSubmitText) return;
+    onSubmitText(borrador.trim());
+    setBorrador('');
+  }
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -301,6 +319,51 @@ export function Chat({ messages, state, onMicClick, audio, onPlay }: Props) {
             )}
           </button>
         </div>
+
+        {/* Turno escrito, secundario al microfono a proposito: mas pequeno,
+            debajo, y separado por la linea de "o escribe". Practicar gramatica
+            no necesita hablar, pero hablar es lo que ensena esta aplicacion. */}
+        {onSubmitText && (
+          <div className="w-full max-w-xl">
+            <div className="flex items-center gap-3 mb-2">
+              <span className="h-px flex-1 bg-slate-200" />
+              <span className="text-[11px] text-slate-400">o escribe para practicar gramática</span>
+              <span className="h-px flex-1 bg-slate-200" />
+            </div>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                enviarTexto();
+              }}
+              className="flex gap-2"
+            >
+              <input
+                type="text"
+                value={borrador}
+                onChange={(e) => setBorrador(e.target.value)}
+                disabled={state !== 'idle'}
+                placeholder="Escribe en inglés…"
+                aria-label="Escribe tu mensaje para practicar gramática"
+                className="flex-1 rounded-full border border-slate-300 px-4 py-2 text-sm outline-none transition-colors focus:border-blue-500 disabled:bg-slate-100 disabled:text-slate-400"
+              />
+              <button
+                type="submit"
+                disabled={!puedeEnviar}
+                aria-label="Enviar mensaje escrito"
+                className={`rounded-full px-4 py-2 text-sm font-medium transition-colors ${
+                  puedeEnviar
+                    ? 'bg-blue-600 text-white hover:bg-blue-700'
+                    : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                }`}
+              >
+                <Send className="w-4 h-4" />
+              </button>
+            </form>
+            <p className="mt-1.5 text-[11px] text-slate-400 text-center">
+              Al escribir no se puntúa la pronunciación: para eso hay que hablar.
+            </p>
+          </div>
+        )}
       </div>
     </section>
   );

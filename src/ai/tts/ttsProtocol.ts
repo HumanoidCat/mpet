@@ -12,8 +12,16 @@
  * solo archivo de 114 MB. Ver `docs/evidencias/s4/s4-t5-tts-spike.md`.
  */
 
-/** Modelos de síntesis evaluados. Ambos declaran salida a 16 kHz. */
-export type TtsModelId = 'Xenova/speecht5_tts' | 'Xenova/mms-tts-eng';
+/**
+ * Modelos de síntesis evaluados.
+ *
+ * Los dos primeros declaran salida a 16 kHz, la del proyecto. **Kokoro sale a 24 kHz
+ * y hay que remuestrear**, que es la única diferencia de tratamiento que exige.
+ */
+export type TtsModelId =
+  | 'Xenova/speecht5_tts'
+  | 'Xenova/mms-tts-eng'
+  | 'onnx-community/Kokoro-82M-v1.0-ONNX';
 
 /**
  * Vocoder de SpeechT5 (espectrograma → onda). Es un **repositorio aparte**.
@@ -36,7 +44,13 @@ export const VITS_MODEL: TtsModelId = 'Xenova/mms-tts-eng';
 
 export type TtsDType = 'fp32' | 'q8';
 
-export type TtsConfigId = 'A-fp32' | 'B-mixto' | 'C-q8' | 'D-vits-fp32' | 'E-vits-q8';
+export type TtsConfigId =
+  | 'A-fp32'
+  | 'B-mixto'
+  | 'C-q8'
+  | 'D-vits-fp32'
+  | 'E-vits-q8'
+  | 'F-kokoro-q8';
 
 interface TtsConfigBase {
   id: TtsConfigId;
@@ -76,7 +90,46 @@ export interface VitsConfig extends TtsConfigBase {
   dtype: TtsDType;
 }
 
-export type TtsConfig = SpeechT5Config | VitsConfig;
+/**
+ * Voces de Kokoro que usa el proyecto.
+ *
+ * Kokoro exige nombrar una voz en cada síntesis: la voz no está en los pesos como en
+ * MMS-TTS, viene de un vector aparte. Se listan solo las americanas porque el
+ * proyecto enseña inglés estadounidense y el reconocedor es `whisper-tiny.en`;
+ * mezclar acentos metería una variable en el puntaje de pronunciación que nadie
+ * quiere medir.
+ *
+ * `af_heart` es la única con calificación **A** en la tabla oficial de voces, y es la
+ * que se usó para medir el banco de 14+5 palabras (1 fallo de 14 contra los 7 de
+ * MMS-TTS). Cambiar de voz invalidaría esa medición.
+ */
+export type KokoroVoice = 'af_heart' | 'af_bella' | 'am_michael' | 'am_fenrir';
+
+/**
+ * Kokoro-82M: sintetizador con vector de voz separado de los pesos.
+ *
+ * DOS DIFERENCIAS DE TRATAMIENTO respecto a MMS-TTS, las dos obligatorias:
+ *   1. **Sale a 24 kHz.** Hay que remuestrear a 16 antes de devolver el PCM, o la
+ *      referencia sonaría con el tono alterado y sus MFCC no serían comparables con
+ *      los del estudiante. Se usa `resample()` del módulo de audio, que ya lo
+ *      resuelve con filtro antisolapamiento y tiene pruebas propias.
+ *   2. **Hay que nombrar la voz** en cada llamada.
+ *
+ * A cambio: falla 1 de 14 palabras trampa donde MMS-TTS falla 7, es **determinista**
+ * —dos síntesis del mismo texto dan muestras idénticas, lo que elimina el suelo de
+ * 49.5 que MMS-TTS le imponía al puntaje (R03) y cierra R16— y cuantizado pesa menos
+ * (88.1 MiB medidos contra 109.0). Evidencia: `docs/evidencias/s7/d12-kokoro-decision-final.md`.
+ */
+export interface KokoroConfig extends TtsConfigBase {
+  engine: 'kokoro';
+  model: 'onnx-community/Kokoro-82M-v1.0-ONNX';
+  dtype: TtsDType;
+  voice: KokoroVoice;
+  /** Frecuencia nativa del modelo, de la que hay que remuestrear. */
+  nativeSampleRate: 24000;
+}
+
+export type TtsConfig = SpeechT5Config | VitsConfig | KokoroConfig;
 
 /**
  * Configuraciones que compara el spike S4-T5.
@@ -156,6 +209,24 @@ export const TTS_CONFIGS: readonly TtsConfig[] = [
       'El extremo liviano. Se mide para saber si VITS aguanta la cuantización ' +
       'mejor que SpeechT5, no porque se espere que sí.',
   },
+  {
+    id: 'F-kokoro-q8',
+    label: 'F · Kokoro-82M q8',
+    engine: 'kokoro',
+    model: 'onnx-community/Kokoro-82M-v1.0-ONNX',
+    dtype: 'q8',
+    voice: 'af_heart',
+    nativeSampleRate: 24000,
+    // 88.1 MiB **medidos** sobre caché real en el spike de D-12, no leídos de la
+    // ficha del Hub. La propuesta original estimaba 325 MB sin cuantizar; medirlo
+    // cambió la decisión, y por eso aquí la cifra es la medida.
+    expectedMB: 88,
+    rationale:
+      'Adoptado por D-17. Falla 1 de 14 palabras trampa donde MMS-TTS falla 7, ' +
+      'acierta las 5 de control donde MMS-TTS falla 2, es determinista (elimina el ' +
+      'suelo de 49.5 del puntaje, R03, y cierra R16) y cuantizado pesa menos que ' +
+      'MMS-TTS. Cuesta remuestrear de 24 a 16 kHz y una dependencia nueva.',
+  },
 ] as const;
 
 export function getTtsConfig(id: TtsConfigId): TtsConfig {
@@ -167,12 +238,17 @@ export function getTtsConfig(id: TtsConfigId): TtsConfig {
 /**
  * Configuración por defecto del worker.
  *
- * ⚠️ SIN FIJAR TODAVÍA. Las tres configuraciones de SpeechT5 quedaron descartadas
- * por la escucha del 3-ago (A inteligible pero 613 MB; B y C no). El candidato es
- * D, pendiente de escucharlo. Se fija cuando el spike lo confirme y se documenta
- * en `docs/evidencias/s4/s4-t5-tts-spike.md`.
+ * **Kokoro desde D-17.** El umbral para pedir el cambio se fijó antes de medir
+ * —5 fallos o más de 14 abrían el `shared-change`— y MMS-TTS dio 7. Medido Kokoro
+ * con el mismo banco: 1 de 14. La decisión y sus condiciones están en D-12 y D-17.
+ *
+ * VUELTA ATRÁS: `'D-vits-fp32'` devuelve el worker a MMS-TTS. Sigue implementado y
+ * probado; lo único que se pierde es la calidad y el determinismo.
  */
-export const DEFAULT_TTS_CONFIG: TtsConfigId = 'D-vits-fp32';
+export const DEFAULT_TTS_CONFIG: TtsConfigId = 'F-kokoro-q8';
+
+/** Config anterior, por si hay que volver atrás sin buscar el identificador. */
+export const FALLBACK_TTS_CONFIG: TtsConfigId = 'D-vits-fp32';
 
 // ── Mensajes entre el hilo principal y el worker ─────────────────────────────
 
