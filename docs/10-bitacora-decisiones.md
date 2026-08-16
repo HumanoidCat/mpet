@@ -1063,3 +1063,77 @@ que se ve. Se prefiere el error que se nota.
 pequeño, separado por una línea que dice «o escribe para practicar gramática». No
 es simetría visual: hablar es lo que esta aplicación enseña, y escribir es la
 alternativa.
+
+---
+
+## I-12 · La compilación falló con las pruebas en verde (Semana 8)
+
+**Detección.** Integración continua, commit `bfc80b1`. El paso `npm run build`
+falló con código 1. En local: `tsc` limpio y 618 pruebas verdes.
+
+**Dos causas encadenadas.** Al arreglar la primera apareció la segunda, que
+estaba detrás y no podía verse antes.
+
+### Causa 1 · Módulos de Node en una dependencia de navegador
+
+`kokoro-js` importa `path` y `fs/promises` en su compilado. Son
+módulos de Node que no existen en el navegador, así que Rollup no puede
+resolverlos y aborta.
+
+El paquete lo tiene previsto: declara `"browser": { "path": false, "fs/promises": false }`
+porque solo los usa en la ruta de Node —cargar los vectores de voz desde disco— y
+en el navegador nunca llega ahí. Vite honra ese campo al resolver desde el grafo
+de la aplicación, pero **el import ocurre dentro de un Web Worker**, que Rollup
+empaqueta como entrada aparte, y ahí no se aplica.
+
+**Por qué no lo vio nada de lo que sí se ejecutó.** Ni `tsc` ni Vitest empaquetan:
+el primero comprueba tipos y el segundo resuelve módulos en Node, donde `path`
+existe de verdad. **La única etapa que lo detecta es la que produce el artefacto
+que se despliega**, y es la última de las tres.
+
+**Acción.** Alias de `path` y `fs/promises` a un módulo vacío
+(`src/shared/emptyModule.ts`), activo solo fuera de Vitest: cuatro pruebas usan
+`node:path` para leer ficheros de apoyo, y aunque hoy ese especificador es
+distinto y no colisiona, dejar el alias activo bajo las pruebas convertiría un
+futuro cambio de `node:path` a `path` en un fallo difícil de entender.
+
+El módulo vacío no simula métodos a propósito. Si alguna vez se alcanzara esa
+ruta de verdad, un `join()` que devuelve una cadena inventada fallaría más tarde
+y lejos de la causa.
+
+### Causa 2 · Formato de salida de los Web Workers
+
+Resuelta la primera, la compilación llegó a transformar 1 571 módulos y falló al
+empaquetar: *«UMD and IIFE output formats are not supported for code-splitting
+builds»*.
+
+El worker de TTS carga `kokoro-js` con un `import()` **dinámico**, para que el
+paquete no entre en el fragmento inicial. Un import dinámico obliga a dividir el
+código, y Vite compila los workers en formato IIFE por defecto, que no admite
+división.
+
+**Acción.** `worker: { format: 'es' }`. No añade ningún requisito de navegador:
+los cuatro workers del proyecto ya se instancian con `{ type: 'module' }` desde
+sus clientes, así que la compatibilidad mínima ya era la de los workers de módulo
+—Chrome 80, Safari 15, Firefox 114, documentada en S8-T4—. El ajuste solo alinea
+el formato de salida con cómo se cargan de verdad.
+
+**Resultado, y confirma que el import dinámico cumple su función:** Kokoro sale
+en su propio fragmento de **1.33 MB**, separado del código de la aplicación
+(254 kB) y de los otros tres workers. Quien nunca pida audio no lo descarga.
+
+**Aprendizaje.** Una dependencia nueva no está verificada hasta que **compila**,
+no hasta que pasan los tipos y las pruebas. Las tres etapas comprueban cosas
+distintas, y la de empaquetado es la única que ejerce las condiciones reales del
+navegador — incluidos los límites de los Web Workers, que no se parecen a los del
+grafo principal.
+
+Que las dos causas estuvieran encadenadas lo refuerza: arreglar la primera no
+daba ninguna garantía sobre la segunda, y **la única forma de saberlo era volver
+a compilar**. Un cambio de dependencia se da por bueno cuando `npm run build`
+termina, no cuando el razonamiento parece correcto.
+
+**Nota adicional, verificada al investigar.** `phonemizer` —la otra dependencia
+que entró con Kokoro— lleva eSpeak embebido en su propio bundle de 1.3 MB, sin
+`fetch` ni ficheros externos. No compromete el funcionamiento sin conexión
+(RF-14), que era la duda razonable al ver que usaba WASM.
