@@ -6,8 +6,8 @@
  *   ✅ transcribe     — S2-T4: ASR real con timestamps por palabra
  *   ✅ correctGrammar — S3-T3: T5 cuantizado + diff palabra a palabra
  *   ✅ speak          — S5-T5: MMS-TTS, PCM de referencia a 16 kHz
- *   ✅ suggest        — S6-T4: LaMini-Flan-T5-248M con prompts fijos
- *   ✅ reply          — S7-T2: mismo modelo, prompt de tutor
+ *   ✅ suggest        — S6-T4: prompts fijos, generación reproducible
+ *   ✅ reply          — S7-T2: tutor bilingüe con modelo de chat y muestreo
  *
  * El contrato queda completo: ya no hay etapas de paso a través. Durante semanas las
  * pendientes devolvieron valores neutros —lista vacía, frase fija, silencio— para que
@@ -18,10 +18,24 @@
  *   `init()`      → reconocedor y corrector, ~303 MiB. Son los que hacen falta en
  *                   cuanto el estudiante abre la boca.
  *   bajo demanda  → sintetizador (109 MiB) al pedir audio, y modelo del tutor
- *                   (265 MiB) en el primer turno de conversación.
+ *                   en el primer turno de conversación.
+ *
+ * ⚠️ EL PESO DEL TUTOR ESTÁ SIN MEDIR desde que pasó a ser un modelo de chat. El de
+ * antes ocupaba 265 MiB medidos; del nuevo solo se conoce la ficha del Hub, y este
+ * proyecto ya se llevó un susto con eso (D-12: Kokoro se estimó en 325 MB y
+ * cuantizado medía 88). **Hay que medir la descarga real antes de dar por bueno el
+ * cambio**, y comprobar que la latencia del turno sigue dentro del presupuesto de
+ * D-15. Si no sale, la vuelta atrás es una constante:
+ * `DEFAULT_SUGGESTIONS_CONFIG` en `suggestions/suggestionsProtocol.ts`.
  */
 
-import type { AIPipeline, ChatMessage, Edit, Transcription } from '@shared/contracts';
+import type {
+  AIPipeline,
+  ChatMessage,
+  Edit,
+  SupportedLanguage,
+  Transcription,
+} from '@shared/contracts';
 import { createAsrClient, type AsrClientOptions } from './asr/asrClient';
 import { createGrammarClient, type GrammarClientOptions } from './grammar/grammarClient';
 import { createLazyLoader } from './lazy';
@@ -83,8 +97,8 @@ export function createAIPipeline(options: AIPipelineOptions = {}): AIPipeline {
       await grammar.init(report);
     },
 
-    transcribe(pcm: Float32Array): Promise<Transcription> {
-      return asr.transcribe(pcm);
+    transcribe(pcm: Float32Array, language?: SupportedLanguage): Promise<Transcription> {
+      return asr.transcribe(pcm, language);
     },
 
     correctGrammar(text: string): Promise<{ corrected: string; edits: Edit[] }> {
@@ -128,9 +142,12 @@ export function createAIPipeline(options: AIPipelineOptions = {}): AIPipeline {
      * audio, y mandar todo eso al worker en cada turno sería copiar megabytes que el
      * modelo no mira.
      */
-    async reply(history: ChatMessage[]): Promise<string> {
+    async reply(history: ChatMessage[], language?: SupportedLanguage): Promise<string> {
       await suggestionsLoader.ensure();
-      return suggestions.reply(history.map((m) => ({ role: m.role, text: m.text })));
+      return suggestions.reply(
+        history.map((m) => ({ role: m.role, text: m.text })),
+        language
+      );
     },
   };
 }

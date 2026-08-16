@@ -10,34 +10,57 @@
  * S6-T4), y un turno completo son tres generaciones. En el hilo principal la interfaz
  * quedaría congelada varios segundos por turno. Es además requisito del equipo.
  *
- * POR QUÉ ESTE MODELO: el spike comparó los dos tamaños de LaMini-Flan-T5. El de 77M
- * (93 MiB) no ejecuta la instrucción, la parafrasea, y ninguna de sus cuatro
- * respuestas fue utilizable; el de 248M (265 MiB) devolvió las cuatro coherentes y
- * terminadas en pregunta. Detalle en `docs/evidencias/s6/s6-t4-modelo-tutor.md`.
+ * DOS FAMILIAS DE MODELO, y el worker soporta las dos:
  *
- * DECODIFICACIÓN VORAZ (`do_sample: false`), igual que el corrector de gramática: con
- * muestreo aleatorio la misma frase daría sugerencias distintas en cada intento y el
- * estudiante no entendería por qué cambian. Reproducible es mejor que variado.
+ *   - **`seq2seq`** (LaMini-Flan-T5): cadena de entrada, cadena de salida. Fue el
+ *     modelo original, elegido en el spike S6-T4. Reescribe bien y dialoga mal: no
+ *     tiene forma de recibir un historial, así que por construcción no recuerda nada
+ *     entre turnos. Detalle en `docs/evidencias/s6/s6-t4-modelo-tutor.md`.
+ *   - **`chat`** (Qwen2.5-Instruct): recibe la conversación con papeles y devuelve un
+ *     turno nuevo. Está entrenado para dialogar y es multilingüe, que es lo que hace
+ *     posible el tutor bilingüe.
+ *
+ * CÓMO GENERA CADA TAREA: las sugerencias siguen siendo voraces (`do_sample: false`)
+ * porque una corrección que cambia en cada intento confunde al estudiante. La
+ * conversación pasa a muestreo, y eso **es el arreglo de la repetición**: la
+ * decodificación voraz toma siempre el token más probable, así que ante entradas
+ * parecidas devuelve la misma salida. Ver `GEN_SUGGEST` y `GEN_REPLY`.
  */
 
 import { pipeline } from '@huggingface/transformers';
 import { createRangedProgressAggregator, type RawProgressEvent } from '../model-cache/progress';
 import { cleanSuggestions, cleanTutorReply } from './cleanup';
 import {
+  GEN_REPLY,
+  GEN_SUGGEST,
   SUGGESTION_PROMPTS,
   buildSuggestionPrompt,
+  buildTutorMessages,
   buildTutorPrompt,
   getSuggestionsConfig,
+  type ChatTurn,
+  type SuggestionsModelKind,
   type SuggestionsRequest,
   type SuggestionsResponse,
 } from './suggestionsProtocol';
 
-type Generator = (
+/** Un T5: cadena de entrada, cadena de salida. */
+type Seq2SeqGenerator = (
   input: string,
   options?: Record<string, unknown>
 ) => Promise<Array<{ generated_text: string }>>;
 
-let generator: Generator | null = null;
+/**
+ * Un modelo de chat: array de mensajes de entrada, y de salida **la conversación
+ * entera con el mensaje nuevo al final** — de ahí el `.at(-1)` al leer la respuesta.
+ */
+type ChatGenerator = (
+  messages: ChatTurn[],
+  options?: Record<string, unknown>
+) => Promise<Array<{ generated_text: ChatTurn[] }>>;
+
+let generator: Seq2SeqGenerator | ChatGenerator | null = null;
+let kind: SuggestionsModelKind = 'seq2seq';
 
 /**
  * Última respuesta dada y número de turno, para los chequeos de `cleanTutorReply`
@@ -61,15 +84,59 @@ const post = (msg: SuggestionsResponse) =>
 const MAX_TOKENS_SUGGESTION = 64;
 const MAX_TOKENS_REPLY = 48;
 
-async function generate(prompt: string, maxTokens: number): Promise<string> {
+/**
+ * Techo más alto para el tutor de chat.
+ *
+ * 48 tokens alcanzan para la única frase que se le pedía a LaMini, pero un turno
+ * bilingüe es más largo por necesidad: primero da la frase en inglés que el
+ * estudiante no supo decir y después pregunta algo. Con el techo de 48 esa respuesta
+ * se cortaría a la mitad, justo en la parte útil.
+ */
+const MAX_TOKENS_REPLY_CHAT = 96;
+
+/**
+ * Genera a partir de una cadena. Solo válido con modelos `seq2seq`.
+ *
+ * `params` viaja explícito en vez de estar fijo aquí dentro porque las dos tareas
+ * generan distinto a propósito: las sugerencias voraces (reproducibles) y la
+ * conversación con muestreo (variada). Ver `GEN_SUGGEST` y `GEN_REPLY`.
+ */
+async function generateSeq2Seq(
+  prompt: string,
+  maxTokens: number,
+  params: Record<string, unknown>
+): Promise<string> {
   if (!generator) {
     throw new Error('El modelo del tutor no está cargado: llama a init() primero.');
   }
-  const out = await generator(prompt, {
-    do_sample: false,
+  if (kind !== 'seq2seq') {
+    throw new Error('Se pidió generación de texto plano a un modelo de chat.');
+  }
+  const out = await (generator as Seq2SeqGenerator)(prompt, {
+    ...params,
     max_new_tokens: maxTokens,
   });
   return (out?.[0]?.generated_text ?? '').trim();
+}
+
+/** Genera a partir de una conversación con papeles. Solo válido con modelos `chat`. */
+async function generateChat(
+  messages: ChatTurn[],
+  maxTokens: number,
+  params: Record<string, unknown>
+): Promise<string> {
+  if (!generator) {
+    throw new Error('El modelo del tutor no está cargado: llama a init() primero.');
+  }
+  if (kind !== 'chat') {
+    throw new Error('Se pidió generación conversacional a un modelo que no es de chat.');
+  }
+  const out = await (generator as ChatGenerator)(messages, {
+    ...params,
+    max_new_tokens: maxTokens,
+  });
+  // La salida es la conversación completa; el turno nuevo es el último.
+  return (out?.[0]?.generated_text?.at(-1)?.content ?? '').trim();
 }
 
 self.onmessage = async (event: MessageEvent<SuggestionsRequest>) => {
@@ -86,12 +153,22 @@ self.onmessage = async (event: MessageEvent<SuggestionsRequest>) => {
         post({ type: 'progress', model: config.model, progress: p })
       );
 
-      const loaded = await pipeline('text2text-generation', config.model, {
-        dtype: config.dtype,
-        progress_callback: (e) => progress.handle(e as RawProgressEvent),
-      });
+      // Dos familias, dos pipelines distintos de transformers.js. `text-generation`
+      // es el que acepta un array de mensajes y aplica la plantilla de chat del
+      // propio tokenizador; `text2text-generation` es el de los T5.
+      const loaded =
+        config.kind === 'chat'
+          ? await pipeline('text-generation', config.model, {
+              dtype: config.dtype,
+              progress_callback: (e) => progress.handle(e as RawProgressEvent),
+            })
+          : await pipeline('text2text-generation', config.model, {
+              dtype: config.dtype,
+              progress_callback: (e) => progress.handle(e as RawProgressEvent),
+            });
       progress.complete();
-      generator = loaded as unknown as Generator;
+      generator = loaded as unknown as Seq2SeqGenerator | ChatGenerator;
+      kind = config.kind;
 
       post({ type: 'ready', model: config.model });
       return;
@@ -103,7 +180,25 @@ self.onmessage = async (event: MessageEvent<SuggestionsRequest>) => {
       // pico de memoria.
       const raw: string[] = [];
       for (const prompt of SUGGESTION_PROMPTS) {
-        raw.push(await generate(buildSuggestionPrompt(prompt, msg.text), MAX_TOKENS_SUGGESTION));
+        // La misma instrucción sirve para las dos familias: en un T5 va como cadena,
+        // en un modelo de chat va como instrucción de sistema con la frase de
+        // usuario. Reescribir una frase no necesita historial en ninguno de los dos.
+        raw.push(
+          kind === 'chat'
+            ? await generateChat(
+                [
+                  { role: 'system', content: prompt.instruction },
+                  { role: 'user', content: msg.text },
+                ],
+                MAX_TOKENS_SUGGESTION,
+                GEN_SUGGEST
+              )
+            : await generateSeq2Seq(
+                buildSuggestionPrompt(prompt, msg.text),
+                MAX_TOKENS_SUGGESTION,
+                GEN_SUGGEST
+              )
+        );
       }
 
       // Se descartan las que repiten la frase del estudiante: es el caso más
@@ -114,7 +209,19 @@ self.onmessage = async (event: MessageEvent<SuggestionsRequest>) => {
     }
 
     if (msg.type === 'reply') {
-      const crudo = await generate(buildTutorPrompt(msg.history), MAX_TOKENS_REPLY);
+      const idioma = msg.language ?? 'en';
+
+      // Un modelo de chat recibe el historial completo con papeles: es lo que le
+      // permite recordar entre turnos. Un T5 recibe solo la última frase, porque
+      // darle sus propias respuestas fue la causa de I-10.
+      const crudo =
+        kind === 'chat'
+          ? await generateChat(
+              buildTutorMessages(msg.history, idioma),
+              MAX_TOKENS_REPLY_CHAT,
+              GEN_REPLY
+            )
+          : await generateSeq2Seq(buildTutorPrompt(msg.history), MAX_TOKENS_REPLY, GEN_REPLY);
 
       // El último turno del estudiante hace falta dos veces: para armar el prompt
       // (buildTutorPrompt) y para que cleanTutorReply pueda detectar si la respuesta
@@ -122,7 +229,11 @@ self.onmessage = async (event: MessageEvent<SuggestionsRequest>) => {
       const ultimoDelEstudiante = [...msg.history].reverse().find((m) => m.role === 'user');
 
       const text = cleanTutorReply(crudo, {
-        studentUtterance: ultimoDelEstudiante?.text,
+        // El detector de eco compara palabra a palabra contra lo que dijo el
+        // estudiante, y eso solo tiene sentido si los dos están en el mismo idioma.
+        // En un turno en español la respuesta va en inglés a propósito —es la ayuda
+        // para traducir— así que compararlas marcaría como eco algo que no lo es.
+        studentUtterance: idioma === 'es' ? undefined : ultimoDelEstudiante?.text,
         previousReply: ultimaRespuesta,
         turno: turno++,
       });

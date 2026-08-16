@@ -10,7 +10,7 @@
  * que quien lo use no tenga que pensar en hilos ni en mensajes.
  */
 
-import type { Transcription } from '@shared/contracts';
+import type { SupportedLanguage, Transcription } from '@shared/contracts';
 import {
   DEFAULT_ASR_DTYPE,
   DEFAULT_ASR_MODEL,
@@ -23,8 +23,14 @@ import {
 export interface AsrClient {
   /** Descarga/carga el modelo. `onProgress` reporta 0–1 (ver S2-T5). */
   init(onProgress?: (model: string, progress: number) => void): Promise<void>;
-  /** Transcribe PCM mono 16 kHz. Requiere `init()` previo. */
-  transcribe(pcm: Float32Array): Promise<Transcription>;
+  /**
+   * Transcribe PCM mono 16 kHz. Requiere `init()` previo.
+   *
+   * `language` fuerza el idioma en vez de detectarlo. Se usa en modo práctica, donde
+   * ya se sabe que la frase objetivo está en inglés y dejar dudar al detector sobre
+   * una palabra mal pronunciada solo añade una forma de fallar.
+   */
+  transcribe(pcm: Float32Array, language?: SupportedLanguage): Promise<Transcription>;
   /** Termina el worker y libera la memoria del modelo (~290 MB medidos en S1-T7). */
   dispose(): void;
 }
@@ -114,14 +120,14 @@ export function createAsrClient(options: AsrClientOptions = {}): AsrClient {
       });
     },
 
-    transcribe(pcm) {
+    transcribe(pcm, language) {
       return new Promise<Transcription>((resolve, reject) => {
         const id = nextId++;
         pending.set(id, { resolve, reject });
         // No transferimos el buffer (`[pcm.buffer]`) a propósito: al transferirlo
         // el hilo principal lo perdería, y el motor de audio de Fabrizio puede
         // seguir necesitando ese mismo PCM para el análisis de pronunciación.
-        send({ type: 'transcribe', id, pcm });
+        send({ type: 'transcribe', id, pcm, ...(language ? { language } : {}) });
       });
     },
 

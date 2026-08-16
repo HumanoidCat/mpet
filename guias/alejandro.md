@@ -101,23 +101,49 @@ Lunes noche: `dev` estable + ensayo · Martes 1 pm: clase + retro · Jueves: che
 
 ---
 
-## Lo que falta — actualizado 11 ago
+## Cerrado el 16 de agosto — tutor bilingüe y Kokoro
 
-Ninguna es de código. Las tres primeras se cierran en una sola sesión con
+- [x] **Tutor conversacional de verdad** (**D-18**): modelo de chat en vez de T5 de
+      instrucciones. Ahora recibe el historial con papeles, así que puede recordar
+      entre turnos y responder preguntas de contenido — dos cosas que el modelo
+      anterior no podía hacer ni en principio
+- [x] **La causa de la repetición que faltaba probar**: las dos tareas generaban con
+      decodificación voraz, que es determinista. Ahora `reply()` muestrea y
+      `suggest()` sigue voraz. Isaac lo había dejado anotado como sospecha
+- [x] **Bilingüe** (**D-18**): reconocedor multilingüe. Si el estudiante recurre al
+      español el tutor le da la frase en inglés y sigue conversando; se saltan la
+      corrección gramatical y las sugerencias, que son de solo inglés
+- [x] **Kokoro implementado** (**D-19**): estaba aprobado desde D-17 pero sin hacer.
+      1 fallo de 14 contra los 7 de MMS-TTS, determinista, 88.1 MiB
+- [x] **R16 cerrado** sin escribir código de persistencia: Kokoro es determinista, así
+      que la referencia ya es reproducible entre sesiones
+
+---
+
+## Lo que falta — actualizado 16 ago
+
+**Todo lo que queda necesita un navegador, un micrófono o gente.** No hay nada
+pendiente que se resuelva escribiendo código.
+
+Las tres primeras se cierran en una sola sesión con
 `docs/evidencias/s8/s8-t5-offline-y-latencia.md`, que ya tiene los criterios
 escritos.
 
 - [ ] **Latencia del turno** (R06): `?medir=1`, cinco turnos. Lo que hay que
-      defender es la retroalimentación por debajo de 2 s, no el total (**D-15**)
+      defender es la retroalimentación por debajo de 2 s, no el total (**D-15**).
+      Ahora urge más: el modelo del tutor cambió y su latencia está sin medir
 - [ ] **Arranque sin conexión y caché** (RF-14, RF-15): instalar, modo avión, usar
       el flujo completo. Declarados pendientes desde el 17 de julio y nunca
       comprobados, y sostienen el argumento central del README
 - [ ] **Prueba offline en máquina limpia** (S8-T5)
+- [ ] **Peso real de los modelos nuevos** (D-18, D-19): pestaña de red del navegador.
+      Del tutor solo se conoce la ficha del Hub, y este proyecto ya se llevó un susto
+      con eso — Kokoro se estimó en 325 MB y medido pesaba 88
 - [ ] **Decidir RF-10** con la medición de Fabrizio: si el modo práctica supera los
       6 de 10 de la señal sola, se presenta cumplido con su limitación declarada
 
 **Coordinación**
 
-- [ ] S7-T5 y S9-T4 · Coordinar los documentos del Avance 2 y final
+- [ ] S9-T4 · Coordinar el documento final
 - [ ] S9-T6 · Congelamiento de código antes de la entrega
 - [ ] S10-T2 y S10-T5 · Matriz final y entrega en plataforma

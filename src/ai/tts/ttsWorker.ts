@@ -29,18 +29,32 @@
  */
 
 import { AutoTokenizer, VitsModel } from '@huggingface/transformers';
+import { resample } from '@audio/dsp/resampler';
 import { SAMPLE_RATE } from '@shared/constants';
 import {
   createRangedProgressAggregator,
   type RawProgressEvent,
 } from '../model-cache/progress';
 import { normalizeForSpeech } from './textNormalization';
-import { getTtsConfig, type TtsRequest, type TtsResponse } from './ttsProtocol';
+import { getTtsConfig, type KokoroVoice, type TtsRequest, type TtsResponse } from './ttsProtocol';
 
 type Tokenizer = Awaited<ReturnType<typeof AutoTokenizer.from_pretrained>>;
 
+/** Lo que devuelve `KokoroTTS.generate()`: la onda y su frecuencia. */
+interface KokoroAudio {
+  audio: Float32Array;
+  sampling_rate: number;
+}
+
+interface KokoroTts {
+  generate(texto: string, opciones: { voice: string }): Promise<KokoroAudio>;
+}
+
 let tokenizer: Tokenizer | null = null;
 let model: VitsModel | null = null;
+let kokoro: KokoroTts | null = null;
+/** Voz con la que sintetiza Kokoro. En MMS-TTS la voz está en los pesos. */
+let kokoroVoice: KokoroVoice = 'af_heart';
 /** Frecuencia que declara el modelo cargado. Se verifica contra el contrato. */
 let sampleRate = 0;
 
@@ -63,6 +77,32 @@ self.onmessage = async (event: MessageEvent<TtsRequest>) => {
   try {
     if (msg.type === 'init') {
       const config = getTtsConfig(msg.config);
+
+      if (config.engine === 'kokoro') {
+        const report = (progress: number) =>
+          post({ type: 'progress', model: config.model, progress });
+
+        const progreso = createRangedProgressAggregator(0, 1, report);
+
+        // Import dinámico: así el paquete de Kokoro no entra en el fragmento
+        // inicial de la aplicación. Es coherente con la carga bajo demanda del TTS
+        // (D-11): quien nunca pide audio no descarga nada de esto.
+        const { KokoroTTS } = await import('kokoro-js');
+
+        kokoro = (await KokoroTTS.from_pretrained(config.model, {
+          dtype: config.dtype,
+          progress_callback: (e: unknown) => progreso.handle(e as RawProgressEvent),
+        })) as unknown as KokoroTts;
+        progreso.complete();
+
+        kokoroVoice = config.voice;
+        // Se guarda la frecuencia NATIVA, no la del proyecto: `speak` remuestrea
+        // después, y confundirlas daría un PCM a 24 kHz etiquetado como 16.
+        sampleRate = config.nativeSampleRate;
+
+        post({ type: 'ready', model: config.model });
+        return;
+      }
 
       if (config.engine !== 'vits') {
         // Las configuraciones de SpeechT5 siguen existiendo en el protocolo porque
@@ -110,6 +150,27 @@ self.onmessage = async (event: MessageEvent<TtsRequest>) => {
       }
 
       post({ type: 'ready', model: config.model });
+      return;
+    }
+
+    if (msg.type === 'speak' && kokoro) {
+      // I-07 · Números a letras. Kokoro los convierte por su cuenta, pero la
+      // normalización se mantiene: no estorba, cubre casos que su conversor no
+      // trata igual, y así el texto que se sintetiza no depende de qué modelo esté
+      // cargado — que es lo que permite comparar mediciones entre los dos.
+      const texto = normalizeForSpeech(msg.text);
+      const salida = await kokoro.generate(texto, { voice: kokoroVoice });
+
+      // Kokoro sale a 24 kHz y el proyecto entero trabaja a 16. Sin remuestrear, la
+      // referencia sonaría con el tono alterado y sus MFCC no serían comparables
+      // con los del estudiante: el puntaje de pronunciación mediría la diferencia
+      // de frecuencia de muestreo, no la de pronunciación.
+      const pcm =
+        salida.sampling_rate === SAMPLE_RATE
+          ? new Float32Array(salida.audio)
+          : resample(salida.audio, salida.sampling_rate, SAMPLE_RATE);
+
+      post({ type: 'result', id: msg.id, pcm, sampleRate: SAMPLE_RATE }, [pcm.buffer]);
       return;
     }
 

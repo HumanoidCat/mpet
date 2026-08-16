@@ -142,19 +142,61 @@ export interface Edit {
   type: 'grammar' | 'spelling' | 'word-choice';
 }
 
+/**
+ * Idiomas que la aplicación reconoce en la voz del estudiante.
+ *
+ * POR QUÉ EXISTE: el tutor es bilingüe a propósito. Un principiante que todavía no
+ * consigue formular la frase en inglés se queda mudo si la aplicación solo entiende
+ * inglés, y esa es justamente la barrera que el proyecto quiere bajar. Puede decirlo
+ * en español y el tutor le ayuda a decirlo en inglés.
+ *
+ * Solo dos valores y no un código de idioma libre: cada uno cambia lo que la cadena
+ * hace después (ver `Transcription.language`), y admitir idiomas que nada más abajo
+ * sabe tratar daría la falsa impresión de estar soportados.
+ */
+export type SupportedLanguage = 'en' | 'es';
+
 export interface Transcription {
   text: string;
   words: WordAlign[];
+  /**
+   * Idioma detectado en el audio.
+   *
+   * Decide dos cosas aguas abajo, por eso viaja en el contrato y no se recalcula:
+   *   1. **La corrección gramatical se salta si es español.** El corrector es un T5
+   *      entrenado solo en inglés: aplicárselo a una frase en español no produce una
+   *      corrección mala, produce basura.
+   *   2. **El tutor responde distinto.** En inglés conversa; en español ayuda a
+   *      traducir lo que el estudiante quiso decir.
+   *
+   * Opcional porque los modelos de solo inglés (`whisper-tiny.en`) no lo informan, y
+   * porque los mocks y las pruebas anteriores al bilingüe no lo traen. Ausente se
+   * trata como inglés, que es el comportamiento que había antes de este campo.
+   */
+  language?: SupportedLanguage;
 }
 
 export interface AIPipeline {
   /** Descarga/carga modelos. Reporta progreso 0–1 por modelo. */
   init(onProgress?: (model: string, p: number) => void): Promise<void>;
-  transcribe(pcm: Float32Array): Promise<Transcription>;
+  /**
+   * Transcribe el audio del estudiante.
+   *
+   * `language` fuerza el idioma en vez de detectarlo. Se usa en modo práctica, donde
+   * ya se sabe que la frase objetivo está en inglés: dejar que el detector dude ante
+   * una palabra mal pronunciada solo añadiría una forma de fallar.
+   */
+  transcribe(pcm: Float32Array, language?: SupportedLanguage): Promise<Transcription>;
   correctGrammar(text: string): Promise<{ corrected: string; edits: Edit[] }>;
   suggest(text: string): Promise<string[]>;
-  /** Respuesta conversacional del tutor. */
-  reply(history: ChatMessage[]): Promise<string>;
+  /**
+   * Respuesta conversacional del tutor.
+   *
+   * `language` es el idioma en que habló el estudiante en el último turno. Cuando es
+   * español, el tutor deja de conversar y pasa a ayudar: da la frase en inglés que el
+   * estudiante no consiguió armar, y sigue la conversación desde ahí.
+   */
+  reply(history: ChatMessage[], language?: SupportedLanguage): Promise<string>;
   /** Sintetiza voz; devuelve PCM 16 kHz para reproducir y comparar. */
   speak(text: string): Promise<Float32Array>;
 }

@@ -831,3 +831,309 @@ en el PR del `shared-change`, no solo aquí.
 **Registro.** `package.json` y `src/shared/` los aprueba Alejandro (regla
 existente desde S1). Isaac abre el PR con la etiqueta `shared-change`;
 mensaje de contexto en `docs/MENSAJE-isaac-kokoro-aprobado.md`.
+
+---
+
+## D-18 · Tutor bilingüe con modelo de chat (Semana 8)
+
+**Contexto.** Tras cerrar I-09 e I-10 el tutor dejó de romperse, pero seguía sin
+conversar: no recuerda nada entre turnos ni responde preguntas de contenido. Y la
+aplicación entera era monolingüe, con `whisper-tiny.en` — la variante **solo
+inglés**, que no reconoce español en absoluto.
+
+Las dos cosas apuntan al mismo problema de fondo. Un principiante que todavía no
+consigue armar la frase en inglés se queda mudo, y esa es exactamente la barrera
+que el proyecto existe para bajar.
+
+**Dos causas independientes, no una.**
+
+*El modelo.* LaMini-Flan-T5 es un T5 de instrucciones: recibe una cadena y
+devuelve una cadena. No tiene dónde recibir un historial, así que **por
+construcción** no puede recordar. Tampoco sabe español. Se sustituye por
+`onnx-community/Qwen2.5-0.5B-Instruct`, modelo de chat multilingüe que recibe la
+conversación con papeles.
+
+*La decodificación, que es la causa que faltaba probar.* Las dos tareas generaban
+con decodificación voraz (`do_sample: false`), que toma siempre el token más
+probable y por tanto es determinista: ante entradas parecidas produce salidas
+idénticas. Eso explica las respuestas repetidas de I-10 y también las que Isaac
+midió con SmolLM2, donde 4 de 6 salieron iguales carácter por carácter. Él lo
+dejó anotado como sospecha —*«reconsiderar si el límite es la decodificación
+voraz en sí y no el modelo»*— y probó `repetition_penalty` y
+`no_repeat_ngram_size`, que penalizan repetir sin quitar el determinismo.
+**Muestrear sí lo quita.**
+
+**Decisión.** Las dos tareas dejan de generar igual, a propósito:
+
+| | Decodificación | Por qué |
+|---|---|---|
+| `suggest()` | Voraz | Una corrección que cambia en cada intento confunde |
+| `reply()` | Muestreo (`temperature` 0.7, `top_p` 0.9) | Una respuesta que nunca cambia deja de ser conversación |
+
+**Qué hace el tutor con el español.** No corrige al estudiante por recurrir a él:
+le da la frase en inglés que intentaba decir y sigue conversando desde ahí. En un
+turno en español se saltan además la corrección gramatical y las sugerencias,
+porque los dos modelos son de solo inglés y aplicarlos a una frase en español no
+produce una corrección mala, produce basura.
+
+**Alcance del bilingüe.** Solo la conversación libre. El **modo práctica fuerza
+inglés** en el reconocedor: ahí se sabe que la frase objetivo está en inglés, y
+dejar dudar al detector ante una palabra mal pronunciada solo añadiría una forma
+de fallar. El puntaje de pronunciación sigue siendo de inglés, como debe ser.
+
+**Lo que está sin medir, y es lo que decide si esto se queda.**
+
+1. **El peso del modelo nuevo.** Del anterior se sabía que ocupaba 265 MiB
+   medidos; del nuevo solo se conoce la ficha del Hub. Este proyecto ya se llevó
+   un susto con eso (D-12: Kokoro se estimó en 325 MB y cuantizado medía 88), así
+   que la cifra de `expectedMB` es una referencia para decidir si vale la pena
+   medir, no un dato.
+2. **La latencia del turno** contra el presupuesto de D-15.
+3. **Si el muestreo basta** por sí solo para que las respuestas dejen de
+   repetirse. Es barato de comprobar: hablar tres veces y ver si difieren.
+4. **La precisión en inglés** de `whisper-tiny` multilingüe frente a
+   `whisper-tiny.en`, que está afinado para un solo idioma. Se cierra con el WER
+   de S8-T1. Si la diferencia es grande, la alternativa es `whisper-base`.
+
+**La vuelta atrás es una constante.** `DEFAULT_SUGGESTIONS_CONFIG` en
+`suggestions/suggestionsProtocol.ts` vuelve al modelo anterior; el worker soporta
+las dos familias y el resto de la cadena no se entera. Tener la marcha atrás a
+una línea de distancia es lo que permite probar un cambio de esta talla a tres
+semanas de la entrega sin arriesgarla.
+
+**Contrato.** `Transcription` gana `language?`, y `transcribe()` y `reply()`
+ganan un parámetro opcional del mismo tipo. Es aditivo: nada de lo que existía
+cambia de forma, y ausente se comporta como antes del bilingüe.
+
+---
+
+## D-19 · Kokoro implementado en producción (Semana 8)
+
+**Contexto.** D-17 aprobó el `shared-change` con los números medidos, pero la
+adopción quedó sin hacer: `package.json` no tenía la dependencia y el worker
+seguía cargando MMS-TTS. Aprobado no es lo mismo que implementado.
+
+**Qué cambia.** `kokoro-js@^1.2.1` entra en `package.json` —la versión que usó el
+spike de D-12, así que es la que produjo las mediciones— y el worker de TTS gana
+un tercer motor. `DEFAULT_TTS_CONFIG` pasa a `'F-kokoro-q8'`.
+
+**Las dos diferencias de tratamiento, ninguna opcional.**
+
+1. **Remuestreo de 24 a 16 kHz.** Kokoro no sintetiza a la frecuencia del
+   proyecto. Sin remuestrear, la referencia sonaría con el tono alterado y sus
+   MFCC no serían comparables con los del estudiante: el puntaje mediría la
+   diferencia de frecuencia de muestreo en vez de la de pronunciación. Se usa
+   `resample()` del módulo de audio —con filtro antisolapamiento y pruebas
+   propias— en vez de escribir remuestreo nuevo, como sugirió Fabrizio al revisar
+   la propuesta original.
+2. **Hay que nombrar la voz** en cada síntesis: en Kokoro la voz es un vector
+   aparte, no está en los pesos como en MMS-TTS. Se fija `af_heart`, la única con
+   calificación A en la tabla oficial y **la que se usó para medir el banco**.
+   Cambiarla sin volver a medir invalidaría la evidencia de D-17.
+
+**Lo que cierra.** R16 (la referencia no era reproducible entre sesiones) y la
+mitad de R03 (el suelo de 49.5 que MMS-TTS le imponía al puntaje), las dos por
+ser Kokoro determinista. La normalización de números de I-07 se conserva aunque
+Kokoro traiga su propio conversor: no estorba, y así el texto que se sintetiza no
+depende de qué modelo esté cargado, que es lo que permite comparar mediciones
+entre los dos.
+
+**Lo que NO cambia, y conviene decirlo porque se planteó al revés.** El tutor
+bilingüe responde **en inglés** aunque el estudiante hable español —le da la
+frase en inglés y sigue conversando— así que las voces españolas de Kokoro no
+hacen falta. El cambio es de calidad y determinismo, no de idioma.
+
+**Riesgo de instalación, sin verificar.** `kokoro-js` trae su propia dependencia
+de transformers.js. El spike lo cargaba desde CDN y anotó que así **convivían dos
+copias**; con npm deberían unificarse, pero si la versión que pide choca con el
+`^3.8.1` fijado en D-03, `npm install` lo dirá. Es lo primero que hay que mirar
+al instalar.
+
+**Vuelta atrás.** `DEFAULT_TTS_CONFIG` a `'D-vits-fp32'`. MMS-TTS sigue
+implementado y probado en el mismo worker.
+
+---
+
+## I-11 · El turno se volvió lento tras el cambio de modelo (Semana 8)
+
+**Detección.** Al probar la aplicación el mismo día del cambio: el turno tardaba
+notoriamente más que antes. Sin error, sin traza — solo lento.
+
+**Dos causas independientes, las dos introducidas por D-18.**
+
+### 1. Cuantización de 4 bits, que este proyecto ya había descartado midiendo
+
+El modelo de chat se configuró en **q4** por peso, sin mirar **D-05**, que había
+medido exactamente eso en este mismo motor: la variante de 4 bits resultó **3.8
+veces más lenta y encima más pesada en caché**, porque ONNX Runtime sobre
+WebAssembly no tiene núcleos para enteros de 4 bits y descuantiza en cada
+inferencia. La conclusión de D-05 estaba escrita: *«reducir la cuantización no es
+una vía válida para aligerar la descarga inicial en este entorno»*.
+
+**Y en un modelo de chat el castigo es peor que donde se midió.** El corrector
+gramatical descuantizaba una vez por frase; un modelo de chat genera **token a
+token**, así que paga esa penalización en cada uno de los hasta 96 tokens de la
+respuesta.
+
+**Acción.** `dtype` a `q8`. Prueba de regresión en
+`tests/ai/suggestionsProtocol.test.ts` que falla si alguna configuración vuelve a
+usar 4 bits, con el motivo escrito en el caso.
+
+### 2. La respuesta del tutor iba detrás de las sugerencias
+
+`suggest()` y `reply()` salen del **mismo worker y el mismo modelo**, así que se
+atienden una detrás de otra. El orquestador lanzaba primero las sugerencias —dos
+generaciones, una por instrucción de `SUGGESTION_PROMPTS`— y después pedía la
+respuesta. Es decir: **lo que el estudiante espera quedaba en la cola detrás de
+dos generaciones que nadie espera**, porque las sugerencias llegan tarde y
+actualizan el mensaje cuando estén.
+
+Con el modelo anterior el efecto existía pero era pequeño. Con uno que genera
+token a token, se nota en cada turno.
+
+**Acción.** Invertir el orden: primero `reply()`, después `suggest()` en segundo
+plano. El contrato no cambia — las sugerencias siguen siendo opcionales y siguen
+llegando tarde. Prueba de regresión en `tests/core/orchestrator.test.ts` que
+comprueba el orden de las llamadas.
+
+**Lo que el cambio NO resuelve, declarado.** Las sugerencias ahora terminan
+después del turno, así que si el estudiante habla de nuevo enseguida, las del
+turno anterior pueden seguir en la cola del worker y retrasar la respuesta del
+turno nuevo. Es estrictamente mejor que antes —donde el retraso era **seguro en
+todos los turnos**, no ocasional— pero no es cero. Resolverlo del todo exigiría
+poder cancelar una generación en curso, que transformers.js no expone, o un
+segundo worker con otra copia del modelo, que costaría cientos de MB. Se deja
+así y se anota.
+
+**Efecto secundario en las pruebas.** Las del núcleo esperaban 50 ms tras el
+turno para que llegaran puntaje y sugerencias, y bastaban porque las sugerencias
+se solapaban con los 400 ms de la respuesta. Al invertir el orden dejaron de
+bastar y cuatro pruebas fallaron. No era un fallo del código: la espera pasa a
+400 ms, con el número justificado desde el retardo del mock y no elegido a ojo.
+
+**Aprendizaje.** El primero es el que duele: la decisión estaba medida, escrita y
+razonada en la bitácora del propio proyecto, y aun así se repitió el error que
+esa entrada existía para evitar. Una bitácora solo sirve si se consulta **antes**
+de elegir, no después de que el síntoma aparezca.
+
+El segundo es más sutil y vale como criterio general: **cuando dos tareas
+comparten un recurso que las serializa, el orden en que se piden es una decisión
+de latencia**, aunque el código no lo parezca. Ninguna prueba de contenido lo
+habría detectado.
+
+---
+
+## D-20 · Turno escrito, junto al hablado (Semana 8)
+
+**Contexto.** La aplicación solo aceptaba voz. Pero la corrección gramatical, las
+sugerencias y el tutor operan sobre **texto**: el reconocedor solo estaba ahí para
+producirlo. Exigir el micrófono para practicar gramática deja fuera tres
+situaciones normales —estar donde no se puede hablar, no tener micrófono, o
+querer trabajar la escritura— sin ninguna ganancia a cambio.
+
+**Decisión.** Se añade `submitText()` al orquestador y un campo de texto en el
+chat. **La voz no se toca y sigue siendo la vía principal.**
+
+**Qué distingue a un turno escrito, y las dos cosas son deliberadas.**
+
+1. **No pasa por el reconocedor.** Es la etapa más cara del turno (~1.5 s
+   medidos), y no hay nada que reconocer.
+2. **No puntúa pronunciación.** No hay audio que comparar. Es la misma regla que
+   ya rige la conversación libre: sin algo contra qué comparar, no se inventa un
+   número. La interfaz lo dice explícitamente debajo del campo.
+
+Todo lo demás es idéntico, y para garantizarlo el flujo común se extrajo a
+`completarTurno()`: corrección, comparación con la frase objetivo, respuesta del
+tutor, sugerencias y orden de las llamadas son literalmente el mismo código. Sin
+esa extracción, los dos caminos se habrían separado en cuanto alguien tocara uno.
+
+**Detección de idioma sin modelo.** El turno hablado lo detecta con Whisper, que
+ya está cargado. En el escrito no hay audio, y cargar un modelo de detección para
+elegir entre dos idiomas pesaría más que la funcionalidad entera. Se cuentan
+indicios ortográficos (`ñ`, tildes, signos de apertura) y palabras muy frecuentes
+que no se comparten entre los dos idiomas (`src/core/idiomaEscrito.ts`).
+
+**El sesgo hacia el inglés es intencionado.** Ante la duda se responde inglés,
+porque las dos formas de equivocarse no cuestan lo mismo: marcar inglés como
+español **apaga la corrección en silencio** y el estudiante no sabe por qué no le
+corrigieron; marcar español como inglés hace que el corrector devuelva algo raro,
+que se ve. Se prefiere el error que se nota.
+
+**Jerarquía en la interfaz.** El campo de texto va debajo del micrófono, más
+pequeño, separado por una línea que dice «o escribe para practicar gramática». No
+es simetría visual: hablar es lo que esta aplicación enseña, y escribir es la
+alternativa.
+
+---
+
+## I-12 · La compilación falló con las pruebas en verde (Semana 8)
+
+**Detección.** Integración continua, commit `bfc80b1`. El paso `npm run build`
+falló con código 1. En local: `tsc` limpio y 618 pruebas verdes.
+
+**Dos causas encadenadas.** Al arreglar la primera apareció la segunda, que
+estaba detrás y no podía verse antes.
+
+### Causa 1 · Módulos de Node en una dependencia de navegador
+
+`kokoro-js` importa `path` y `fs/promises` en su compilado. Son
+módulos de Node que no existen en el navegador, así que Rollup no puede
+resolverlos y aborta.
+
+El paquete lo tiene previsto: declara `"browser": { "path": false, "fs/promises": false }`
+porque solo los usa en la ruta de Node —cargar los vectores de voz desde disco— y
+en el navegador nunca llega ahí. Vite honra ese campo al resolver desde el grafo
+de la aplicación, pero **el import ocurre dentro de un Web Worker**, que Rollup
+empaqueta como entrada aparte, y ahí no se aplica.
+
+**Por qué no lo vio nada de lo que sí se ejecutó.** Ni `tsc` ni Vitest empaquetan:
+el primero comprueba tipos y el segundo resuelve módulos en Node, donde `path`
+existe de verdad. **La única etapa que lo detecta es la que produce el artefacto
+que se despliega**, y es la última de las tres.
+
+**Acción.** Alias de `path` y `fs/promises` a un módulo vacío
+(`src/shared/emptyModule.ts`), activo solo fuera de Vitest: cuatro pruebas usan
+`node:path` para leer ficheros de apoyo, y aunque hoy ese especificador es
+distinto y no colisiona, dejar el alias activo bajo las pruebas convertiría un
+futuro cambio de `node:path` a `path` en un fallo difícil de entender.
+
+El módulo vacío no simula métodos a propósito. Si alguna vez se alcanzara esa
+ruta de verdad, un `join()` que devuelve una cadena inventada fallaría más tarde
+y lejos de la causa.
+
+### Causa 2 · Formato de salida de los Web Workers
+
+Resuelta la primera, la compilación llegó a transformar 1 571 módulos y falló al
+empaquetar: *«UMD and IIFE output formats are not supported for code-splitting
+builds»*.
+
+El worker de TTS carga `kokoro-js` con un `import()` **dinámico**, para que el
+paquete no entre en el fragmento inicial. Un import dinámico obliga a dividir el
+código, y Vite compila los workers en formato IIFE por defecto, que no admite
+división.
+
+**Acción.** `worker: { format: 'es' }`. No añade ningún requisito de navegador:
+los cuatro workers del proyecto ya se instancian con `{ type: 'module' }` desde
+sus clientes, así que la compatibilidad mínima ya era la de los workers de módulo
+—Chrome 80, Safari 15, Firefox 114, documentada en S8-T4—. El ajuste solo alinea
+el formato de salida con cómo se cargan de verdad.
+
+**Resultado, y confirma que el import dinámico cumple su función:** Kokoro sale
+en su propio fragmento de **1.33 MB**, separado del código de la aplicación
+(254 kB) y de los otros tres workers. Quien nunca pida audio no lo descarga.
+
+**Aprendizaje.** Una dependencia nueva no está verificada hasta que **compila**,
+no hasta que pasan los tipos y las pruebas. Las tres etapas comprueban cosas
+distintas, y la de empaquetado es la única que ejerce las condiciones reales del
+navegador — incluidos los límites de los Web Workers, que no se parecen a los del
+grafo principal.
+
+Que las dos causas estuvieran encadenadas lo refuerza: arreglar la primera no
+daba ninguna garantía sobre la segunda, y **la única forma de saberlo era volver
+a compilar**. Un cambio de dependencia se da por bueno cuando `npm run build`
+termina, no cuando el razonamiento parece correcto.
+
+**Nota adicional, verificada al investigar.** `phonemizer` —la otra dependencia
+que entró con Kokoro— lleva eSpeak embebido en su propio bundle de 1.3 MB, sin
+`fetch` ni ficheros externos. No compromete el funcionamiento sin conexión
+(RF-14), que era la duda razonable al ver que usaba WASM.

@@ -284,6 +284,38 @@ export function App() {
     orch.setFraseObjetivo(null);
   }
 
+  /**
+   * Turno escrito (practica de gramatica sin microfono).
+   *
+   * Comparte con `onMicClick` el volcado de tiempos y el manejo de estado, pero no
+   * el de errores de microfono: aqui no hay permisos ni dispositivo que puedan
+   * fallar, asi que un fallo solo puede venir de los modelos y ya lo publica el
+   * orquestador por el bus.
+   */
+  async function onSubmitText(text: string) {
+    setMicError(null);
+    try {
+      const turn = orch.submitText(text);
+      setState('processing');
+      await turn;
+      volcarTiempos();
+    } finally {
+      setState(orch.getState());
+    }
+  }
+
+  /** Volcado de tiempos del turno con `?medir=1`, comun a los dos caminos. */
+  function volcarTiempos() {
+    if (!medirTiempos) return;
+    const t = orch.getTiempos();
+    if (!t) return;
+    const seg = (t.muestras / SAMPLE_RATE).toFixed(1);
+    console.log(
+      `[turno ${seg}s] ASR ${t.asr} · gramatica ${t.gramatica} · ` +
+        `RETROALIMENTACION ${t.retroalimentacion} · tutor ${t.tutor} · total ${t.total} (ms)`
+    );
+  }
+
   async function onMicClick() {
     setMicError(null);
     try {
@@ -295,16 +327,7 @@ export function App() {
       // Se mide con la aplicacion real en vez de estimarlo desde un spike: los
       // numeros del spike se tomaron con la pestania en segundo plano, donde el
       // navegador limita el procesamiento.
-      if (medirTiempos) {
-        const t = orch.getTiempos();
-        if (t) {
-          const seg = (t.muestras / SAMPLE_RATE).toFixed(1);
-          console.log(
-            `[turno ${seg}s] ASR ${t.asr} · gramatica ${t.gramatica} · ` +
-              `RETROALIMENTACION ${t.retroalimentacion} · tutor ${t.tutor} · total ${t.total} (ms)`
-          );
-        }
-      }
+      volcarTiempos();
     } catch (err) {
       // Mensaje segun la causa real (permiso, sin dispositivo, en uso por
       // otra app) en vez de uno generico: el usuario necesita saber que
@@ -553,6 +576,7 @@ export function App() {
               messages={messages}
               state={state}
               onMicClick={onMicClick}
+              onSubmitText={onSubmitText}
               audio={audio}
               onPlay={onPlay}
             />

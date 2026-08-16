@@ -15,14 +15,20 @@
 import { pipeline } from '@huggingface/transformers';
 import type { Transcription, WordAlign } from '@shared/contracts';
 import { createProgressAggregator, type RawProgressEvent } from '../model-cache/progress';
-import type { AsrRequest, AsrResponse } from './asrProtocol';
+import {
+  esMultilingue,
+  normalizarIdioma,
+  type AsrModelId,
+  type AsrRequest,
+  type AsrResponse,
+} from './asrProtocol';
 
 // El tipado del pipeline de transformers.js es genérico; lo guardamos como
 // función invocable porque solo necesitamos llamarlo con el audio.
 type AsrPipeline = (
   audio: Float32Array,
   options?: Record<string, unknown>
-) => Promise<{ text: string; chunks?: WhisperChunk[] }>;
+) => Promise<{ text: string; chunks?: WhisperChunk[]; language?: string }>;
 
 /** Trozo con marca de tiempo que devuelve Whisper con `return_timestamps: 'word'`. */
 interface WhisperChunk {
@@ -32,6 +38,14 @@ interface WhisperChunk {
 }
 
 let asr: AsrPipeline | null = null;
+
+/**
+ * Qué modelo se cargó, para saber si admite la opción `language`.
+ *
+ * Los modelos `.en` no la admiten: pasársela no se ignora, hace fallar la inferencia.
+ * Se guarda en el `init` en vez de deducirlo en cada transcripción.
+ */
+let modeloCargado: AsrModelId | null = null;
 
 const post = (msg: AsrResponse) => (self as DedicatedWorkerGlobalScope).postMessage(msg);
 
@@ -76,6 +90,7 @@ self.onmessage = async (event: MessageEvent<AsrRequest>) => {
         progress_callback: (e) => aggregator.handle(e as RawProgressEvent),
       });
       asr = loaded as unknown as AsrPipeline;
+      modeloCargado = msg.model;
 
       aggregator.complete(); // cierra la barra en 100% aunque viniera de caché
       post({ type: 'ready', model: msg.model });
@@ -88,11 +103,25 @@ self.onmessage = async (event: MessageEvent<AsrRequest>) => {
       // `return_timestamps: 'word'` pide los tiempos por palabra. Cuesta un poco
       // más de inferencia, pero sin ellos el módulo de pronunciación (Fabrizio)
       // no puede alinear nada, así que es obligatorio para el contrato.
-      const out = await asr(msg.pcm, { return_timestamps: 'word' });
+      const opciones: Record<string, unknown> = { return_timestamps: 'word' };
+
+      // La opción `language` solo existe en los modelos multilingües. Pasársela a un
+      // `.en` no se ignora: rompe la inferencia. Y solo se fija si el llamante pidió
+      // un idioma concreto (modo práctica); si no, se deja que Whisper lo detecte.
+      const multilingue = modeloCargado ? esMultilingue(modeloCargado) : false;
+      if (multilingue && msg.language) opciones.language = msg.language;
+
+      const out = await asr(msg.pcm, opciones);
 
       const result: Transcription = {
         text: (out.text ?? '').trim(),
         words: toWordAlign(out.chunks),
+        // Con un modelo de solo inglés no hay nada que detectar, y decir `'en'` sería
+        // afirmar una detección que no ocurrió: se deja ausente, que el contrato
+        // define como "trátese como inglés".
+        ...(multilingue
+          ? { language: msg.language ?? normalizarIdioma(out.language) }
+          : {}),
       };
       post({ type: 'result', id: msg.id, result });
     }
