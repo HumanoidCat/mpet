@@ -124,6 +124,33 @@ describe('cleanTutorReply', () => {
     expect(cleanTutorReply('   ')).toBe(RESPUESTA_DE_RESERVA);
   });
 
+  // Regresion del 17-ago, vista en la aplicacion desplegada: ante «I went to the
+  // beach last weekend with my family» el modelo devolvio esa misma frase con la
+  // etiqueta de papel delante. Dos defectos en una sola respuesta.
+  it('quita la etiqueta de papel que filtra el modelo', () => {
+    expect(cleanTutorReply('Assistant: That sounds lovely! Which beach?')).toBe(
+      'That sounds lovely! Which beach?'
+    );
+    expect(cleanTutorReply('AI: Nice! Tell me more.')).toBe('Nice! Tell me more.');
+    expect(cleanTutorReply('Tutor: What did you do there?')).toBe('What did you do there?');
+  });
+
+  it('NO toca la palabra si no es una etiqueta al principio', () => {
+    // Una frase legitima que mencione la palabra no debe mutilarse.
+    expect(cleanTutorReply('My assistant: she is very kind. Who helps you?')).toBe(
+      'My assistant: she is very kind. Who helps you?'
+    );
+  });
+
+  it('sustituye una copia literal de la frase del estudiante', () => {
+    // `esEco` no lo atrapaba: busca ecos en forma de pregunta, y esto es una
+    // repeticion tal cual. Es el caso exacto que se vio en produccion.
+    const dicho = 'I went to the beach last weekend with my family';
+    const salida = cleanTutorReply(`Assistant: ${dicho}.`, { studentUtterance: dicho });
+    expect(salida).not.toContain('Assistant');
+    expect(PREGUNTAS_DE_SEGUIMIENTO).toContain(salida);
+  });
+
   it('sin contexto, no comprueba repeticion ni eco (compatibilidad con I-09)', () => {
     // Las pruebas de I-09 llaman a cleanTutorReply con un solo argumento; con la
     // firma extendida eso tiene que seguir funcionando igual.

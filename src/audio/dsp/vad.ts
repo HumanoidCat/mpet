@@ -180,9 +180,23 @@ function segmentar(
     }
   }
 
-  // La grabación terminó mientras seguía hablando.
+  // La grabación terminó sin que el hangover llegara a cumplirse. El habla se
+  // cierra igual, y **se descuentan las tramas que ya estaban bajo umbral**,
+  // exactamente como en el cierre normal de arriba.
+  //
+  // Antes se cerraba en `energies.length` sin descontar nada, y los dos caminos
+  // no coincidían: una grabación que termina con 120 ms de silencio —por debajo
+  // del hangover de 200 ms— se llevaba esos 120 ms dentro del segmento, mientras
+  // que con 250 ms de silencio los descontaba. La calibración con voz real
+  // (S9-T3) lo destapó: las grabaciones del protocolo terminan con poco
+  // silencio, y el recorte devolvía cantidades distintas en cada archivo según
+  // dónde cayera esa frontera.
   if (enHabla) {
-    segmentos.push({ startFrame: inicio, endFrame: energies.length });
+    const fin = energies.length - bajoUmbral;
+    // Si el segmento entero quedó bajo umbral no hay nada que guardar. No puede
+    // pasar mientras `startConfirmFrames` sea mayor que cero, pero cerrarlo así
+    // evita emitir un rango invertido si alguna vez se configura en cero.
+    if (fin > inicio) segmentos.push({ startFrame: inicio, endFrame: fin });
   }
   return segmentos;
 }

@@ -216,6 +216,25 @@ function preguntaDeSeguimiento(turno: number): string {
 }
 
 /**
+ * Quita la etiqueta de papel que a veces se filtra al principio de la respuesta.
+ *
+ * POR QUE OCURRE: los modelos de chat se entrenan sobre transcripciones marcadas
+ * con `Assistant:`, `AI:` o similares. Cuando el modelo pierde el hilo de la
+ * plantilla, reproduce esa marca como si fuera parte del texto. No es un fallo de
+ * la plantilla de transformers.js: es el modelo escribiendo lo que vio en su
+ * entrenamiento.
+ *
+ * Visto en produccion el 17-ago: «Assistant: I went to the beach last weekend with
+ * my family.» El estudiante no tiene por que ver la maquinaria por dentro.
+ *
+ * Solo se quita al principio y solo si va seguida de dos puntos. Una frase que
+ * mencione la palabra en otro sitio —«My assistant: she is very kind»— no se toca.
+ */
+function quitarEtiquetaDePapel(texto: string): string {
+  return texto.replace(/^\s*(assistant|ai|tutor|system|user|bot)\s*:\s*/i, '').trim();
+}
+
+/**
  * Limpia la respuesta conversacional del tutor, y la sustituye cuando no sirve.
  *
  * Además de las comillas, junta los saltos de línea: el chat muestra el mensaje en un
@@ -241,7 +260,9 @@ export function cleanTutorReply(
   text: string,
   context: { studentUtterance?: string; previousReply?: string; turno?: number } = {}
 ): string {
-  const limpio = stripWrappingQuotes(text).replace(/\s*\n\s*/g, ' ').trim();
+  const limpio = quitarEtiquetaDePapel(
+    stripWrappingQuotes(text).replace(/\s*\n\s*/g, ' ').trim()
+  );
   const turno = context.turno ?? 0;
 
   if (limpio.length === 0 || esRechazoMemorizado(limpio)) {
@@ -250,8 +271,17 @@ export function cleanTutorReply(
   if (context.previousReply && isSameSentence(limpio, context.previousReply)) {
     return preguntaDeSeguimiento(turno);
   }
-  if (context.studentUtterance && esEco(limpio, context.studentUtterance)) {
-    return preguntaDeSeguimiento(turno);
+  if (context.studentUtterance) {
+    // Copia literal de lo que dijo el estudiante. `esEco` no la atrapa porque
+    // busca ecos en **forma de pregunta**, y esto es una repeticion tal cual.
+    // Visto en produccion el 17-ago: ante "I went to the beach last weekend with
+    // my family" el modelo devolvio esa misma frase, precedida de "Assistant:".
+    if (isSameSentence(limpio, context.studentUtterance)) {
+      return preguntaDeSeguimiento(turno);
+    }
+    if (esEco(limpio, context.studentUtterance)) {
+      return preguntaDeSeguimiento(turno);
+    }
   }
 
   return limpio;

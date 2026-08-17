@@ -137,6 +137,24 @@ describe('Detección de habla offline (S2-T3)', () => {
     expect(ms(segmentos[0].endSample - segmentos[0].startSample)).toBeGreaterThan(800);
   });
 
+  it('no incluye el silencio final aunque sea más corto que el hangover', () => {
+    // El caso lo destapó la calibración con voz real (S9-T3): las grabaciones
+    // terminan con poco silencio, y el segmento llegaba hasta el final del
+    // archivo arrastrándolo. La causa era que los dos caminos de cierre de
+    // `segmentar` no coincidían: el normal descuenta las tramas que ya estaban
+    // bajo umbral y el de fin de grabación no descontaba ninguna.
+    //
+    // 120 ms de cola, por debajo del hangover de 200 ms, así que el segmento
+    // se cierra por fin de buffer y no por hangover cumplido.
+    const senal = concatenar(silencio(400), tono(600), silencio(120));
+    const segmentos = detectSpeech(senal, { sampleRate: RATE });
+
+    expect(segmentos).toHaveLength(1);
+    // El final no puede caer dentro de la cola de silencio. Se deja un margen
+    // de 40 ms para el redondeo del salto de análisis.
+    expect(ms(segmentos[0].endSample)).toBeLessThan(400 + 600 + 40);
+  });
+
   it('sí separa dos frases con una pausa larga', () => {
     const senal = concatenar(silencio(400), tono(500), silencio(700), tono(500), silencio(400));
     expect(detectSpeech(senal, { sampleRate: RATE })).toHaveLength(2);

@@ -110,20 +110,45 @@ distintas en cada archivo**. En la frase 1 se ve entero:
 Dos tomas de la misma frase quedan con contenidos distintos, y esa diferencia es
 mayor que la de la vocal que se busca.
 
-**El mecanismo.** La fracción de tramas sonoras de estas grabaciones cae entre
-0.11 y 0.41, y la puerta está en 0.10. Varios segmentos quedan a un punto
-porcentual del umbral, así que aceptarlos o rechazarlos pasa a depender del
-ruido de la medición y no del contenido.
+**El mecanismo, primera hipótesis: equivocada.** Se atribuyó a la puerta de
+periodicidad, porque la fracción de tramas sonoras cae entre 0.11 y 0.41 con el
+umbral en 0.10 y parecía que varios segmentos quedaban al filo. **Al medirlo
+resultó falso**: los ratios de las grabaciones están entre 0.31 y 0.68, muy por
+encima de la puerta. Ningún segmento se rechaza por periodicidad.
+
+**El mecanismo real: dos caminos de cierre que no coincidían.** El defecto está
+en `segmentar`, dentro del detector por energía:
+
+| Cierre del segmento | Qué hacía |
+|---|---|
+| Normal, con hangover cumplido | `endFrame = m - bajoUmbral + 1` — **descuenta** las tramas bajo umbral |
+| Por fin de grabación | `endFrame = energies.length` — **no descontaba nada** |
+
+Una grabación que termina con 120 ms de silencio —por debajo del hangover de
+200 ms— se llevaba esos 120 ms dentro del segmento, mientras que con 250 ms los
+descontaba. Como las grabaciones del protocolo terminan con poco silencio, la
+frontera caía de un lado o del otro según el archivo.
+
+**Corregido**: el cierre por fin de grabación descuenta las tramas bajo umbral
+igual que el normal. Hay una prueba de regresión con una cola de 120 ms.
 
 | | Frases que separan |
 |---|---:|
-| Sin recortar | **5 de 5** |
-| Con el recorte por voz | 4 de 5 |
+| Sin recortar | **9 de 10** |
+| Con el recorte, antes del arreglo | 7 de 10 |
+| Con el recorte, después | **8 de 10** |
 
-Esto **no es un problema del comparador sino del detector de voz**, y sí importa
-en producción: ahí la referencia viene del sintetizador, limpia y sin silencio, y
-la del usuario viene del micrófono con silencio alrededor. El recorte hace falta,
-pero con este umbral es demasiado frágil. Queda anotado como trabajo pendiente.
+**Lo que queda no es un defecto.** En los dos casos restantes la cola de la
+grabación está a −27/−30 dB con el umbral de fin en −29.4: hay contenido audible
+—respiración, la cola de la última palabra— justo en la frontera de decisión. El
+detector no se equivoca al incluirlo.
+
+Se probó además **afinar los bordes por periodicidad**: recortar hasta la primera
+y la última trama con tono detectable, con 100 ms de margen para no cortar
+consonantes sordas. Mejora mucho la consistencia de las duraciones —en la frase 1
+la dispersión del grupo baja de 1.12 s a 0.89 s, y en la primera frase de la
+segunda hablante de 1.68 s a 0.36 s— pero **la separación se queda igual, en 8 de
+10**. Se descarta: complejidad adicional sin ganancia en lo que se busca.
 
 ### 3.3 El límite lo pone la velocidad, no la pronunciación
 
@@ -412,7 +437,90 @@ PCM de cada WAV al *pipeline* `automatic-speech-recognition`. Es el mismo
 procedimiento acordado para el fixture de librosa (**D-07**): se corre una vez y
 se versiona el resultado, no la dependencia.
 
-## 7. Estado de RF-10
+## 7. El modo práctica sí detecta mejor, y a qué costo
+
+Medido sobre las mismas cuarenta grabaciones, con la regla más simple posible:
+**se marca error cuando lo transcrito no coincide con la frase que se pidió
+repetir.** No hay umbral que calibrar, y eso es parte de su atractivo frente a la
+vía acústica.
+
+| | Errores detectados | Tomas correctas marcadas |
+|---|---:|---:|
+| Acústica, referencia de otra voz | 6 de 10 | — |
+| **Texto contra frase objetivo** | **8 de 10** | 14 de 30 |
+
+Detecta un tercio más de errores. El costo es que marca catorce de las treinta
+tomas correctas, y esa cifra necesita interpretarse con cuidado.
+
+### Las "falsas alarmas" probablemente no lo son
+
+Las tomas marcadas son estas:
+
+| Toma | Debía decir | El reconocedor oyó |
+|---|---|---|
+| evelyn 1 ok | i need a new **ship** | i need a new **chip** |
+| evelyn 2 ok2 | she had a **bad day** | she had a **birthday** |
+| evelyn 3 ok2 | **please sit** down here | **felicity** down here |
+| fabrizio 2 ok | she had a bad **day** | she had a bad **date** |
+| evelyn 2 rapido | she had a bad day | **cheeratavate** |
+
+Las tomas `ok` se grabaron *lo mejor que se pudo*, no con pronunciación nativa.
+Que el reconocedor oiga *chip* donde se dijo *ship* no es un fallo del método:
+**es información real sobre esa emisión**. Un evaluador de pronunciación que la
+marque no se está equivocando.
+
+Distinguir una falsa alarma legítima de un error del reconocedor exige juicio
+perceptual sobre cada toma, que no se hizo. Por eso la cifra se reporta como
+"tomas correctas marcadas" y no como "falsas alarmas".
+
+### Por frase, y una que no sirve
+
+| Frase | Detecta | Marca correctas | |
+|---|---:|---:|---|
+| 1 ship/sheep | 2/2 | 3/6 | |
+| 2 bad/bed | 2/2 | 3/6 | |
+| 3 sit/seat | 1/2 | 2/6 | |
+| 4 live/leave | 2/2 | **6/6** | ← nadie dijo la frase objetivo |
+| 5 pull/pool | 1/2 | **0/6** | ← el caso limpio |
+
+La frase 4 se descarta como caso de prueba: el reconocedor oyó *leave* en las
+cuatro tomas de los dos hablantes, la correcta incluida. Contarla como acierto o
+como fallo distorsiona el resultado en ambos sentidos.
+
+La frase 5 muestra lo que el método puede dar cuando el material es limpio: cero
+tomas correctas marcadas.
+
+### La velocidad importa, y el modo práctica puede controlarla
+
+| | Tomas correctas marcadas |
+|---|---:|
+| A velocidad normal | 9 de 20 |
+| Hablando deprisa | **5 de 10** |
+
+La tasa se duplica al hablar deprisa. Es un argumento adicional a favor del modo
+práctica frente a la conversación libre: **puede pedir que se repita a ritmo
+normal**, y ahí las dos vías —la textual y la acústica— funcionan mejor.
+
+### Cómo combinar las dos señales
+
+Ninguna alcanza sola, pero **miden cosas distintas y se reparten el trabajo de
+forma natural**:
+
+- **El texto dice *qué* palabra salió mal.** Es independiente del hablante y no
+  necesita umbral.
+- **La acústica dice *cuánto*.** Contra las tomas anteriores del propio usuario
+  discrimina bien —10 de 10— y es lo que permite mostrar progreso.
+
+La combinación defendible es usar la transcripción para localizar el error y la
+distancia acústica para graduarlo, en lugar de pedirle a una sola de las dos que
+resuelva ambas preguntas.
+
+**Reproducible con `npx vitest run tests/audio/modoPractica.test.ts`**, que sí
+corre en integración continua: las transcripciones están versionadas en
+`tests/audio/fixtures/transcripciones-whisper.json`, siguiendo el mismo criterio
+que el fixture de librosa.
+
+## 8. Estado de RF-10
 
 **No se cumple, y se buscó activamente que se cumpliera** (§5, ocho vías).
 
@@ -428,7 +536,7 @@ misma y con el fonema cambiado ocupando un tercio de la señal en vez de una
 décima parte. Ese número describe el algoritmo en su caso más favorable, no sobre
 habla.
 
-## 8. Estado del riesgo R03
+## 9. Estado del riesgo R03
 
 **Confirmado y materializado.** El riesgo decía que el puntaje podía no
 correlacionar con la percepción real. La medición muestra que:
@@ -445,7 +553,7 @@ sentido que la interfaz muestre la evolución del usuario contra sus propias
 tomas anteriores —donde el comparador sí es fiable— antes que un número absoluto
 contra la referencia sintetizada.
 
-## 9. Qué falta
+## 10. Qué falta
 
 En orden de lo que más mueve la aguja:
 
@@ -459,24 +567,30 @@ En orden de lo que más mueve la aguja:
    Hoy la aplicación es conversación libre, así que no hay contra qué comparar
    —de ahí que el diseño terminara sintetizando la transcripción—. Toca
    orquestador e interfaz.
-3. **Combinar las dos señales**: la textual del reconocedor (6 de 10,
-   independiente del hablante) con la acústica (informativa contra la propia voz).
-   Ninguna alcanza sola.
+3. **Combinar las dos señales** (§7): el texto para localizar *qué* palabra salió
+   mal, la acústica para graduar *cuánto*. Ninguna alcanza sola, pero miden cosas
+   distintas y se reparten el trabajo de forma natural.
 4. **Decidir cómo se presenta el puntaje.** Es decisión de producto y afecta a la
    interfaz (RF-17) y al documento final.
 5. **Puntuar por palabra con las marcas del reconocedor**, en vez de aproximarlo
    con la peor ventana. Sube el Δ de 5.5 a 17.3 de mediana contra la propia voz.
    Tarea conjunta con Isaac.
-6. **Arreglar la fragilidad del recorte por voz**: la fracción de tramas sonoras
-   queda entre 0.11 y 0.41 con la puerta en 0.10, demasiado al filo. Es del
-   módulo de audio y se puede hacer aparte.
-7. **Verificar perceptualmente las tomas `mal`**, sobre todo las de *live/leave*,
-   donde hay indicios de que el contraste no se produjo.
+6. **Verificar perceptualmente las tomas**, en dos frentes: las `mal` de
+   *live/leave*, donde hay indicios de que el contraste no se produjo, y las
+   catorce tomas correctas que el modo práctica marcó, para saber cuántas eran
+   falsas alarmas y cuántas pronunciación realmente floja.
 
-## 10. Archivos
+Ya resuelto de esta lista: **la fragilidad del recorte por voz** (§3.2). La causa
+no era la que se suponía —los dos caminos de cierre del detector no coincidían— y
+corregirla sube la separación con recorte de 7 a 8 de 10.
+
+## 11. Archivos
 
 | Archivo | Rol |
 |---|---|
-| `tests/audio/calibracion.test.ts` | Toda la medición de esta evidencia |
+| `tests/audio/calibracion.test.ts` | La medición acústica. Requiere las grabaciones; se omite en integración continua |
+| `tests/audio/modoPractica.test.ts` | La medición del modo práctica. **Sí corre en integración continua** |
+| `tests/audio/fixtures/transcripciones-whisper.json` | Las 40 transcripciones, versionadas |
 | `tests/audio/fixtures/README.md` | Protocolo de grabación |
+| `src/audio/dsp/vad.ts` | Cierre del segmento por fin de grabación, corregido (§3.2) |
 | `src/audio/comparator/scorer.ts` | Escala del puntaje, sin cambios |
