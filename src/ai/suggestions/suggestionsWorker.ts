@@ -85,14 +85,20 @@ const MAX_TOKENS_SUGGESTION = 64;
 const MAX_TOKENS_REPLY = 48;
 
 /**
- * Techo más alto para el tutor de chat.
+ * Techo para el tutor de chat.
  *
- * 48 tokens alcanzan para la única frase que se le pedía a LaMini, pero un turno
- * bilingüe es más largo por necesidad: primero da la frase en inglés que el
- * estudiante no supo decir y después pregunta algo. Con el techo de 48 esa respuesta
- * se cortaría a la mitad, justo en la parte útil.
+ * Un turno bilingüe necesita más que los 48 del T5: primero da la frase en inglés
+ * que el estudiante no supo decir y después pregunta algo.
+ *
+ * PERO 96 ERAN DEMASIADOS. Con ese margen el modelo escribía párrafos de cinco
+ * líneas sobre crecimiento personal en vez de conversar (visto el 17-ago), y eso
+ * además se sintetiza con voz: unos 25 segundos de audio para escuchar. El techo no
+ * es solo un límite de coste, es lo que fuerza el registro conversacional.
+ *
+ * 56 alcanzan para «In English: I want to talk about my job. What do you do for
+ * work?», que es el turno bilingüe más largo previsto, y no para un ensayo.
  */
-const MAX_TOKENS_REPLY_CHAT = 96;
+const MAX_TOKENS_REPLY_CHAT = 56;
 
 /**
  * Genera a partir de una cadena. Solo válido con modelos `seq2seq`.
@@ -180,15 +186,38 @@ self.onmessage = async (event: MessageEvent<SuggestionsRequest>) => {
       // pico de memoria.
       const raw: string[] = [];
       for (const prompt of SUGGESTION_PROMPTS) {
-        // La misma instrucción sirve para las dos familias: en un T5 va como cadena,
-        // en un modelo de chat va como instrucción de sistema con la frase de
-        // usuario. Reescribir una frase no necesita historial en ninguno de los dos.
+        // ⚠️ LA FRASE DEL ESTUDIANTE VA COMO **DATO**, NUNCA COMO MENSAJE DE USUARIO.
+        //
+        // Es el mismo texto que le llega al T5, en una sola cadena. Ponerlo como
+        // `{ role: 'user' }` parece lo natural en un modelo de chat, y es
+        // exactamente lo que rompió las sugerencias (17-ago): el modelo recibía la
+        // frase como si el estudiante se la estuviera diciendo A ÉL, y su reflejo de
+        // contestar le ganaba a la instrucción de reescribir.
+        //
+        // Se nota sobre todo con preguntas. Ante «What do you think about learning
+        // languages?» devolvía «Of course, I think it's fascinating! Learning a new
+        // language can be...» —una respuesta— en vez de una reescritura de la
+        // pregunta. Con frases declarativas acertaba, lo que hacía el fallo
+        // intermitente y difícil de ver.
+        //
+        // Metiendo la frase entrecomillada dentro del turno de usuario, junto a la
+        // instrucción, deja de ser algo a lo que responder y pasa a ser el material
+        // sobre el que trabajar. El cierre `Rewritten sentence:` marca dónde tiene
+        // que empezar a escribir.
         raw.push(
           kind === 'chat'
             ? await generateChat(
                 [
-                  { role: 'system', content: prompt.instruction },
-                  { role: 'user', content: msg.text },
+                  {
+                    role: 'system',
+                    content:
+                      'You rewrite sentences. You never answer them, never comment on ' +
+                      'them, and never add explanations. You output one sentence only.',
+                  },
+                  {
+                    role: 'user',
+                    content: `${prompt.instruction}\n\nSentence: "${msg.text}"\n\nRewritten sentence:`,
+                  },
                 ],
                 MAX_TOKENS_SUGGESTION,
                 GEN_SUGGEST
