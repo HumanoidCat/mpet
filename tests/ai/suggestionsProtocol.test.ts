@@ -31,7 +31,19 @@ describe('buildSuggestionPrompt', () => {
     const out = buildSuggestionPrompt(p, 'I go to school.');
 
     expect(out.startsWith(p.instruction)).toBe(true);
-    expect(out).toContain('Sentence: I go to school.');
+    expect(out).toContain('Sentence: "I go to school."');
+  });
+
+  it('entrecomilla la frase y termina pidiendo la reescritura', () => {
+    // Regresión del 17-ago: sin estas dos marcas el modelo *responde* la frase
+    // cuando es una pregunta, en vez de reescribirla.
+    const out = buildSuggestionPrompt(
+      SUGGESTION_PROMPTS[0],
+      'What do you think about learning languages?'
+    );
+
+    expect(out).toContain('"What do you think about learning languages?"');
+    expect(out.trimEnd().endsWith('Rewritten sentence:')).toBe(true);
   });
 
   it('cada prompt pide algo distinto', () => {

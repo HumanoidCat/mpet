@@ -99,6 +99,48 @@ describe('cleanSuggestions', () => {
     const out = cleanSuggestions(original, ['Natural version.', 'Fancy version.']);
     expect(out).toEqual(['Natural version.', 'Fancy version.']);
   });
+
+  // ── Regresión: verificado en producción el 17-ago ──────────────────────────
+  // Ante una pregunta, el modelo la contestaba en vez de reescribirla, y la
+  // respuesta salía en pantalla etiquetada como "sugerencia".
+  it('descarta la negativa memorizada que salió en producción', () => {
+    const pregunta = 'What do you think about learning languages?';
+    const out = cleanSuggestions(pregunta, [
+      'I am an AI language model and do not have personal opinions or thoughts.',
+      'As an AI language model, I do not have personal opinions or beliefs. However, ' +
+        'I can provide you with a general idea of how to approach learning languages.',
+    ]);
+    expect(out).toEqual([]);
+  });
+
+  it('descarta la respuesta a la frase aunque no sea una negativa', () => {
+    const pregunta = 'What do you think about learning languages?';
+    const respuesta =
+      'Learning a new language opens the door to other cultures, improves memory ' +
+      'and concentration, and gives you access to films, books and conversations ' +
+      'that would otherwise be out of reach for you.';
+    expect(cleanSuggestions(pregunta, [respuesta])).toEqual([]);
+  });
+
+  it('conserva una reescritura de verdad de esa misma pregunta', () => {
+    // El filtro no puede llevarse por delante el caso bueno.
+    const pregunta = 'What do you think about learning languages?';
+    const out = cleanSuggestions(pregunta, [
+      "What's your take on learning languages?",
+      'What are your views on acquiring new languages?',
+    ]);
+    expect(out).toEqual([
+      "What's your take on learning languages?",
+      'What are your views on acquiring new languages?',
+    ]);
+  });
+
+  it('conserva una reescritura que no comparte ninguna palabra con el original', () => {
+    // Es justo lo que pide el prompt de vocabulario, y por eso el criterio es la
+    // longitud y no el solape de palabras.
+    const out = cleanSuggestions('I went to the beach.', ['I journeyed to the seaside.']);
+    expect(out).toEqual(['I journeyed to the seaside.']);
+  });
 });
 
 describe('cleanTutorReply', () => {

@@ -1196,3 +1196,62 @@ al estudiante en español— sin comprobar antes si alguna pieza ya cargada pod�
 hacerlo. Whisper multilingüe llevaba dos días en el proyecto con la tarea
 `translate` disponible y nadie la miró. **Antes de sumar un modelo conviene
 inventariar lo que los que ya están saben hacer.**
+
+---
+
+## I-13 · La sugerencia respondía la frase en vez de reescribirla (Semana 8)
+
+**Qué se vio.** En la aplicación desplegada, ante *«What do you think about
+learning languages?»*, las dos sugerencias que aparecieron en pantalla fueron:
+
+> «I am an AI language model and do not have personal opinions or thoughts.»
+>
+> «As an AI language model, I do not have personal opinions or beliefs. However,
+> I can provide you with a general idea of how to approach learning languages.»
+
+Ninguna es una reescritura: son respuestas a la pregunta, y además negativas
+memorizadas del corpus del modelo, el mismo defecto de I-09 pero por otra vía.
+
+**Causa técnica.** Ante una entrada con forma de pregunta, un T5 de instrucciones
+de este tamaño no distingue *«reescribí esto»* de *«respondé esto»*. El prompt lo
+pedía explícitamente —*«Answer with the rewritten sentence only»*— y el modelo lo
+ignoró. Es el mismo límite que documentó I-10 para las respuestas del tutor.
+
+**Causa de proceso, que es la que importa.** El defecto ya se había atacado en
+D-21, pero **en la rama equivocada**. El worker de sugerencias tiene dos caminos
+—uno para modelos de chat y otro para seq2seq— y se corrigió el de chat, que
+corresponde al modelo que justamente se había dejado de usar. El que corre en
+producción arma su prompt en `buildSuggestionPrompt`, que quedó intacta. Se dio
+el arreglo por cerrado sin comprobar cuál de los dos caminos se ejecutaba.
+
+**Lo que se hizo.**
+
+1. **En el prompt.** La frase va entrecomillada y el prompt termina en
+   `Rewritten sentence:`. Las comillas delimitan el dato; la etiqueta final
+   declara qué debe escribirse a continuación. Es la misma forma que ya usaba la
+   rama de chat, por la misma razón.
+2. **Después de generar**, porque lo anterior reduce el fallo pero no lo elimina.
+   `cleanSuggestions` descarta las negativas memorizadas —`esRechazoMemorizado`
+   ya existía para `reply()` y no se estaba aplicando aquí— y lo que por longitud
+   no puede ser una reescritura.
+
+**Por qué el criterio es la longitud y no las palabras.** Comparar la sugerencia
+con el original palabra a palabra parece más preciso y descartaría justo las
+buenas: el prompt de vocabulario existe para cambiarlas, y *«I went to the
+beach» → «I journeyed to the seaside»* no comparte ninguna. La longitud sí
+separa los dos casos —una reescritura conserva el tamaño de la frase, una
+respuesta se va por su cuenta: 12 y 26 palabras contra 7 del original— y no
+depende del modelo. Hay prueba de regresión para el caso malo y para el bueno.
+
+**Efecto secundario corregido.** El mock del reconocedor declaraba que el turno
+venía en español pero no entregaba la traducción, un estado que el worker real
+nunca produce desde D-21. Con el mock corregido, las pruebas ejercitan el camino
+real. También se restringió `TUTOR_SYSTEM_ES` a los turnos que sí traen
+traducción: en un turno **escrito** en español no hay audio que traducir, y esa
+instrucción —que afirma recibir el texto «ya en inglés»— contradecía al dato.
+
+**Aprendizaje.** Un arreglo verificado solo con pruebas unitarias no está
+verificado: las pruebas pasaban en verde con el defecto vivo en pantalla, porque
+cubrían la rama que no se ejecuta. **Antes de dar por cerrado un arreglo hay que
+comprobar en la aplicación real qué camino corre**, sobre todo cuando el código
+admite varios modelos.

@@ -25,7 +25,7 @@ export function createMockAIPipeline(options: MockAIPipelineOptions = {}): AIPip
         await delay(150);
       }
     },
-    async transcribe(_pcm, language) {
+    async transcribe(_pcm, language, alsoTranslate) {
       await delay(400);
       // El idioma forzado gana sobre el simulado: es el comportamiento real del
       // worker, donde `language` fija el idioma en vez de detectarlo.
@@ -41,6 +41,11 @@ export function createMockAIPipeline(options: MockAIPipelineOptions = {}): AIPip
             { word: 'trabajo', start: 1.25, end: 1.8 },
           ],
           language: 'es' as const,
+          // La segunda pasada del reconocedor (`task: 'translate'`), igual que en el
+          // worker real: solo se hace si se pidio, y solo si el idioma no es ingles.
+          // Sin esto el mock decia que el turno venia en espanol pero no entregaba
+          // la traduccion, un estado que el reconocedor real nunca produce.
+          ...(alsoTranslate ? { englishText: 'I want to talk about my job' } : {}),
         };
       }
       return {

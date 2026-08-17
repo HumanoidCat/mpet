@@ -70,13 +70,58 @@ export function isSameSentence(a: string, b: string): boolean {
   return normalizeSentence(a) === normalizeSentence(b);
 }
 
+const contarPalabras = (texto: string): number =>
+  normalizeSentence(texto).split(/\s+/).filter((p) => p.length > 0).length;
+
+/**
+ * ¿La salida es una reescritura de la frase, o el modelo se puso a responderla?
+ *
+ * POR QUÉ EXISTE. Verificado en producción el 17-ago con la frase
+ * *«What do you think about learning languages?»*. Las dos sugerencias que salieron
+ * en pantalla fueron:
+ *
+ *   «I am an AI language model and do not have personal opinions or thoughts.»
+ *   «As an AI language model, I do not have personal opinions or beliefs. However,
+ *    I can provide you with a general idea of how to approach learning languages.»
+ *
+ * El modelo vio una pregunta y la contestó, en vez de reescribirla. No es un fallo
+ * del prompt —la instrucción dice literalmente *«Answer with the rewritten sentence
+ * only»*— sino el mismo límite de I-10: un T5 de instrucciones de este tamaño no
+ * distingue «reescribe esto» de «responde esto» cuando la entrada es una pregunta.
+ * Por eso el filtro va **después** de generar, igual que `esEco`.
+ *
+ * EL CRITERIO ES LA LONGITUD, NO EL CONTENIDO. Comparar las palabras de la sugerencia
+ * con las del original parece más preciso, pero descartaría justo las sugerencias
+ * buenas: el prompt de vocabulario existe para cambiarlas —«I went to the beach» →
+ * «I journeyed to the seaside» no comparte ni una— y quedaría fuera. La longitud, en
+ * cambio, sí separa los dos casos: una reescritura conserva más o menos el tamaño de
+ * la frase; una respuesta se va por su cuenta. Los dos ejemplos de arriba miden 12 y
+ * 26 palabras contra 7 del original.
+ *
+ * La banda es ancha a propósito (de la mitad al doble y medio, con dos palabras de
+ * holgura para frases muy cortas): equivocarse filtrando cuesta una sugerencia menos
+ * —y ninguna sugerencia es un resultado válido, ver más abajo—, mientras que
+ * equivocarse al revés pone un disparate en pantalla.
+ */
+export function pareceReescritura(original: string, candidata: string): boolean {
+  const n = contarPalabras(original);
+  const m = contarPalabras(candidata);
+  if (n === 0 || m === 0) return false;
+  return m >= n * 0.5 - 2 && m <= n * 2.5 + 2;
+}
+
 /**
  * Deja solo las sugerencias que aportan algo.
  *
- * Descarta, en este orden: las vacías, las que repiten la frase original y las
- * repetidas entre sí (los dos prompts pueden coincidir en la misma reescritura).
+ * Descarta, en este orden: las vacías, las negativas memorizadas (`esRechazoMemorizado`,
+ * I-09 — el filtro ya existía para `reply()` y faltaba aquí), las que responden la
+ * frase en vez de reescribirla (`pareceReescritura`), las que repiten la frase
+ * original y las repetidas entre sí (los dos prompts pueden coincidir en la misma
+ * reescritura).
+ *
  * Devolver una lista vacía es un resultado válido y honesto: significa que el modelo
- * no encontró nada que mejorar.
+ * no encontró nada que mejorar. La interfaz ya lo contempla, y es preferible a
+ * rellenar el hueco con texto que no es una sugerencia.
  */
 export function cleanSuggestions(original: string, raw: readonly string[]): string[] {
   const out: string[] = [];
@@ -84,6 +129,8 @@ export function cleanSuggestions(original: string, raw: readonly string[]): stri
   for (const item of raw) {
     const clean = stripWrappingQuotes(item);
     if (clean.length === 0) continue;
+    if (esRechazoMemorizado(clean)) continue;
+    if (!pareceReescritura(original, clean)) continue;
     if (isSameSentence(clean, original)) continue;
     if (out.some((existing) => isSameSentence(existing, clean))) continue;
     out.push(clean);
@@ -115,6 +162,9 @@ const HUELLAS_DE_RECHAZO: readonly RegExp[] = [
   /use case polic/i,
   /content polic/i,
   /as an ai(\s+language)?\s+model/i,
+  // Variante vista en produccion el 17-ago, en primera persona y sin el "as":
+  // «I am an AI language model and do not have personal opinions or thoughts.»
+  /\bi(\s+am|'?m)\s+an?\s+ai\b/i,
   /\bi (can ?not|cannot|can't|am unable to|am not able to) (respond|answer|reply|generate|provide|comply|assist)/i,
   /i'?m sorry,? but i (can ?not|cannot|can't)/i,
   /(inappropriate|offensive) content/i,

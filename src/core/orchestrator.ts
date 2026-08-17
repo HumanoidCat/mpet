@@ -338,7 +338,13 @@ export function createOrchestrator({ audio, ai, bus, scorer }: Deps): Orchestrat
           )
         : history;
 
-    const replyText = await ai.reply(historialParaTutor, idioma, ingles);
+    // LA INSTRUCCION EN ESPANOL SOLO VALE SI HAY TRADUCCION. `TUTOR_SYSTEM_ES` le
+    // dice al modelo que lo que recibe "ya viene en ingles"; si se la damos sin
+    // traduccion —lo que pasa en un turno **escrito** en espanol, donde no hay audio
+    // que pasar por el reconocedor— la instruccion contradice al dato y el modelo
+    // responde cualquier cosa. Sin traduccion se usa la instruccion normal.
+    const idiomaTutor: SupportedLanguage = idioma === 'es' && ingles ? 'es' : 'en';
+    const replyText = await ai.reply(historialParaTutor, idiomaTutor, ingles);
     const tTutor = Date.now();
 
     // Las sugerencias son reescrituras en ingles: sobre una frase en espanol no

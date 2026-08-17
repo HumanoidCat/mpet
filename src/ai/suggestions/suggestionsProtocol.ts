@@ -210,8 +210,22 @@ export const SUGGESTION_PROMPTS: readonly SuggestionPrompt[] = [
   },
 ] as const;
 
+/**
+ * ⚠️ LA FRASE VA ENTRECOMILLADA Y EL PROMPT TERMINA EN «Rewritten sentence:».
+ *
+ * Sin esas dos cosas, cuando la frase del estudiante es una **pregunta**, el modelo
+ * la contesta en vez de reescribirla. Verificado en producción el 17-ago con
+ * *«What do you think about learning languages?»*: las dos sugerencias que salieron
+ * fueron respuestas a la pregunta, no reescrituras de ella.
+ *
+ * Las comillas marcan dónde empieza y acaba el dato, y la etiqueta final le dice al
+ * modelo qué tiene que escribir a continuación. Es la misma forma que ya usa la rama
+ * de chat del worker, por la misma razón.
+ *
+ * El filtro de `cleanup.ts` sigue haciendo falta: esto reduce el fallo, no lo elimina.
+ */
 export function buildSuggestionPrompt(prompt: SuggestionPrompt, text: string): string {
-  return `${prompt.instruction}\n\nSentence: ${text}`;
+  return `${prompt.instruction}\n\nSentence: "${text}"\n\nRewritten sentence:`;
 }
 
 /**

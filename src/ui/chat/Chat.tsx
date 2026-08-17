@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Mic, Square, Clock, AlertCircle, Play, Gauge, ChevronDown, Send } from 'lucide-react';
 import type { AudioEngine, ChatMessage } from '@shared/contracts';
 import type { OrchestratorState } from '@core/orchestrator';
+import { detectarIdiomaEscrito } from '@core/idiomaEscrito';
 import { buildSegments, buildPronunciationSegments } from './highlight';
 import { scoreColor } from '@ui/feedback/pronunciationColor';
 import { TYPE_LABEL } from '@ui/feedback/editTypeLabel';
@@ -53,6 +54,19 @@ export function Chat({ messages, state, onMicClick, audio, onPlay, onSubmitText 
   const [borrador, setBorrador] = useState('');
 
   const puedeEnviar = borrador.trim().length > 0 && state === 'idle';
+
+  /**
+   * Escribir en espanol funciona peor que decirlo, y conviene avisarlo antes.
+   *
+   * La ayuda bilingue la produce el reconocedor, traduciendo el audio; en un turno
+   * escrito no hay audio que traducir, asi que el tutor recibe el espanol tal cual y
+   * responde mucho peor. Es un aviso, no un bloqueo — el mismo criterio que el banco
+   * de frases: el estudiante decide.
+   */
+  const avisoIdioma =
+    borrador.trim().length > 3 && detectarIdiomaEscrito(borrador) === 'es'
+      ? 'Escribiendo, el tutor entiende mejor el inglés. Para practicar en español, usá el micrófono.'
+      : null;
 
   function enviarTexto() {
     if (!puedeEnviar || !onSubmitText) return;
@@ -362,6 +376,9 @@ export function Chat({ messages, state, onMicClick, audio, onPlay, onSubmitText 
             <p className="mt-1.5 text-[11px] text-slate-400 text-center">
               Al escribir no se puntúa la pronunciación: para eso hay que hablar.
             </p>
+            {avisoIdioma && (
+              <p className="mt-1 text-[11px] text-amber-700 text-center">{avisoIdioma}</p>
+            )}
           </div>
         )}
       </div>
