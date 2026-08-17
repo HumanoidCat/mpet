@@ -65,6 +65,23 @@ export type AsrRequest =
        * añade una forma de fallar. En conversación libre se deja detectar.
        */
       language?: SupportedLanguage;
+      /**
+       * Pide además la traducción al inglés de lo que se dijo.
+       *
+       * POR QUÉ ESTO EXISTE Y POR QUÉ AQUÍ. Whisper multilingüe sabe hacer dos
+       * tareas con el mismo audio y los mismos pesos: transcribir en el idioma
+       * original (`transcribe`) y **traducir a inglés** (`translate`). Es una
+       * capacidad del modelo que ya está cargado, no un modelo nuevo.
+       *
+       * Con esto, cuando el estudiante recurre al español se le puede dar la
+       * frase en inglés que intentaba decir **sin pasar por un modelo de chat
+       * multilingüe**, que es lo que costaba 7 segundos por turno. El tutor
+       * vuelve a ser el modelo rápido y el bilingüe sale de aquí.
+       *
+       * Cuesta una segunda pasada del reconocedor sobre el mismo audio —unos
+       * cientos de milisegundos— en vez de una generación completa.
+       */
+      alsoTranslate?: boolean;
     };
 
 /** Mensajes que el worker devuelve al hilo principal. */

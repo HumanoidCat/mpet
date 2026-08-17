@@ -270,7 +270,18 @@ export function createOrchestrator({ audio, ai, bus, scorer }: Deps): Orchestrat
     texto: string,
     idioma: SupportedLanguage,
     audio: { pcm: Float32Array; transcription: Transcription } | null,
-    marcas: { t0: number; tAsr: number }
+    marcas: { t0: number; tAsr: number },
+    /**
+     * Lo que el estudiante dijo, ya en ingles. Solo llega cuando hablo en
+     * espanol, y viene del propio reconocedor (`Transcription.englishText`).
+     *
+     * POR QUE ESTO CAMBIA TODO EL DISENIO DEL TUTOR BILINGUE. Antes el tutor
+     * tenia que ser un modelo de chat multilingue: recibia espanol y debia
+     * traducir y conversar a la vez. Eso costaba 7 segundos por turno. Con la
+     * traduccion ya hecha, al tutor le llega ingles y puede volver a ser el
+     * modelo rapido: solo tiene que conversar.
+     */
+    ingles?: string
   ): Promise<void> {
     // LA CORRECCION GRAMATICAL SE SALTA EN ESPANOL. El corrector es un T5
     // entrenado solo en ingles: pasarle una frase en espanol no da una
@@ -313,7 +324,21 @@ export function createOrchestrator({ audio, ai, bus, scorer }: Deps): Orchestrat
     // Invertido, la respuesta sale primero y las sugerencias se calculan despues,
     // en segundo plano, actualizando el mismo mensaje cuando terminan. El
     // contrato no cambia: siguen llegando tarde y siguen siendo opcionales.
-    const replyText = await ai.reply(history, idioma);
+    // AL TUTOR SIEMPRE LE LLEGA INGLES. Si el estudiante hablo en espanol, lo que
+    // se le pasa es la traduccion que hizo el reconocedor, no el espanol crudo.
+    //
+    // Asi el tutor nunca tiene que saber espanol, que era lo unico que obligaba a
+    // usar un modelo de chat multilingue —y lo que costaba 7 segundos por turno—.
+    // El bilingue no desaparece: se resuelve antes, en el reconocedor, que ya
+    // estaba cargado y sabe hacerlo.
+    const historialParaTutor =
+      ingles && idioma === 'es'
+        ? history.map((m, i) =>
+            i === history.length - 1 && m.role === 'user' ? { ...m, text: ingles } : m
+          )
+        : history;
+
+    const replyText = await ai.reply(historialParaTutor, idioma, ingles);
     const tTutor = Date.now();
 
     // Las sugerencias son reescrituras en ingles: sobre una frase en espanol no
@@ -383,7 +408,14 @@ export function createOrchestrator({ audio, ai, bus, scorer }: Deps): Orchestrat
       // ingles, y dejar que el detector dude ante una palabra mal pronunciada solo
       // anade una forma de fallar. En conversacion libre se deja detectar, que es
       // lo que hace posible responder al estudiante cuando recurre al espanol.
-      const transcription = await ai.transcribe(pcm, fraseObjetivo ? 'en' : undefined);
+      // `alsoTranslate` solo en conversacion libre: en modo practica se sabe que
+      // la frase objetivo esta en ingles, asi que no hay nada que traducir y una
+      // segunda pasada del reconocedor seria tiempo tirado.
+      const transcription = await ai.transcribe(
+        pcm,
+        fraseObjetivo ? 'en' : undefined,
+        !fraseObjetivo
+      );
       const tAsr = Date.now();
       bus.emit({ type: 'transcription', result: transcription });
 
@@ -399,7 +431,8 @@ export function createOrchestrator({ audio, ai, bus, scorer }: Deps): Orchestrat
         transcription.text,
         idioma,
         { pcm, transcription },
-        { t0, tAsr }
+        { t0, tAsr },
+        transcription.englishText
       );
     } catch (err) {
       bus.emit({

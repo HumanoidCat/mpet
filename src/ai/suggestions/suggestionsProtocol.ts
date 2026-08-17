@@ -140,7 +140,29 @@ export function getSuggestionsConfig(id: SuggestionsConfigId): SuggestionsConfig
  * Cuando la salida no se le puede enseñar a un estudiante, ahorrar 172 MiB no es un
  * ahorro. Evidencia: docs/evidencias/s6/s6-t4-modelo-tutor.md
  */
-export const DEFAULT_SUGGESTIONS_CONFIG: SuggestionsConfigId = 'chat-qwen-05b';
+export const DEFAULT_SUGGESTIONS_CONFIG: SuggestionsConfigId = 'grande-248m';
+
+/**
+ * POR QUÉ SE VOLVIÓ AL MODELO RÁPIDO (17-ago), y qué lo hizo posible.
+ *
+ * El modelo de chat multilingüe se adoptó para que el tutor pudiera atender a un
+ * estudiante que recurre al español. Medido en la aplicación desplegada, costaba
+ * **7 a 16 segundos por respuesta** —cinco turnos cronometrados— además de
+ * escribir párrafos en vez de conversar.
+ *
+ * Lo que se vio al revisarlo es que **el tutor no necesitaba saber español**: lo
+ * único que hacía falta era traducir lo que el estudiante dijo. Y eso ya sabía
+ * hacerlo un modelo que estaba cargado desde el principio — Whisper multilingüe
+ * tiene una tarea `translate` que devuelve inglés a partir de cualquier idioma.
+ *
+ * Con la traducción resuelta en el reconocedor, al tutor le llega siempre inglés
+ * y puede volver a ser el T5 rápido. **El bilingüe no se pierde: se resuelve
+ * antes y más barato.**
+ *
+ * La configuración de chat se conserva seleccionable, con sus mediciones, porque
+ * el día que la latencia de un modelo así sea aceptable en el navegador aporta
+ * algo que el T5 no puede dar: memoria entre turnos.
+ */
 
 /**
  * Config anterior, que se mantiene seleccionable a propósito.
@@ -151,7 +173,7 @@ export const DEFAULT_SUGGESTIONS_CONFIG: SuggestionsConfigId = 'chat-qwen-05b';
  * atrás a una línea de distancia es lo que permite probar el cambio grande sin
  * arriesgar la entrega.
  */
-export const FALLBACK_SUGGESTIONS_CONFIG: SuggestionsConfigId = 'grande-248m';
+export const FALLBACK_SUGGESTIONS_CONFIG: SuggestionsConfigId = 'chat-qwen-05b';
 
 // ── Prompts fijos ────────────────────────────────────────────────────────────
 
@@ -295,11 +317,29 @@ export const TUTOR_SYSTEM_EN =
  * poder seguir— y que no se le regañe por haber usado el español.
  */
 export const TUTOR_SYSTEM_ES =
-  'You are a warm, patient English conversation tutor. The student just wrote in Spanish ' +
-  'because they could not say it in English yet. Do not scold them for it. ' +
-  'First give them the English sentence they were trying to say, introduced by «In English: ». ' +
-  'Then ask them one short question in English to continue the conversation. ' +
-  'Keep the whole reply under three sentences. Never mention being an AI or a model.';
+  'You are a friendly English conversation partner. The student could not say this in ' +
+  'English yet, so you are given what they meant, already in English. Follow these rules:\n' +
+  '1. Reply with AT MOST two short sentences.\n' +
+  '2. React to what they meant, then ask ONE question about it.\n' +
+  '3. Never mention Spanish, translating, or that they struggled.\n\n' +
+  'Example:\n' +
+  'Student meant: I want to talk about my job.\n' +
+  'You: Sure, let us talk about work! What do you do?';
+
+/**
+ * Cómo se le muestra al estudiante la frase en inglés que no supo decir.
+ *
+ * POR QUÉ NO LO ESCRIBE EL MODELO. Antes se le pedía al tutor que tradujera y
+ * conversara a la vez, y para eso hacía falta un modelo de chat multilingüe: 7
+ * segundos por turno medidos. Ahora la traducción la hace el reconocedor, que ya
+ * está cargado y sabe hacerlo, y esta línea la presenta.
+ *
+ * Además de rápido es más fiable: el texto es exactamente lo que tradujo Whisper,
+ * sin pasar por un modelo que podría reformularlo o inventarlo.
+ */
+export function prefijoTraduccion(ingles: string): string {
+  return `In English: «${ingles}»`;
+}
 
 /**
  * Arma la conversación para un modelo de chat.
@@ -403,6 +443,8 @@ export type SuggestionsRequest =
       history: HistoryTurn[];
       /** Idioma del último turno del estudiante; decide qué instrucción se usa. */
       language?: 'en' | 'es';
+      /** Traducción al inglés hecha por el reconocedor, si el turno vino en español. */
+      ingles?: string;
     };
 
 export type SuggestionsResponse =

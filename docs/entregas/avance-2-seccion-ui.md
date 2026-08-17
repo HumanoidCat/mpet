@@ -4,7 +4,7 @@
 >
 > No es el documento de la entrega: es el aporte del módulo `src/ui/`, redactado
 > en el mismo registro que el Avance 1 y que la sección de DSP de Fabrizio
-> (`avance-2-seccion-dsp.md`), lista para insertar. Este módulo no aporta
+> (`avance-2-seccion-dsp-actualizado.md`), lista para insertar. Este módulo no aporta
 > desarrollo teórico nuevo — el trabajo del período fue de implementación y
 > verificación, no de matemática — así que este documento solo cubre la
 > sección 7 y el Anexo B.

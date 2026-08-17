@@ -31,7 +31,11 @@ export interface SuggestionsClient {
    * cambia de tarea: en vez de conversar, le da la frase en inglés que no supo decir
    * y sigue desde ahí.
    */
-  reply(history: readonly HistoryTurn[], language?: 'en' | 'es'): Promise<string>;
+  reply(
+    history: readonly HistoryTurn[],
+    language?: 'en' | 'es',
+    ingles?: string
+  ): Promise<string>;
   dispose(): void;
 }
 
@@ -132,13 +136,19 @@ export function createSuggestionsClient(
       });
     },
 
-    reply(history, language) {
+    reply(history, language, ingles) {
       return new Promise<string>((resolve, reject) => {
         const id = nextId++;
         pending.set(id, { kind: 'reply', resolve, reject });
         // Se copia el historial a un array plano: lo que llega puede ser readonly y
         // `postMessage` necesita algo clonable.
-        send({ type: 'reply', id, history: [...history], ...(language ? { language } : {}) });
+        send({
+          type: 'reply',
+          id,
+          history: [...history],
+          ...(language ? { language } : {}),
+          ...(ingles ? { ingles } : {}),
+        });
       });
     },
 

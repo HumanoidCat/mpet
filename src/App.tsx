@@ -5,11 +5,16 @@ import { createMockAudioEngine } from '@mocks/mockAudioEngine';
 import { createMockAIPipeline } from '@mocks/mockAIPipeline';
 import { createAIPipeline } from '@ai/createAIPipeline';
 import { createDspAudioEngine } from '@core/audioEngineAdapter';
-import { createPronunciationScorer } from '@audio/comparator/scorer';
+import { SCORE_FLOOR, createPronunciationScorer } from '@audio/comparator/scorer';
 import { createMockScorer } from '@mocks/mockScorer';
 import { createSessionStore, createMemorySessionStore, type SessionSummary } from '@core/sessionStore';
 import { descargarWav } from '@core/wavExport';
-import { siguienteFrase, type FrasePractica } from '@core/bancoFrases';
+import {
+  avisoSobreFrase,
+  frasePropia,
+  siguienteFrase,
+  type FrasePractica,
+} from '@core/bancoFrases';
 import { Chat } from '@ui/chat/Chat';
 import { VisualizerScreen } from '@ui/visualizer/VisualizerScreen';
 import SplashScreen, { type ModelStatus } from '@ui/shell/Splash';
@@ -84,7 +89,15 @@ export function App() {
     const bus = createEventBus();
     const audio = mockMode ? createMockAudioEngine() : createDspAudioEngine();
     const ai: AIPipeline = mockMode ? createMockAIPipeline() : createAIPipeline();
-    const scorer = mockMode ? createMockScorer() : createPronunciationScorer();
+    // `floor: SCORE_FLOOR` descuenta lo que cuesta no tener la voz del
+    // sintetizador (7.08, medido en S9-T3). Se pasa aquí y no dentro del
+    // comparador porque el suelo depende de QUÉ se compara, y es esta línea la
+    // que decide que se compara voz humana contra referencia sintetizada.
+    // Sin esto, pronunciar perfectamente sacaba 70 — la queja de que «califica
+    // muy heavy», que era acertada.
+    const scorer = mockMode
+      ? createMockScorer()
+      : createPronunciationScorer({ floor: SCORE_FLOOR });
     const orch = createOrchestrator({ audio, ai, bus, scorer });
     // En modo demostracion el historial va en memoria: no tiene sentido dejar
     // sesiones de ejemplo en el disco de quien solo esta viendo la aplicacion.
@@ -263,6 +276,26 @@ export function App() {
   // y el color por palabra que ya pinta `Chat.tsx` sirve igual.
   const [practica, setPractica] = useState<FrasePractica | null>(null);
   const [hechas, setHechas] = useState<string[]>([]);
+
+  /** Frase que el estudiante escribe para practicar, si no quiere las del banco. */
+  const [fraseLibre, setFraseLibre] = useState('');
+  const avisoPractica = practica ? avisoSobreFrase(practica.texto) : null;
+
+  /**
+   * Practica con una frase propia.
+   *
+   * El aviso no bloquea: se calcula al vuelo desde `practica.texto` y se muestra
+   * junto a la frase, para que el estudiante sepa interpretar el puntaje si la
+   * cadena tiene algo que le juega en contra.
+   */
+  function empezarPracticaPropia() {
+    const texto = fraseLibre.trim();
+    if (texto.length === 0) return;
+    const frase = frasePropia(texto);
+    setPractica(frase);
+    orch.setFraseObjetivo(frase.texto);
+    setFraseLibre('');
+  }
 
   function empezarPractica() {
     const frase = siguienteFrase(hechas);
@@ -531,6 +564,12 @@ export function App() {
                   <p className="text-base font-medium text-slate-900 mt-0.5">
                     {practica.texto}
                   </p>
+                  {/* El aviso acompaña al puntaje en vez de impedir la práctica:
+                      lo que limita no es el inglés del estudiante sino qué sabe
+                      decir el sintetizador. Ver `avisoSobreFrase`. */}
+                  {avisoPractica && (
+                    <p className="text-[11px] text-amber-800 mt-1 max-w-xl">{avisoPractica}</p>
+                  )}
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0">
                   <button
@@ -557,17 +596,49 @@ export function App() {
           )}
 
           {screen === 'chat' && !practica && (
-            <div className="px-4 py-2 border-b border-[var(--color-border)] flex items-center justify-between gap-3">
-              <p className="text-xs text-[var(--color-muted)]">
-                En conversación libre no se puntúa la pronunciación: hace falta una
-                frase de referencia para poder compararla.
-              </p>
-              <button
-                onClick={empezarPractica}
-                className="text-xs font-semibold text-blue-700 underline underline-offset-2 flex-shrink-0"
+            <div className="px-4 py-2 border-b border-[var(--color-border)] flex flex-col gap-2">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-xs text-[var(--color-muted)]">
+                  En conversación libre no se puntúa la pronunciación: hace falta una
+                  frase de referencia para poder compararla.
+                </p>
+                <button
+                  onClick={empezarPractica}
+                  className="text-xs font-semibold text-blue-700 underline underline-offset-2 flex-shrink-0"
+                >
+                  Practicar con una frase sugerida
+                </button>
+              </div>
+              {/* Frase propia: el banco curado sigue existiendo y sigue siendo lo
+                  recomendado, pero ya no es lo único. Alguien que prepara una
+                  entrevista quiere practicar SU frase, no «The pool is very cold». */}
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  empezarPracticaPropia();
+                }}
+                className="flex items-center gap-2"
               >
-                Practicar pronunciación
-              </button>
+                <input
+                  type="text"
+                  value={fraseLibre}
+                  onChange={(e) => setFraseLibre(e.target.value)}
+                  placeholder="…o escribí la frase que querés practicar"
+                  aria-label="Frase propia para practicar pronunciación"
+                  className="flex-1 rounded-full border border-slate-300 px-3 py-1.5 text-xs outline-none transition-colors focus:border-blue-500"
+                />
+                <button
+                  type="submit"
+                  disabled={fraseLibre.trim().length === 0}
+                  className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors flex-shrink-0 ${
+                    fraseLibre.trim().length > 0
+                      ? 'bg-blue-600 text-white hover:bg-blue-700'
+                      : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                  }`}
+                >
+                  Practicar
+                </button>
+              </form>
             </div>
           )}
 

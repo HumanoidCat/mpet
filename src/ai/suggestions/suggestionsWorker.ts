@@ -37,6 +37,7 @@ import {
   buildSuggestionPrompt,
   buildTutorMessages,
   buildTutorPrompt,
+  prefijoTraduccion,
   getSuggestionsConfig,
   type ChatTurn,
   type SuggestionsModelKind,
@@ -268,7 +269,14 @@ self.onmessage = async (event: MessageEvent<SuggestionsRequest>) => {
       });
       ultimaRespuesta = text;
 
-      post({ type: 'reply', id: msg.id, text });
+      // La frase en inglés la antepone el código, no el modelo. Es exactamente lo
+      // que tradujo el reconocedor, sin pasar por un modelo que pudiera
+      // reformularla o inventarla — y es lo que permite que el tutor no necesite
+      // saber español, que era lo único que obligaba a un modelo multilingüe.
+      const conTraduccion =
+        msg.ingles && idioma === 'es' ? `${prefijoTraduccion(msg.ingles)} ${text}` : text;
+
+      post({ type: 'reply', id: msg.id, text: conTraduccion });
     }
   } catch (err) {
     post({

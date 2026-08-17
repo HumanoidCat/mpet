@@ -53,6 +53,33 @@ import { dtw, segmentCost, type DtwOptions } from './dtw';
  */
 export const SCORE_SCALE = 20;
 
+/**
+ * Distancia que se descuenta antes de puntuar: el **suelo** de la cadena.
+ *
+ * POR QUÉ EXISTE. Un estudiante que pronuncia la frase **perfectamente** nunca
+ * llega a distancia cero, porque su voz no es la del sintetizador. Ese resto no
+ * depende de cómo pronuncie y no debería costarle puntos. Puntuar contra cero
+ * hacía que una pronunciación correcta sacara 45 o 50, que es la queja de que
+ * «califica muy heavy» — y es una queja acertada: el puntaje estaba midiendo el
+ * timbre del estudiante, no su pronunciación.
+ *
+ * DE DÓNDE SALE EL NÚMERO. De la calibración con voz real de S9-T3: decir la
+ * frase **bien pero con otra voz** cuesta **+7.08** de distancia respecto a la
+ * referencia. Ese es el precio de no ser el sintetizador, medido sobre 40
+ * grabaciones de dos hablantes.
+ *
+ * Es la vía 1 de las tres que propuso Isaac al cerrar R03: *«calibrar la escala
+ * contra el suelo, no contra cero»*.
+ *
+ * LO QUE ESTO **NO** ARREGLA, y hay que decirlo. Descontar el suelo hace el
+ * número legible, no discriminante. Pronunciar mal cuesta +1.20 sobre ese suelo,
+ * así que tras el descuento una toma correcta y una incorrecta siguen quedando
+ * cerca. **R03 sigue en pie**: la vía acústica detecta 6 de 10 y la señal
+ * principal sigue siendo la comparación contra la frase objetivo. Lo que se
+ * corrige aquí es que el puntaje dejara de castigar a quien lo hizo bien.
+ */
+export const SCORE_FLOOR = 7.08;
+
 /** Radio de banda por defecto: 15 % de la secuencia más larga, mínimo 10 tramas. */
 export function defaultBandRadius(n: number, m: number): number {
   return Math.max(10, Math.round(0.15 * Math.max(n, m)));
@@ -61,6 +88,15 @@ export function defaultBandRadius(n: number, m: number): number {
 export interface ScorerOptions extends DtwOptions {
   /** Constante de la curva de puntaje. Menor = más exigente. */
   scale?: number;
+  /**
+   * Distancia que se descuenta antes de puntuar (ver `SCORE_FLOOR`). Por defecto
+   * el suelo medido de «voz humana contra referencia sintetizada».
+   *
+   * Ponerlo en `0` compara contra cero absoluto, que es lo correcto cuando las
+   * dos señales vienen de la misma voz —dos grabaciones del mismo estudiante— y
+   * no hay diferencia de timbre que descontar.
+   */
+  floor?: number;
   /**
    * Normalización cepstral por media, activada por defecto. Es lo que permite
    * comparar la voz del usuario contra la del TTS: sin ella las clases "bien
@@ -73,17 +109,29 @@ export interface ScorerOptions extends DtwOptions {
 /**
  * Convierte una distancia en un puntaje de 0 a 100:
  *
- *   puntaje = 100 · e^(−d / escala)
+ *   puntaje = 100 · e^(−(d − suelo) / escala)
  *
  * Se eligió una exponencial y no una recta por dos razones. Está acotada por
  * construcción —nunca da negativo ni pasa de 100, sin recortes artificiales— y
  * su pendiente es mayor cerca de cero, que es donde conviene distinguir: la
  * diferencia entre una pronunciación muy buena y una buena importa más que
  * entre una mala y una peor.
+ *
+ * `floor` VALE CERO POR DEFECTO A PROPÓSITO: esta función es la curva pura, y el
+ * suelo no es una propiedad de la curva sino del caso concreto «voz humana contra
+ * referencia sintetizada». Quien lo aplica es `createPronunciationScorer`, que sí
+ * sabe que está comparando esas dos cosas. Así las pruebas de la curva siguen
+ * midiendo la curva, y comparar dos grabaciones de la misma voz —donde no hay
+ * suelo que descontar— sigue funcionando sin pasar nada.
  */
-export function distanceToScore(distance: number, scale: number = SCORE_SCALE): number {
+export function distanceToScore(
+  distance: number,
+  scale: number = SCORE_SCALE,
+  floor = 0
+): number {
   if (!Number.isFinite(distance)) return 0;
-  return 100 * Math.exp(-Math.max(0, distance) / scale);
+  const efectiva = Math.max(0, distance - Math.max(0, floor));
+  return 100 * Math.exp(-efectiva / scale);
 }
 
 /**
@@ -130,6 +178,13 @@ export function frameRangeForWord(
  */
 export function createPronunciationScorer(options: ScorerOptions = {}): PronunciationScorer {
   const scale = options.scale ?? SCORE_SCALE;
+  // Cero por defecto, y la aplicación pasa `SCORE_FLOOR` al componer (`App.tsx`).
+  // El suelo depende de QUÉ se está comparando —voz humana contra referencia
+  // sintetizada— y esa información la tiene quien arma la cadena, no el
+  // comparador. Con el valor por defecto aquí, las pruebas que miden la
+  // capacidad de discriminar sobre vocales sintéticas seguirían midiendo otra
+  // cosa sin que nadie lo pidiera.
+  const floor = options.floor ?? 0;
   const conCmn = options.cepstralMeanNormalization !== false;
 
   return {
@@ -159,7 +214,7 @@ export function createPronunciationScorer(options: ScorerOptions = {}): Pronunci
         if (to <= from) {
           // La palabra no cubre ninguna trama: se le da el puntaje global en vez
           // de un cero, que sería castigar al usuario por un timestamp raro.
-          return { ...w, score: distanceToScore(alineamiento.normalizedDistance, scale) };
+          return { ...w, score: distanceToScore(alineamiento.normalizedDistance, scale, floor) };
         }
 
         const costo = segmentCost(
@@ -170,11 +225,11 @@ export function createPronunciationScorer(options: ScorerOptions = {}): Pronunci
           to,
           dtwOptions
         );
-        return { ...w, score: distanceToScore(costo, scale) };
+        return { ...w, score: distanceToScore(costo, scale, floor) };
       });
 
       return {
-        overall: distanceToScore(alineamiento.normalizedDistance, scale),
+        overall: distanceToScore(alineamiento.normalizedDistance, scale, floor),
         words: puntajePorPalabra,
         dtwDistance: alineamiento.distance,
       };

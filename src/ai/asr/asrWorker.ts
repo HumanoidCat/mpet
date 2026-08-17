@@ -112,10 +112,33 @@ self.onmessage = async (event: MessageEvent<AsrRequest>) => {
       if (multilingue && msg.language) opciones.language = msg.language;
 
       const out = await asr(msg.pcm, opciones);
+      const texto = (out.text ?? '').trim();
+
+      // Segunda pasada sobre el MISMO audio, pidiendo la tarea `translate`. Los
+      // pesos son los mismos y ya están en memoria: cuesta una inferencia, no un
+      // modelo. Solo se pide si hay algo que traducir —el idioma detectado no es
+      // inglés— para no gastar una pasada en el caso habitual.
+      let englishText: string | undefined;
+      if (msg.alsoTranslate && multilingue && texto.length > 0) {
+        const idiomaDetectado = msg.language ?? normalizarIdioma(out.language);
+        if (idiomaDetectado !== 'en') {
+          const traducido = await asr(msg.pcm, {
+            language: idiomaDetectado,
+            task: 'translate',
+          });
+          const limpio = (traducido.text ?? '').trim();
+          // Si la traducción sale igual que el original, no traduce nada y
+          // mostrarla como «en inglés se dice…» sería mentir.
+          if (limpio.length > 0 && limpio.toLowerCase() !== texto.toLowerCase()) {
+            englishText = limpio;
+          }
+        }
+      }
 
       const result: Transcription = {
-        text: (out.text ?? '').trim(),
+        text: texto,
         words: toWordAlign(out.chunks),
+        ...(englishText ? { englishText } : {}),
         // Con un modelo de solo inglés no hay nada que detectar, y decir `'en'` sería
         // afirmar una detección que no ocurrió: se deja ausente, que el contrato
         // define como "trátese como inglés".

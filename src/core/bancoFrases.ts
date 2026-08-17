@@ -110,3 +110,69 @@ export function siguienteFrase(hechas: readonly string[]): FrasePractica {
   // Al terminar el banco se vuelve a empezar: repetir es practica, no un fallo.
   return pendiente ?? BANCO_FRASES[0];
 }
+
+// ── Frase propia ─────────────────────────────────────────────────────────────
+
+/**
+ * Aviso sobre una frase que escribio el estudiante, sin bloquearla.
+ *
+ * POR QUE AVISAR Y NO PROHIBIR. El banco cerrado existe por una razon buena —sus
+ * diez frases estan curadas para que el sintetizador las diga bien y para
+ * entrenar contrastes concretos— pero deja fuera lo que el estudiante de verdad
+ * necesita decir. Alguien que va a una entrevista quiere practicar SU frase, no
+ * «The pool is very cold».
+ *
+ * Las restricciones del banco no son reglas de calidad del ingles: son limites
+ * del sintetizador y del reconocedor. Una frase con una cifra no esta mal
+ * escrita, simplemente el TTS la lee mal, asi que la referencia contra la que se
+ * compara sale defectuosa. Eso es algo que hay que **decirle** al estudiante para
+ * que interprete el resultado, no una razon para negarle la practica.
+ *
+ * Por eso devuelve un aviso opcional en vez de un booleano: la practica siempre
+ * procede, y si hay algo que puede falsear el puntaje, se muestra junto a el.
+ */
+export function avisoSobreFrase(texto: string): string | null {
+  const limpio = texto.trim();
+  if (limpio.length === 0) return null;
+
+  if (/\d/.test(limpio)) {
+    return 'Tiene cifras y el sintetizador las lee mal, así que la referencia puede salir rara. Escribí los números con letras.';
+  }
+
+  const palabras = limpio
+    .toLowerCase()
+    .replace(/[^\p{L}\s']/gu, ' ')
+    .split(/\s+/)
+    .filter((p) => p.length > 0);
+
+  const vetada = palabras.find((p) => PALABRAS_VETADAS.includes(p));
+  if (vetada) {
+    return `Contiene «${vetada}», una de las palabras que el sintetizador pronuncia mal. El puntaje de esa palabra no será fiable.`;
+  }
+
+  if (palabras.length < 4) {
+    return 'Es muy corta. El reconocedor necesita algo de contexto: con menos de cuatro palabras falla más.';
+  }
+  if (palabras.length > 12) {
+    return 'Es larga. Cuanto más larga la frase, más se diluye el contraste y más se acumulan errores de alineamiento.';
+  }
+
+  return null;
+}
+
+/**
+ * Convierte una frase escrita por el estudiante en una `FrasePractica`.
+ *
+ * `foco` queda vacio y `contraste` dice de donde vino: en el banco esos dos
+ * campos explican **por que** se propone la frase, y en una frase propia la
+ * respuesta es «porque vos la elegiste». Inventar un contraste que nadie eligio
+ * seria afirmar algo que no se midio.
+ */
+export function frasePropia(texto: string): FrasePractica {
+  return {
+    id: `propia-${texto.trim().toLowerCase().replace(/\s+/g, '-').slice(0, 40)}`,
+    texto: texto.trim(),
+    foco: '',
+    contraste: 'tu frase',
+  };
+}

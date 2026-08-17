@@ -174,6 +174,19 @@ export interface Transcription {
    * trata como inglés, que es el comportamiento que había antes de este campo.
    */
   language?: SupportedLanguage;
+  /**
+   * Lo que dijo el estudiante, **traducido a inglés**.
+   *
+   * Solo existe cuando habló en español. Sale de la misma pasada de Whisper que
+   * la transcripción, con su tarea `translate`: es una capacidad del modelo que
+   * ya está cargado, no un modelo aparte.
+   *
+   * Es lo que permite que el tutor bilingüe funcione con un modelo rápido: en
+   * vez de pedirle a un modelo de chat multilingüe que traduzca y conteste —lo
+   * que costaba 7 segundos por turno— la traducción llega hecha y el tutor solo
+   * tiene que conversar sobre ella.
+   */
+  englishText?: string;
 }
 
 export interface AIPipeline {
@@ -186,7 +199,11 @@ export interface AIPipeline {
    * ya se sabe que la frase objetivo está en inglés: dejar que el detector dude ante
    * una palabra mal pronunciada solo añadiría una forma de fallar.
    */
-  transcribe(pcm: Float32Array, language?: SupportedLanguage): Promise<Transcription>;
+  transcribe(
+    pcm: Float32Array,
+    language?: SupportedLanguage,
+    alsoTranslate?: boolean
+  ): Promise<Transcription>;
   correctGrammar(text: string): Promise<{ corrected: string; edits: Edit[] }>;
   suggest(text: string): Promise<string[]>;
   /**
@@ -196,7 +213,11 @@ export interface AIPipeline {
    * español, el tutor deja de conversar y pasa a ayudar: da la frase en inglés que el
    * estudiante no consiguió armar, y sigue la conversación desde ahí.
    */
-  reply(history: ChatMessage[], language?: SupportedLanguage): Promise<string>;
+  reply(
+    history: ChatMessage[],
+    language?: SupportedLanguage,
+    ingles?: string
+  ): Promise<string>;
   /** Sintetiza voz; devuelve PCM 16 kHz para reproducir y comparar. */
   speak(text: string): Promise<Float32Array>;
 }
