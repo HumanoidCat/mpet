@@ -2,9 +2,9 @@
 
 > **Material preparado por Fabrizio Espinoza para integrar en `avance-2.md`.**
 >
-> ⚠️ **Esta versión sustituye a `avance-2-seccion-dsp.md`**, que se conserva sin
-> modificar como registro de lo que se sabía al redactarlo. **Es esta la que debe
-> integrarse.**
+> ⚠️ **Esta es la versión vigente de la sección de DSP.** Sustituye a un borrador
+> anterior que su propio autor marcó como superado; ese borrador se retiró del
+> repositorio y queda en el historial de git.
 >
 > No es el documento de la entrega: es el aporte del módulo de audio, redactado
 > en el mismo registro que el Avance 1 y listo para insertar. Cada bloque indica

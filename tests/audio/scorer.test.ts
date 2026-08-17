@@ -15,6 +15,7 @@ import { mfccSequence, cepstralMeanNormalize } from '../../src/audio/features/mf
 import {
   createPronunciationScorer,
   distanceToScore,
+  SCORE_FLOOR,
   frameRangeForWord,
   defaultBandRadius,
   SCORE_SCALE,
@@ -310,5 +311,47 @@ describe('Casos límite y configuración (S6-T2)', () => {
 
   it('la constante de escala es la calibrada', () => {
     expect(SCORE_SCALE).toBe(20);
+  });
+});
+
+/**
+ * Suelo del puntaje.
+ *
+ * QUE PROTEGE: que una pronunciacion correcta no siga castigada por no tener la
+ * voz del sintetizador. Es la queja de que «califica muy heavy», y era cierta.
+ */
+describe('suelo del puntaje', () => {
+  it('la curva pura no descuenta nada por defecto', () => {
+    // `distanceToScore` es matematica; el suelo es del caso «humano contra TTS».
+    expect(distanceToScore(0)).toBeCloseTo(100, 6);
+    expect(distanceToScore(SCORE_FLOOR)).toBeLessThan(100);
+  });
+
+  it('descontando el suelo, pronunciar bien con otra voz saca 100', () => {
+    // 7.08 es lo que cuesta cambiar de voz, medido en S9-T3 sobre 40 grabaciones.
+    // Antes daba 70 y esos 30 puntos no dependian de como pronunciara nadie.
+    expect(distanceToScore(SCORE_FLOOR, SCORE_SCALE, SCORE_FLOOR)).toBeCloseTo(100, 6);
+  });
+
+  it('pronunciar mal sigue costando puntos', () => {
+    // Pronunciar mal cuesta +1.20 sobre el suelo (S9-T3). Descontar el suelo no
+    // debe borrar esa diferencia, solo el sesgo que no era del estudiante.
+    const bien = distanceToScore(SCORE_FLOOR, SCORE_SCALE, SCORE_FLOOR);
+    const mal = distanceToScore(SCORE_FLOOR + 1.2, SCORE_SCALE, SCORE_FLOOR);
+    expect(mal).toBeLessThan(bien);
+  });
+
+  it('no mejora la separacion a costa de invertirla', () => {
+    // Cuanto peor la distancia, peor el puntaje: el suelo no rompe la monotonia.
+    const puntajes = [0, 5, 7.08, 10, 20, 40].map((d) =>
+      distanceToScore(d, SCORE_SCALE, SCORE_FLOOR)
+    );
+    for (let i = 1; i < puntajes.length; i++) {
+      expect(puntajes[i]).toBeLessThanOrEqual(puntajes[i - 1]);
+    }
+  });
+
+  it('un suelo negativo no regala puntos', () => {
+    expect(distanceToScore(10, SCORE_SCALE, -50)).toBeCloseTo(distanceToScore(10), 6);
   });
 });

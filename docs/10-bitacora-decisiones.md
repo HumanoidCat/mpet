@@ -775,7 +775,8 @@ que falla si alguien vuelve a incluir las líneas del tutor en el prompt, y otro
 que comprueba que dos preguntas distintas producen prompts distintos. Verificado
 con `tsc --noEmit` y con la lógica ejecutada directamente (`vitest` no corre en
 el entorno donde se escribió el arreglo); falta la corrida de la suite completa y
-el PR — ver `docs/pendiente-tutor-repite.md`.
+el PR. (El diagnostico detallado que se uso vivio en un archivo de trabajo
+aparte, ya retirado del repositorio: lo que importa quedo aqui.)
 
 **Aprendizaje.** El contexto conversacional que parecía una mejora —darle al
 modelo sus propias respuestas anteriores— era la causa del defecto. Un modelo
@@ -829,8 +830,7 @@ mayor que cualquier sesgo razonable de un solo oyente. Pero debe quedar escrita
 en el PR del `shared-change`, no solo aquí.
 
 **Registro.** `package.json` y `src/shared/` los aprueba Alejandro (regla
-existente desde S1). Isaac abre el PR con la etiqueta `shared-change`;
-mensaje de contexto en `docs/MENSAJE-isaac-kokoro-aprobado.md`.
+existente desde S1). Isaac abre el PR con la etiqueta `shared-change`.
 
 ---
 
@@ -1137,3 +1137,62 @@ termina, no cuando el razonamiento parece correcto.
 que entró con Kokoro— lleva eSpeak embebido en su propio bundle de 1.3 MB, sin
 `fetch` ni ficheros externos. No compromete el funcionamiento sin conexión
 (RF-14), que era la duda razonable al ver que usaba WASM.
+
+---
+
+## D-21 · El bilingüe se resuelve en el reconocedor, no en el tutor (Semana 8)
+
+**Contexto.** D-18 trajo un modelo de chat multilingüe para que el tutor pudiera
+atender a un estudiante que recurre al español. Medido en la aplicación
+desplegada, con cinco turnos cronometrados:
+
+| Turno | Tutor |
+|---|---:|
+| 1.º (con descarga) | 44 467 ms |
+| 2.º | 7 226 ms |
+| 3.º | 7 226 ms |
+| 4.º | 7 511 ms |
+| 5.º | 16 297 ms |
+
+Entre **7 y 16 segundos por respuesta**, además de escribir párrafos de cinco
+líneas en vez de conversar, filtrar la etiqueta `Assistant:` y ofrecer
+sugerencias inventadas. La retroalimentación en cambio sí cumplía el presupuesto
+de D-15: 397 a 1 282 ms.
+
+**La pregunta que lo destrabó** la hizo Fabrizio: *«¿y no se pueden usar dos
+modelos que se comuniquen entre sí?»*. Encadenarlos no servía —sumaría las dos
+latencias— pero obligó a preguntarse **qué necesitaba realmente el tutor del
+español**. Y la respuesta es: nada. Solo hacía falta **traducir** lo que el
+estudiante dijo.
+
+**Decisión.** La traducción la hace el reconocedor. Whisper multilingüe tiene una
+tarea `translate` que devuelve inglés desde cualquier idioma, verificada en la
+versión instalada de transformers.js. Con la traducción resuelta antes, al tutor
+le llega siempre inglés y vuelve a ser el T5 rápido.
+
+| | Con el modelo de chat | Ahora |
+|---|---|---|
+| Latencia del tutor | 7 – 16 s | ~1.5 s |
+| Bilingüe | Sí | **Sí** |
+| Traducción | La inventaba el modelo | Literal, la de Whisper |
+| Peso extra | ~500 MiB | **0** — ya estaba cargado |
+| Sugerencias | Inventaba biografías | Reescrituras correctas |
+
+Cuesta una segunda pasada del reconocedor sobre el mismo audio, y **solo cuando
+el turno vino en español**: en inglés no hay nada que traducir y no se pide.
+
+**Detalle que importa.** La frase en inglés que se le muestra al estudiante la
+antepone el código, no el modelo (`prefijoTraduccion`). Es exactamente lo que
+tradujo Whisper, sin pasar por un generador que pudiera reformularla o
+inventarla. Además de rápido, es más fiable.
+
+**Lo que se conserva.** La configuración de chat sigue seleccionable con sus
+mediciones. Lo que la descartó fue la latencia, no la calidad de la idea: aporta
+memoria entre turnos, que un T5 no puede dar. El día que un modelo así responda
+en tiempo razonable en el navegador, la vuelta es una constante.
+
+**Aprendizaje.** Se trajo un modelo grande para resolver un requisito —entender
+al estudiante en español— sin comprobar antes si alguna pieza ya cargada podía
+hacerlo. Whisper multilingüe llevaba dos días en el proyecto con la tarea
+`translate` disponible y nadie la miró. **Antes de sumar un modelo conviene
+inventariar lo que los que ya están saben hacer.**

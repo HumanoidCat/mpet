@@ -30,7 +30,11 @@ export interface AsrClient {
    * ya se sabe que la frase objetivo está en inglés y dejar dudar al detector sobre
    * una palabra mal pronunciada solo añade una forma de fallar.
    */
-  transcribe(pcm: Float32Array, language?: SupportedLanguage): Promise<Transcription>;
+  transcribe(
+    pcm: Float32Array,
+    language?: SupportedLanguage,
+    alsoTranslate?: boolean
+  ): Promise<Transcription>;
   /** Termina el worker y libera la memoria del modelo (~290 MB medidos en S1-T7). */
   dispose(): void;
 }
@@ -120,14 +124,20 @@ export function createAsrClient(options: AsrClientOptions = {}): AsrClient {
       });
     },
 
-    transcribe(pcm, language) {
+    transcribe(pcm, language, alsoTranslate) {
       return new Promise<Transcription>((resolve, reject) => {
         const id = nextId++;
         pending.set(id, { resolve, reject });
         // No transferimos el buffer (`[pcm.buffer]`) a propósito: al transferirlo
         // el hilo principal lo perdería, y el motor de audio de Fabrizio puede
         // seguir necesitando ese mismo PCM para el análisis de pronunciación.
-        send({ type: 'transcribe', id, pcm, ...(language ? { language } : {}) });
+        send({
+          type: 'transcribe',
+          id,
+          pcm,
+          ...(language ? { language } : {}),
+          ...(alsoTranslate ? { alsoTranslate } : {}),
+        });
       });
     },
 

@@ -10,6 +10,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_SUGGESTIONS_CONFIG,
+  prefijoTraduccion,
   FALLBACK_SUGGESTIONS_CONFIG,
   GEN_REPLY,
   GEN_SUGGEST,
@@ -152,10 +153,13 @@ describe('buildTutorMessages · tutor de chat bilingue', () => {
     expect(es).toBe(TUTOR_SYSTEM_ES);
   });
 
-  it('la instruccion en espanol pide dar primero la frase en ingles', () => {
-    // Es lo que hace util al tutor bilingue: el estudiante recurre al espanol porque
-    // no le sale en ingles, asi que lo primero que necesita es esa frase.
-    expect(TUTOR_SYSTEM_ES).toContain('In English:');
+  it('la instruccion en espanol NO le pide traducir: la traduccion ya viene hecha', () => {
+    // Cambio del 17-ago. Antes se le pedia al modelo traducir Y conversar, y para
+    // eso hacia falta un modelo multilingue: 7 a 16 s por respuesta medidos. Ahora
+    // la traduccion la hace el reconocedor, que ya estaba cargado, y el tutor solo
+    // conversa sobre lo que el estudiante quiso decir.
+    expect(TUTOR_SYSTEM_ES).toContain('already in English');
+    expect(TUTOR_SYSTEM_ES).not.toContain('In English:');
   });
 
   it('recorta el historial a la ventana de turnos', () => {
@@ -174,6 +178,23 @@ describe('buildTutorMessages · tutor de chat bilingue', () => {
     const out = buildTutorMessages([]);
     expect(out).toHaveLength(1);
     expect(out[0].role).toBe('system');
+  });
+});
+
+describe('traduccion hecha por el reconocedor', () => {
+  it('presenta la frase en ingles con formato reconocible', () => {
+    // La escribe el codigo, no el modelo: es exactamente lo que tradujo Whisper,
+    // sin pasar por un generador que pudiera reformularla o inventarla.
+    expect(prefijoTraduccion('I want to talk about my job')).toBe(
+      'In English: «I want to talk about my job»'
+    );
+  });
+
+  it('la instruccion en espanol ya NO le pide traducir al modelo', () => {
+    // Ese era el requisito que obligaba a un modelo multilingue y costaba 7 s por
+    // turno. Ahora la traduccion llega hecha y el tutor solo conversa.
+    expect(TUTOR_SYSTEM_ES).toContain('already in English');
+    expect(TUTOR_SYSTEM_ES).not.toContain('In English:');
   });
 });
 
@@ -236,11 +257,20 @@ describe('configuraciones', () => {
     // justo cuando haría falta.
     expect(FALLBACK_SUGGESTIONS_CONFIG).not.toBe(DEFAULT_SUGGESTIONS_CONFIG);
     expect(() => getSuggestionsConfig(FALLBACK_SUGGESTIONS_CONFIG)).not.toThrow();
-    expect(getSuggestionsConfig(FALLBACK_SUGGESTIONS_CONFIG).kind).toBe('seq2seq');
+    expect(getSuggestionsConfig(FALLBACK_SUGGESTIONS_CONFIG).kind).toBe('chat');
   });
 
-  it('el modelo por defecto es de chat, que es lo que permite conversar', () => {
-    expect(getSuggestionsConfig(DEFAULT_SUGGESTIONS_CONFIG).kind).toBe('chat');
+  it('el modelo por defecto es el rapido, no el de chat', () => {
+    // 17-ago: el de chat costaba 7 a 16 s por respuesta, medido en la aplicacion
+    // desplegada. El bilingue dejo de necesitarlo cuando la traduccion paso al
+    // reconocedor, que ya estaba cargado y sabe hacerla.
+    expect(getSuggestionsConfig(DEFAULT_SUGGESTIONS_CONFIG).kind).toBe('seq2seq');
+  });
+
+  it('la config de chat sigue existiendo para el dia que la latencia baje', () => {
+    // No se borra: aporta memoria entre turnos, que el T5 no puede dar. Lo que la
+    // descarto fue la latencia, no la calidad de la idea.
+    expect(getSuggestionsConfig('chat-qwen-05b').kind).toBe('chat');
   });
 
   it('falla con un identificador desconocido', () => {

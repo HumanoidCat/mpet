@@ -97,8 +97,12 @@ export function createAIPipeline(options: AIPipelineOptions = {}): AIPipeline {
       await grammar.init(report);
     },
 
-    transcribe(pcm: Float32Array, language?: SupportedLanguage): Promise<Transcription> {
-      return asr.transcribe(pcm, language);
+    transcribe(
+      pcm: Float32Array,
+      language?: SupportedLanguage,
+      alsoTranslate?: boolean
+    ): Promise<Transcription> {
+      return asr.transcribe(pcm, language, alsoTranslate);
     },
 
     correctGrammar(text: string): Promise<{ corrected: string; edits: Edit[] }> {
@@ -142,11 +146,16 @@ export function createAIPipeline(options: AIPipelineOptions = {}): AIPipeline {
      * audio, y mandar todo eso al worker en cada turno sería copiar megabytes que el
      * modelo no mira.
      */
-    async reply(history: ChatMessage[], language?: SupportedLanguage): Promise<string> {
+    async reply(
+      history: ChatMessage[],
+      language?: SupportedLanguage,
+      ingles?: string
+    ): Promise<string> {
       await suggestionsLoader.ensure();
       return suggestions.reply(
         history.map((m) => ({ role: m.role, text: m.text })),
-        language
+        language,
+        ingles
       );
     },
   };

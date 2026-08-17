@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import {
   BANCO_FRASES,
+  avisoSobreFrase,
   cumpleCriterio,
+  frasePropia,
   siguienteFrase,
 } from '../../src/core/bancoFrases';
 
@@ -97,5 +99,62 @@ describe('siguienteFrase', () => {
     // interfaz a manejar un caso que no aporta nada.
     const todas = BANCO_FRASES.map((f) => f.id);
     expect(siguienteFrase(todas).id).toBe(BANCO_FRASES[0].id);
+  });
+});
+
+/**
+ * Frase propia.
+ *
+ * QUE PROTEGE: el banco cerrado deja fuera lo que el estudiante de verdad
+ * necesita decir, y sus restricciones no son reglas del ingles sino limites del
+ * sintetizador y del reconocedor. Por eso la frase propia **siempre procede** y
+ * lo que se comprueba es que el aviso salga cuando corresponde, no que bloquee.
+ */
+describe('frase propia', () => {
+  it('no avisa nada sobre una frase normal', () => {
+    expect(avisoSobreFrase('I have a job interview tomorrow')).toBeNull();
+  });
+
+  it('avisa de las cifras, que el sintetizador lee mal (I-07)', () => {
+    expect(avisoSobreFrase('The meeting is at 5 oclock')).toContain('cifras');
+  });
+
+  it('avisa de las palabras que el sintetizador pronuncia mal (S7-T4)', () => {
+    const aviso = avisoSobreFrase('I drink water every morning');
+    expect(aviso).toContain('water');
+  });
+
+  it('avisa si es demasiado corta para que el reconocedor la ubique', () => {
+    expect(avisoSobreFrase('Hello there')).toContain('corta');
+  });
+
+  it('avisa si es tan larga que diluye el contraste', () => {
+    const larga =
+      'I would really like to talk about the things that happened to me during my last trip abroad';
+    expect(avisoSobreFrase(larga)).toContain('larga');
+  });
+
+  it('no avisa sobre texto vacio: no hay nada de que avisar todavia', () => {
+    expect(avisoSobreFrase('')).toBeNull();
+    expect(avisoSobreFrase('   ')).toBeNull();
+  });
+
+  it('convierte el texto en una frase practicable', () => {
+    const f = frasePropia('  I have a job interview tomorrow  ');
+    expect(f.texto).toBe('I have a job interview tomorrow');
+    expect(f.id).toContain('propia-');
+    // `foco` vacio a proposito: en el banco explica por que se propone la frase,
+    // y aqui la respuesta es «porque la elegiste vos». Inventar un contraste
+    // seria afirmar algo que nadie midio.
+    expect(f.foco).toBe('');
+    expect(f.contraste).toBe('tu frase');
+  });
+
+  it('dos frases distintas no comparten identificador', () => {
+    // Si colisionaran, el historial de progreso mezclaria dos practicas
+    // distintas como si fueran la misma.
+    expect(frasePropia('I like coffee a lot').id).not.toBe(
+      frasePropia('I like tea a lot').id
+    );
   });
 });
