@@ -44,12 +44,13 @@
 
 ---
 
-## Estado final — listo para push (10 ago)
+## Estado final — PR #69 mergeado a dev (10 ago)
 
 Todo lo marcado `[x]` arriba está implementado, probado y verificado en
 navegador. Antes de cada commit: `npm run typecheck && npm test && npm run
-build` en verde (455 pruebas, 49 del módulo UI). Nada se subió a `origin`
-todavía — el push queda a criterio de quien revise esto.
+build` en verde (455 pruebas, 49 del módulo UI). Subido por PR #69
+(`feat/ui-puntaje-pronunciacion` → `dev`), aprobado y mergeado — historial
+detallado abajo, correcciones posteriores en la sección del 17 de agosto.
 
 **Fuera de mi alcance, señalado y no tocado** (regla: solo `src/ui/` y
 `tests/ui/`):
@@ -205,6 +206,37 @@ al usuario en producción. Hay una prueba nueva, `tests/ui/sinNotasDeEquipo.test
 que falla si vuelve a pasar.
 
 ---
+
+## Feedback más amigable (17 ago, a pedido del team lead)
+
+El team lead pidió revisar `¡Muy bien! / Vas bien / Sigue practicando`
+(`TIER_LABEL` en `pronunciationColor.ts`) por sonar agresivo para una app de
+aprendizaje. Antes de inventar palabras nuevas se revisó si ya había un
+criterio de redacción amigable establecido en el resto del código —
+**lo había**: `src/core/fraseObjetivo.ts` y `ComparacionObjetivo` en
+`contracts.ts` (features nuevas del equipo, mergeadas después de mi PR #69)
+declaran explícitamente, como regla "no negociable", que la interfaz nunca
+debe decir "lo dijiste mal" y sí "no te entendí bien" — porque esa señal
+tiene falsos positivos (4 de cada 10) y acusar a quien pronunció bien
+desmotiva y es falso. El mismo razonamiento aplica al puntaje acústico
+(R03: pesa más la voz que la pronunciación), así que:
+
+- `TIER_LABEL`: `good: '¡Excelente!'`, `ok: '¡Bien hecho!'`,
+  `bad: 'Vas mejorando'` — ningún nivel usa un verbo en imperativo
+  dirigido al estudiante ("sigue practicando" es una orden).
+- `TIER_ENCOURAGEMENT.bad` ahora aclara que el puntaje compara también el
+  timbre de voz, no solo la pronunciación, para no dar a entender que un
+  número bajo es siempre un error del estudiante.
+- Sin cambios de color (RF-17 fija verde/amarillo/rojo) ni de umbrales — el
+  pedido era de palabras, no de la escala.
+
+Verificado en navegador (modo `?mock=1`, pantalla Pronunciation) y con
+`npm run typecheck && npm test && npm run build` en verde (642 pruebas —
+el número subió mucho desde el 10 de agosto porque en el ínterin el equipo
+mergeó tutor bilingüe, modo práctica con frase objetivo, Kokoro TTS y más;
+nada de eso lo tocó este cambio). Va en una rama nueva
+(`feat/ui-feedback-amigable`) partiendo de `dev` actualizado, no sobre la
+rama vieja de S6-T3 que ya se había mergeado por PR #69.
 
 ## Tips técnicos
 Canvas 2D + `requestAnimationFrame`; el espectrograma es una imagen que se desplaza (`drawImage` de sí mismo). Contrato que consumes: `AudioEngine.onFrame(cb)` → `AudioFrame` ~30/seg. Colores: verde ≥80, amarillo 60–79, rojo <60 (`WordScore.score`).
