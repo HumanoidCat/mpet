@@ -20,10 +20,19 @@ export const TIER_COLOR: Record<ScoreTier, string> = {
   bad: '#DC2626',
 };
 
+/**
+ * Ningun nivel usa un verbo en imperativo dirigido al estudiante (evitar
+ * "sigue practicando", "repeti", etc. como etiqueta corta): la misma razon
+ * por la que `fraseObjetivo.ts` prohibe decir "lo dijiste mal" y exige "no
+ * te entendi bien" — es una senal con falsos positivos (el puntaje acustico
+ * pesa mas la voz que la pronunciacion, R03 en s9-t3-calibracion-voz-real.md),
+ * asi que una etiqueta que suene a orden o a reprobacion puede estar
+ * regañando a alguien que en realidad pronuncio bien.
+ */
 export const TIER_LABEL: Record<ScoreTier, string> = {
-  good: '¡Muy bien!',
-  ok: 'Vas bien',
-  bad: 'Sigue practicando',
+  good: '¡Excelente!',
+  ok: '¡Bien hecho!',
+  bad: 'Vas mejorando',
 };
 
 /**
@@ -35,7 +44,7 @@ export const TIER_LABEL: Record<ScoreTier, string> = {
 export const TIER_ENCOURAGEMENT: Record<ScoreTier, string> = {
   good: 'Tu pronunciación de esta frase es muy clara.',
   ok: 'Vas por buen camino. Repetí la frase una vez más para afinar los detalles.',
-  bad: 'Es normal al principio. Escuchá la frase de referencia y repetila las veces que necesites.',
+  bad: 'Este puntaje compara también el timbre de tu voz contra el de la referencia, no solo la pronunciación — un número bajo no siempre significa que lo dijiste mal. Escuchá la frase de referencia y repetila las veces que necesites.',
 };
 
 export function scoreColor(score: number): string {
