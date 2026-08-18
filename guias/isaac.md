@@ -53,7 +53,7 @@
         líneas Tutor: que copiar) + `esEco()` en `cleanup.ts` como red de seguridad
         que funciona aunque cambie el modelo. Evidencia:
         `docs/evidencias/s7/s7-t2-respuestas-del-tutor.md`. Falta re-verificar el
-        ciclo completo en vivo (la red se cayó tres veces bajando el modelo).
+        ciclo completo en vivo.
 - [ ] S7-T4 · Optimizar latencia: pipeline en paralelo, medir por etapa (con Fabrizio)
 - [x] D-12 · Evaluar Kokoro con el banco acordado, medido y cerrado (12-ago)
       -> 1 fallo de 14 (MMS-TTS: 7), 0 de 5 en control, determinista (resuelve el suelo
@@ -65,6 +65,16 @@
 - [x] I-07 · Números a letras antes de sintetizar
       → `src/ai/tts/textNormalization.ts`. El reconocedor ya recupera $25, 8:30 y 1998
         donde antes no oía nada. Evidencia: `docs/evidencias/s7/i07-numeros-a-letras.md`
+- [x] D-18 (seguimiento) · Las tres preguntas que quedaron abiertas de Qwen, medidas (13-ago)
+      → Peso real ≈495 MiB (coincide con la ficha, a diferencia de Kokoro en D-12) y el
+        muestreo sí evita la repetición (3/3 distintas). Pero midiendo el peso aparecieron
+        dos problemas serios sin resolver: **el modelo no se cachea, se re-descarga
+        completo en cada carga de página** (verificado con recarga completa, dos veces:
+        103 s y 108 s — amenaza el offline de RF-14), y la **latencia de reply() salió en
+        ~17 s de media / ~22 s máxima**, 10× la referencia de LaMini (1.7 s). No cambié
+        `DEFAULT_SUGGESTIONS_CONFIG` — la vuelta atrás a `'grande-248m'` ya existe, la
+        decisión de usarla es del equipo. Evidencia:
+        `docs/evidencias/s8/d18-qwen-peso-latencia-medidos.md`
 
 ## Semana 8
 - [ ] S8-T1 · Medir WER: set de 50 frases, 4 hablantes
