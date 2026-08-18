@@ -111,10 +111,13 @@ export const SUGGESTIONS_CONFIGS: readonly SuggestionsConfig[] = [
     // así que paga esa penalización en cada uno de los hasta 96 tokens de la
     // respuesta. Se probó q4 el 16-ago y el turno se volvió notoriamente lento.
     dtype: 'q8',
-    // Sin medir todavía: la cifra sale de la ficha del Hub, no de una descarga
-    // propia. El propio proyecto ya se llevó un susto con esto en D-12 (Kokoro se
-    // estimó en 325 MB y medido cuantizado pesaba 88), así que este número es una
-    // referencia para decidir si vale la pena medir, no un dato.
+    // Medido (13-ago-2026): la descarga real da ≈495 MiB, así que esta cifra sí
+    // coincidía con la ficha del Hub — a diferencia de Kokoro en D-12, que se
+    // estimó en 325 MB y medido pesaba 88. PERO medir esto destapó dos problemas
+    // serios, no solo el peso: el archivo no queda en caché (se re-descarga
+    // completo en cada carga de página, verificado dos veces) y la latencia de
+    // reply() salió en ~17 s de media (10× la referencia de LaMini, 1.7 s).
+    // Detalle completo: docs/evidencias/s8/d18-qwen-peso-latencia-medidos.md
     expectedMB: 500,
     rationale:
       'Modelo de chat de verdad y multilingüe: recibe el historial con papeles y ' +
