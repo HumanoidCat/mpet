@@ -14,3 +14,7 @@ Thumbs.db
 
 # Configuracion local de Claude Code (rutas absolutas por maquina)
 .claude/
+
+# Archivos de bloqueo que Word y Excel crean al abrir un documento.
+# Se colaron una vez al versionar una entrega con el documento abierto.
+~$*
