@@ -18,3 +18,8 @@ Thumbs.db
 # Archivos de bloqueo que Word y Excel crean al abrir un documento.
 # Se colaron una vez al versionar una entrega con el documento abierto.
 ~$*
+
+# Material de ensayo de las presentaciones: guiones leidos y generadores.
+# No son entregables del curso y no van al repositorio.
+docs/entregas/guion-*.md
+docs/entregas/presentacion-*.js
