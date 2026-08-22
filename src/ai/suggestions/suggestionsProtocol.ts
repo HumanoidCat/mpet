@@ -168,13 +168,23 @@ export const DEFAULT_SUGGESTIONS_CONFIG: SuggestionsConfigId = 'grande-248m';
  */
 
 /**
- * Config anterior, que se mantiene seleccionable a propósito.
+ * La configuración de chat, que se mantiene seleccionable a propósito.
  *
- * Si al medir el modelo de chat en la aplicación real la latencia o el peso no
- * salen, se vuelve cambiando la constante de arriba a `'grande-248m'`: el worker
- * soporta las dos familias y el resto de la cadena no se entera. Tener la vuelta
- * atrás a una línea de distancia es lo que permite probar el cambio grande sin
- * arriesgar la entrega.
+ * **No la usa ningún camino de producción**: el worker soporta las dos familias y
+ * esta constante existe para que la alternativa quede declarada, con sus
+ * mediciones, junto a la que sí corre. Cambiar de una a otra es cambiar
+ * `DEFAULT_SUGGESTIONS_CONFIG` y nada más — el resto de la cadena no se entera.
+ *
+ * Lo que la descartó está medido dos veces, de forma independiente: 7 a 16 s por
+ * respuesta en la aplicación desplegada, y ~17 s de media en el spike de peso y
+ * latencia, que además encontró que el modelo **no queda en caché** y se
+ * re-descarga en cada carga de página. Ese segundo hallazgo la descalifica por sí
+ * solo, porque compromete el funcionamiento sin conexión.
+ *
+ * Se conserva porque la idea no era mala: un modelo de chat aporta memoria entre
+ * turnos, que un T5 no puede dar ni en principio. El día que uno así responda en
+ * tiempo razonable en el navegador, la vuelta es una línea.
+ * Evidencia: `docs/evidencias/s8/d18-qwen-peso-latencia-medidos.md`.
  */
 export const FALLBACK_SUGGESTIONS_CONFIG: SuggestionsConfigId = 'chat-qwen-05b';
 

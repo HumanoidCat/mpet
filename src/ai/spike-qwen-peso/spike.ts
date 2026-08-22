@@ -15,9 +15,14 @@
  *      `cleanTutorReply` que ya existe por otra causa (I-09).
  *
  * POR QUÉ EL CLIENTE DE PRODUCCIÓN Y NO UNA LLAMADA SUELTA: `createSuggestionsClient`
- * es exactamente lo que usa `createAIPipeline`, con la configuración por defecto
- * (`DEFAULT_SUGGESTIONS_CONFIG = 'chat-qwen-05b'`). Medir aquí es medir lo que un
- * usuario real vería, no una aproximación.
+ * es exactamente lo que usa `createAIPipeline`. Al hacerse esta medición, la
+ * configuración por defecto era `'chat-qwen-05b'`, de modo que estos números son
+ * los que veía un usuario real, no una aproximación.
+ *
+ * NOTA POSTERIOR (17-ago): estas mediciones, junto con las que se tomaron en la
+ * aplicación desplegada, llevaron a devolver la configuración por defecto a
+ * `'grande-248m'` y a resolver el bilingüismo en el reconocedor (D-21). El spike se
+ * conserva porque es la evidencia de por qué esa decisión era la correcta.
  *
  * CÓMO SE MIDE EL PESO: el cliente solo reenvía el progreso 0–1, no los bytes por
  * archivo (eso vive dentro del worker). Se lee `caches.open('transformers-cache')`
